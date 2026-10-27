@@ -1,0 +1,15 @@
+# Cloudflare only. Copy to .dev.vars for `bun run dev:cf` (Wrangler local secrets).
+# In production set the same names with `wrangler secret put <NAME>`:
+#   BETTER_AUTH_SECRET BETTER_AUTH_URL BOOTSTRAP_ADMIN_EMAIL MARZBAN_BASE_URL
+#   MARZBAN_USERNAME MARZBAN_PASSWORD MARZBAN_WEBHOOK_SECRET
+# Then apply migrations: bun run db:migrate:remote   (see docs/deploy.md)
+# Do not commit real secrets.
+BETTER_AUTH_URL=http://localhost:3000
+BETTER_AUTH_SECRET=<generate-a-long-random-secret>
+BOOTSTRAP_ADMIN_EMAIL=admin@example.com
+
+MARZBAN_BASE_URL=https://marzban.example.com
+# MARZBAN_SUBSCRIPTION_URL_PREFIX=https://sub.example.com
+MARZBAN_USERNAME=<marzban-admin-username>
+MARZBAN_PASSWORD=<marzban-admin-password>
+MARZBAN_WEBHOOK_SECRET=<generate-a-long-random-secret>

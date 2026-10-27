@@ -1,0 +1,26 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run test
+      - run: bun run build
+      - run: bun run build:cf
+      - name: Schema matches migrations
+        run: |
+          bunx drizzle-kit generate --name ci-check
+          test -z "$(git status --porcelain drizzle)" || { echo "Schema drifted from migrations"; git status --porcelain drizzle; exit 1; }
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t vpn-panel .

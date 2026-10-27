@@ -1,0 +1,196 @@
+@import 'tailwindcss';
+@import '@fontsource/poppins/latin-400.css';
+@import '@fontsource/poppins/latin-500.css';
+@import '@fontsource/poppins/latin-600.css';
+@import '@fontsource/poppins/latin-700.css';
+@plugin '@tailwindcss/typography';
+
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@font-face {
+  font-family: 'Arad';
+  src: url('/Arad-VF.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Marzgah brandbook: Firuzeh, Lajvard and Kahgel.
+   Deep/light turquoise keep interface text readable on their respective grounds. */
+:root {
+  --app-font: 'Arad', 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  color-scheme: light;
+  --background: #fbf9f5;
+  --foreground: #16294a;
+  --card: #ffffff;
+  --card-foreground: #16294a;
+  --popover: #ffffff;
+  --popover-foreground: #16294a;
+  --primary: #0d6f6a;
+  --primary-foreground: #ffffff;
+  --secondary: #f3ece0;
+  --secondary-foreground: #16294a;
+  --muted: #f3ece0;
+  --muted-foreground: #5a6478;
+  --accent: #e5f3f2;
+  --accent-foreground: #0d6f6a;
+  --destructive: #b2423a;
+  --destructive-foreground: #ffffff;
+  --border: #e4dccd;
+  --input: #8b918f;
+  --ring: #0d6f6a;
+  --chart-1: #0d6f6a;
+  --chart-2: #14968f;
+  --chart-3: #16294a;
+  --chart-4: #a66b16;
+  --chart-5: #b2423a;
+  --radius: 0.625rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #16294a;
+  --sidebar-primary: #0d6f6a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e5f3f2;
+  --sidebar-accent-foreground: #0d6f6a;
+  --sidebar-border: #e4dccd;
+  --sidebar-ring: #0d6f6a;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: #0e1a30;
+  --foreground: #ece6da;
+  --card: #14233f;
+  --card-foreground: #ece6da;
+  --popover: #14233f;
+  --popover-foreground: #ece6da;
+  --primary: #3fc1b4;
+  --primary-foreground: #0a1426;
+  --secondary: #1e3152;
+  --secondary-foreground: #ece6da;
+  --muted: #1e3152;
+  --muted-foreground: #a3aec2;
+  --accent: #193e49;
+  --accent-foreground: #3fc1b4;
+  --destructive: #e07a70;
+  --destructive-foreground: #0a1426;
+  --border: #263a5e;
+  --input: #667795;
+  --ring: #3fc1b4;
+  --chart-1: #3fc1b4;
+  --chart-2: #14968f;
+  --chart-3: #a3aec2;
+  --chart-4: #e2a03f;
+  --chart-5: #e07a70;
+  --sidebar: #0a1426;
+  --sidebar-foreground: #ece6da;
+  --sidebar-primary: #3fc1b4;
+  --sidebar-primary-foreground: #0a1426;
+  --sidebar-accent: #193e49;
+  --sidebar-accent-foreground: #3fc1b4;
+  --sidebar-border: #263a5e;
+  --sidebar-ring: #3fc1b4;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --font-heading: var(--font-sans);
+  --font-sans: var(--app-font);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+
+  html {
+    @apply font-sans;
+  }
+}
+
+/* Persian joining must remain natural, including headings using tracking utilities. */
+@layer base {
+  :lang(fa) {
+    letter-spacing: normal;
+  }
+
+  ::selection {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+}
+
+.brand-pattern {
+  background-color: var(--secondary);
+  background-image: url('/brand/arcade-sand.svg');
+  background-size: 128px;
+}
+
+.dark .brand-pattern {
+  background-color: var(--sidebar);
+  background-image: url('/brand/arcade-lajvard.svg');
+}
+
+html[lang='fa'] :is(h1, h2, h3, h4, h5, h6) {
+  letter-spacing: normal;
+}
+
+html[lang='en'],
+[lang='en'] {
+  --app-font: 'Poppins', 'Arad', ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--app-font);
+}
+html[lang='fa'],
+[lang='fa'] {
+  --app-font: 'Arad', 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--app-font);
+}

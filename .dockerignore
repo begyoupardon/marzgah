@@ -1,0 +1,8 @@
+node_modules
+.output
+dist
+.env*
+.dev.vars
+data
+backups
+.git

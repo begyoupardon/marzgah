@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "git-commit": {
+      "source": "fvadicamo/dev-agent-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/github-workflow/skills/git-commit/SKILL.md",
+      "computedHash": "c48c374ac84fff82f7ce5bfc670e3b065157fc8cb9582493a0429b5845423035"
+    }
+  }
+}

@@ -1,0 +1,1 @@
+ALTER TABLE `vpn_users` ADD `backend` text DEFAULT 'marzban' NOT NULL;

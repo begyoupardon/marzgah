@@ -1,0 +1,42 @@
+{
+  "brand": "Marzgah · مرزگاه",
+  "tagline": "The station at the border",
+  "brief": "Marzgah (مرزگاه, 'border post') is the reseller panel for Marzban VPN servers: admins run resellers, resellers serve their customers. The identity should feel Persian, trustworthy and calm — a gatehouse, not a hacker tool.",
+  "adjectives": ["Persian", "trustworthy", "orderly", "open"],
+  "criteria": "Distinct from blue-shield VPN marks, unmistakably Persian without religious symbols, readable at 16 px, works in one colour and RTL.",
+  "industry": "saas",
+  "mockups": [
+    "website",
+    "favicon-tab",
+    "app-icon",
+    "social",
+    "business-card",
+    "sticker"
+  ],
+  "nav": ["پنل نماینده", "قیمت‌ها", "ورود"],
+  "brand_color": "#14968F",
+  "greyscale": false,
+  "designer": "Marzgah brand kit",
+  "round": 2,
+  "concepts": [
+    {
+      "name": "Iwan — the border gate",
+      "symbol": "../logo/marzgah-symbol-color.svg",
+      "lockup": "../logo/marzgah-horizontal-color.svg",
+      "symbol_on_tile": "../logo/marzgah-symbol-white.svg",
+      "lockup_on_dark": "../logo/marzgah-horizontal-reversed.svg",
+      "idea": "A Persian iwan portal set into a border line; the line breaks only where the gate opens.",
+      "rationale": [
+        "Says the name: a gate (gāh) in a border (marz)",
+        "Caravanserai architecture — Persian, secular, built for travellers",
+        "Turquoise and lapis from Isfahan's tilework, not VPN blue"
+      ]
+    }
+  ],
+  "recommendation": "Iwan — approved direction. Turquoise mark, lapis wordmark, Arad + Poppins.",
+  "next_steps": [
+    "Wire the favicon and logo into the panel",
+    "Trademark search in Iran and target markets",
+    "Custom refinement pass on the Persian wordmark"
+  ]
+}
