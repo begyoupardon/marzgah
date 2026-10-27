@@ -1,7 +1,5 @@
 # Site brand: Marzgah
 # This service is an independent reseller admin panel named "Marzgah".
-# It is not affiliated with, endorsed by, or related to Circle Internet Financial, Inc.
-# (circle.com / USDC) or any other Circle-branded product.
 
 User-agent: *
 Allow: /

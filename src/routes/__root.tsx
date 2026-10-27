@@ -36,8 +36,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       },
       {
         name: 'description',
-        content:
-          'Marzgah is an independent reseller admin panel. Not affiliated with Circle Internet Financial, Inc., circle.com, USDC, or any Circle-branded product.',
+        content: 'Marzgah is an independent reseller admin panel.',
       },
       {
         name: 'author',

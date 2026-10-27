@@ -162,13 +162,6 @@ function SignInForm({ onDone }: { onDone: () => void }) {
           </form>
         </CardContent>
       </Card>
-      <p className="max-w-md space-y-2 text-center text-xs leading-relaxed text-muted-foreground">
-        <span className="block">
-          {t(
-            'مرزگاه یک پنل مستقل است و وابسته به Circle Internet Financial نیست.',
-          )}
-        </span>
-      </p>
     </AuthShell>
   )
 }

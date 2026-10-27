@@ -34,19 +34,6 @@ function HomePage() {
       <Button nativeButton={false} render={<Link to="/login" />}>
         {t('ورود به سامانه')}
       </Button>
-
-      <div className="max-w-xl space-y-3 text-center text-xs leading-relaxed text-muted-foreground">
-        <p>
-          {t(
-            'مرزگاه یک پنل مستقل مدیریت نمایندگان است و هیچ‌گونه وابستگی، تایید یا ارتباطی با شرکت Circle Internet Financial یا محصولات مرتبط با آن ندارد.',
-          )}
-        </p>
-        <p>
-          <a className="underline underline-offset-2" href="/brand.txt">
-            brand.txt
-          </a>
-        </p>
-      </div>
     </div>
   )
 }
