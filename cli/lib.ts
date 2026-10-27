@@ -1,3 +1,4 @@
+import { configureMigrationPath } from './paths'
 import { existsSync, readFileSync } from 'node:fs'
 import { randomBytes } from 'node:crypto'
 
@@ -17,13 +18,14 @@ export function randomSecret(bytes = 32) {
 
 /** Load KEY=VALUE pairs from a file into process.env without overriding. */
 export function loadEnvFile(path = '.env') {
-  if (!existsSync(path)) return
-  for (const line of readFileSync(path, 'utf8').split('\n')) {
+  const contents = existsSync(path) ? readFileSync(path, 'utf8') : ''
+  for (const line of contents.split('\n')) {
     const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line)
     if (m && !(m[1] in process.env)) {
       process.env[m[1]] = m[2].replace(/^["']|["']$/g, '')
     }
   }
+  configureMigrationPath()
 }
 
 export function databasePath() {

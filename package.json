@@ -28,7 +28,10 @@
     "build:cf": "BUILD_TARGET=cloudflare vite build",
     "start": "bun run .output/server/index.mjs",
     "db:migrate": "bun run cli migrate",
-    "cli": "bun run cli/index.ts"
+    "cli": "bun run cli/index.ts",
+    "build:cli": "bun scripts/build-cli.ts",
+    "test:cli-package": "bun scripts/test-cli-package.ts",
+    "pack:cli": "bun run build:cli && npm pack ./packages/cli"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

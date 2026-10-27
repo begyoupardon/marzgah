@@ -17,6 +17,15 @@ Runs on **Bun + local SQLite** (self-hosted, the default) or **Cloudflare Worker
 
 Details: [docs/features.md](docs/features.md).
 
+<!-- release-only-start -->
+
+## npm CLI package
+
+The publishable Bun-based CLI is in `packages/cli`; the website package stays private. Build with `bun run build:cli`, verify the installed tarball with `bun run test:cli-package`, and create it with `bun run pack:cli`. See [npm release instructions](docs/npm-cli.md) for the new repository identity, first publication and GitHub Actions trusted publishing.
+
+After the first npm publication, users can scaffold a complete panel with `bunx @begyoupardon/marzgah init my-panel`. Use `--scaffold-only` to create files without installing dependencies or running the setup wizard. Requires Bun 1.4.4 or newer.
+<!-- release-only-end -->
+
 ## Quick start
 
 Requires a recent [Bun](https://bun.sh) (developed on 1.4) and a running Marzban.

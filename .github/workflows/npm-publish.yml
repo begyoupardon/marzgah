@@ -1,0 +1,38 @@
+name: Publish CLI to npm
+on:
+  push:
+    tags: ['cli-v*']
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-cli-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'begyoupardon/marzgah'
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.4'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+      - run: npm install --global npm@11
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run test
+      - run: bun run build:cli
+      - run: bun run test:cli-package
+      - run: npm publish --access public
+        working-directory: packages/cli

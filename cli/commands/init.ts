@@ -5,6 +5,7 @@ import * as p from '@clack/prompts'
 import { defineCommand } from 'citty'
 
 import { cancelIfAborted, randomSecret, serializeEnv } from '../lib.ts'
+import { isPanelProject, scaffoldProject } from '../scaffold'
 
 type Target = 'docker' | 'bun' | 'cloudflare'
 
@@ -51,13 +52,49 @@ async function testMarzban(url: string, user: string, pass: string) {
   }
 }
 
-const sh = (cmd: string, args: string[]) =>
-  spawnSync(cmd, args, { stdio: 'inherit' }).status === 0
+const sh = (cmd: string, args: string[]) => {
+  const result = spawnSync(cmd, args, { stdio: 'inherit' })
+  if (result.error) throw result.error
+  if (result.status !== 0)
+    throw new Error(
+      `Setup command failed (exit ${result.status ?? 'unknown'}).`,
+    )
+}
 
 export default defineCommand({
   meta: { name: 'init', description: 'Interactive first-time setup wizard' },
-  async run() {
+  args: {
+    directory: {
+      type: 'positional',
+      description:
+        'New project directory (defaults to marzgah outside a project)',
+      required: false,
+    },
+    'scaffold-only': {
+      type: 'boolean',
+      description:
+        'Create project files without installing dependencies or requesting credentials',
+      default: false,
+    },
+  },
+  async run({ args }) {
     p.intro('Marzgah setup')
+    if (args.directory || !isPanelProject(process.cwd())) {
+      const directory = await scaffoldProject(args.directory ?? 'marzgah')
+      p.log.success(`Created ${directory}`)
+      if (args['scaffold-only']) {
+        p.note(
+          `cd ${JSON.stringify(directory)}\nbun install --frozen-lockfile\nbun run cli init`,
+          'Next steps',
+        )
+        return
+      }
+      process.chdir(directory)
+      p.log.step('Installing project dependencies with Bun')
+      sh(process.execPath, ['install', '--frozen-lockfile'])
+    } else if (args['scaffold-only']) {
+      throw new Error('Choose a new directory when using --scaffold-only.')
+    }
 
     if (existsSync('.env')) {
       const overwrite = cancelIfAborted(

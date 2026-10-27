@@ -1,11 +1,28 @@
 #!/usr/bin/env bun
 import { defineCommand, runMain } from 'citty'
+import { readFileSync } from 'node:fs'
+import { packagedAsset } from './paths'
+
+const version = (() => {
+  try {
+    return (
+      JSON.parse(readFileSync(packagedAsset('package.json'), 'utf8')).version ??
+      'dev'
+    )
+  } catch {
+    return 'dev'
+  }
+})()
 
 const lazy = <T>(load: () => Promise<{ default: T }>) =>
   load().then((m) => m.default)
 
 const main = defineCommand({
-  meta: { name: 'marzgah', description: 'Marzgah setup and admin CLI' },
+  meta: {
+    name: 'marzgah',
+    version,
+    description: 'Marzgah setup and admin CLI (requires Bun)',
+  },
   subCommands: {
     init: () => lazy(() => import('./commands/init.ts')),
     migrate: () => lazy(() => import('./commands/migrate.ts')),
