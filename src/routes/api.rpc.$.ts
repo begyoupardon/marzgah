@@ -3,13 +3,21 @@ import '#/polyfill'
 import { onError } from '@orpc/server'
 import { RPCHandler } from '@orpc/server/fetch'
 import { createFileRoute } from '@tanstack/react-router'
+import { clientIp } from '#/lib/rate-limit'
 import { logServerError } from '#/lib/server-errors'
 import router from '#/orpc/router'
 
 const handler = new RPCHandler(router, {
   interceptors: [
-    onError((error) => {
-      logServerError(error, 'rpc')
+    onError((error, options) => {
+      const url = options.request ? new URL(options.request.url) : null
+      logServerError(error, 'rpc', {
+        method: options.request?.method,
+        path: url?.pathname,
+        ip: options.context?.headers
+          ? clientIp(options.context.headers)
+          : undefined,
+      })
     }),
   ],
 })
