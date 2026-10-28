@@ -45,4 +45,67 @@ describe('localization', () => {
     expect(formatDate('2026-10-27T12:00:00Z', 'fa')).toContain('۱۴۰۵')
     expect(formatDate('invalid', 'en')).toBe('—')
   })
+
+  test('URL and path internationalization rewrites', () => {
+    const {
+      isSystemPath,
+      extractLocaleFromPath,
+      deLocalizePath,
+      localizePath,
+      deLocalizeUrl,
+      localizeUrl,
+    } = require('./core')
+
+    // System paths
+    expect(isSystemPath('/api/health')).toBe(true)
+    expect(isSystemPath('/api/rpc/tools.announcement')).toBe(true)
+    expect(isSystemPath('/_serverFn/abc123')).toBe(true)
+    expect(isSystemPath('/assets/styles.css')).toBe(true)
+    expect(isSystemPath('/favicon.ico')).toBe(true)
+    expect(isSystemPath('/site.webmanifest')).toBe(true)
+    expect(isSystemPath('/dashboard')).toBe(false)
+    expect(isSystemPath('/s/mytoken123')).toBe(false)
+    expect(isSystemPath('/en/dashboard')).toBe(false)
+
+    // Locale extraction from path
+    expect(extractLocaleFromPath('/en/dashboard')).toBe('en')
+    expect(extractLocaleFromPath('/en')).toBe('en')
+    expect(extractLocaleFromPath('/fa/login')).toBe('fa')
+    expect(extractLocaleFromPath('/fa')).toBe('fa')
+    expect(extractLocaleFromPath('/dashboard')).toBeNull()
+    expect(extractLocaleFromPath('/')).toBeNull()
+    expect(extractLocaleFromPath('/api/health')).toBeNull()
+
+    // De-localization (Input rewrite)
+    expect(deLocalizePath('/en/dashboard')).toBe('/dashboard')
+    expect(deLocalizePath('/en/s/token123')).toBe('/s/token123')
+    expect(deLocalizePath('/en')).toBe('/')
+    expect(deLocalizePath('/fa/login')).toBe('/login')
+    expect(deLocalizePath('/login')).toBe('/login')
+    expect(deLocalizePath('/api/health')).toBe('/api/health')
+
+    const inUrl = new URL('http://localhost:3000/en/users?view=expiring#filter')
+    expect(deLocalizeUrl(inUrl).pathname).toBe('/users')
+    expect(inUrl.search).toBe('?view=expiring')
+    expect(inUrl.hash).toBe('#filter')
+
+    // Localization (Output rewrite)
+    expect(localizePath('/dashboard', 'en')).toBe('/en/dashboard')
+    expect(localizePath('/s/token123', 'en')).toBe('/en/s/token123')
+    expect(localizePath('/', 'en')).toBe('/en')
+    expect(localizePath('/dashboard', 'fa')).toBe('/dashboard')
+    expect(localizePath('/en/dashboard', 'fa')).toBe('/dashboard')
+    expect(localizePath('/', 'fa')).toBe('/')
+    expect(localizePath('/api/health', 'en')).toBe('/api/health')
+    expect(localizePath('/favicon.ico', 'en')).toBe('/favicon.ico')
+
+    const outUrl = new URL('http://localhost:3000/dashboard')
+    expect(localizeUrl(outUrl, 'en').pathname).toBe('/en/dashboard')
+    expect(
+      localizeUrl(new URL('http://localhost:3000/en/dashboard'), 'en').pathname,
+    ).toBe('/en/dashboard')
+    expect(
+      localizeUrl(new URL('http://localhost:3000/en/dashboard'), 'fa').pathname,
+    ).toBe('/dashboard')
+  })
 })

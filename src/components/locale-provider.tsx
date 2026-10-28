@@ -3,8 +3,11 @@ import type { ReactNode } from 'react'
 import { DirectionProvider } from '#/components/ui/direction'
 import {
   createTranslator,
+  deLocalizePath,
   directionFor,
+  extractLocaleFromPath,
   localeTag,
+  localizePath,
   LOCALE_COOKIE,
 } from '#/lib/i18n/core'
 import type { Locale } from '#/lib/i18n/core'
@@ -41,14 +44,28 @@ export function LocaleProvider({
   useEffect(() => {
     setLocaleState(initialLocale)
   }, [initialLocale])
+
   useEffect(() => {
     document.documentElement.lang = locale
     document.documentElement.dir = directionFor(locale)
     const t = createTranslator(locale)
-    document.title = location.pathname.startsWith('/s/')
+    const cleanPath = deLocalizePath(location.pathname)
+    document.title = cleanPath.startsWith('/s/')
       ? t('وضعیت اشتراک | مرزگاه')
       : t('مرزگاه | Marzgah')
   }, [locale])
+
+  useEffect(() => {
+    const onPopState = () => {
+      const fromPath = extractLocaleFromPath(location.pathname) ?? 'fa'
+      if (fromPath !== locale) {
+        setLocaleState(fromPath)
+      }
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [locale])
+
   const value = useMemo(
     () => ({
       ...createLocaleValue(locale),
@@ -56,6 +73,16 @@ export function LocaleProvider({
         document.cookie = `${LOCALE_COOKIE}=${next}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`
         document.documentElement.lang = next
         document.documentElement.dir = directionFor(next)
+
+        if (typeof window !== 'undefined') {
+          const nextPath = localizePath(location.pathname, next)
+          const target = `${nextPath}${location.search}${location.hash}`
+          const current = `${location.pathname}${location.search}${location.hash}`
+          if (target !== current) {
+            window.history.replaceState(window.history.state, '', target)
+          }
+        }
+
         setLocaleState(next)
       },
     }),
