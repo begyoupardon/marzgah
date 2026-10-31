@@ -16,6 +16,8 @@ jobs:
     if: github.repository == 'begyoupardon/marzgah'
     runs-on: ubuntu-latest
     environment: npm
+    env:
+      RELEASE_ALLOWED_EMAILS: itachiiuchiha@proton.me
     steps:
       - uses: actions/checkout@v6
         with:
