@@ -38,3 +38,5 @@ jobs:
       - run: bun run test:cli-package
       - run: npm publish --access public
         working-directory: packages/cli
+        env:
+          NODE_AUTH_TOKEN: ''

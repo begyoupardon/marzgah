@@ -1,11 +1,11 @@
 {
   "name": "@begyoupardon/marzgah",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Set up and administer a self-hosted Marzgah VPN reseller panel",
   "type": "module",
   "license": "UNLICENSED",
   "bin": {
-    "marzgah": "./dist/index.js"
+    "marzgah": "dist/index.js"
   },
   "files": [
     "dist/",
