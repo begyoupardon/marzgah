@@ -2,7 +2,8 @@
 
 ```bash
 bun install --frozen-lockfile
-bun run test         # bun test --isolate
+bun run test         # bun test --isolate src cli
+bun run test:e2e     # isolated Playwright suite; local SQLite + fake services only
 bun run typecheck
 bun run build && bun run build:cf
 bunx drizzle-kit generate --name check   # must say "No schema changes"; delete the file if it creates one
@@ -14,7 +15,11 @@ incompatible TanStack router-core copies (versions are pinned with `overrides`).
 ## Why `--isolate`
 
 `bun:test` runs every test file in one process and `mock.module` is global, so one file's mocks leak into the next.
-`--isolate` gives each file a fresh global. Always use `bun run test`, not a bare `bun test`.
+`--isolate` gives each file a fresh global. The unit-test command scopes discovery to `src` and `cli`, so Playwright's
+browser specs in `e2e/` are run separately with `bun run test:e2e`. Always use `bun run test`, not a bare `bun test`.
+
+The Playwright server refuses non-local `E2E_BASE_URL` values and provisions a temporary SQLite database plus local
+fake Marzban services. It does not connect to configured production services or databases.
 
 ## How tests are written
 

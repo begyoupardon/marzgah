@@ -187,6 +187,7 @@ export const billingEvents = sqliteTable(
     }).notNull(),
     dataLimitGb: integer('data_limit_gb', { mode: 'number' }).notNull(),
     durationMonths: integer('duration_months', { mode: 'number' }),
+    durationDays: integer('duration_days', { mode: 'number' }),
     pricePerGbToman: integer('price_per_gb_toman').notNull(),
     amountToman: integer('amount_toman').notNull(),
     actorUserId: text('actor_user_id')
@@ -330,6 +331,7 @@ export const renewalRequests = sqliteTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     months: integer('months').notNull(),
+    durationDays: integer('duration_days'),
     message: text('message'),
     status: text('status', {
       enum: ['pending', 'approved', 'rejected'],

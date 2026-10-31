@@ -38,20 +38,23 @@ describe('gb helpers', () => {
 describe('renewExpireAt', () => {
   const now = new Date('2026-01-15T12:00:00.000Z')
 
-  it('extends from current expire when still active', () => {
-    const current = new Date('2026-02-01T12:00:00.000Z')
-    const next = renewExpireAt(current, 1, now)
-    expect(next?.toISOString()).toBe('2026-03-01T12:00:00.000Z')
-  })
+  it.each([30, 60, 90] as const)(
+    'starts a %i-day renewal from today',
+    (days) => {
+      const current = new Date('2026-02-01T12:00:00.000Z')
+      const next = renewExpireAt(current, days, now)
+      expect(next?.getTime()).toBe(now.getTime() + days * 86_400_000)
+    },
+  )
 
   it('starts from now when already expired', () => {
     const current = new Date('2026-01-01T12:00:00.000Z')
-    const next = renewExpireAt(current, 2, now)
-    expect(next?.toISOString()).toBe('2026-03-15T12:00:00.000Z')
+    const next = renewExpireAt(current, 60, now)
+    expect(next?.toISOString()).toBe('2026-03-16T12:00:00.000Z')
   })
 
   it('starts from now when expire is missing', () => {
-    const next = renewExpireAt(null, 3, now)
+    const next = renewExpireAt(null, 90, now)
     expect(next?.toISOString()).toBe('2026-04-15T12:00:00.000Z')
   })
   it('clears expiry for unlimited renewals', () => {
@@ -71,25 +74,22 @@ describe('edit/renew form schemas', () => {
   it('validates renew payload', () => {
     expect(
       renewVpnUserFormSchema.parse({
-        durationMonths: 2,
-        dataLimitGb: 50,
-        resetUsage: true,
+        durationDays: 60,
+        additionalDataLimitGb: 50,
         reactivate: true,
       }),
-    ).toMatchObject({ durationMonths: 2, resetUsage: true })
+    ).toMatchObject({ durationDays: 60, additionalDataLimitGb: 50 })
     expect(
       renewVpnUserFormSchema.parse({
-        durationMonths: 0,
-        dataLimitGb: 50,
-        resetUsage: true,
+        durationDays: 0,
+        additionalDataLimitGb: 50,
         reactivate: true,
       }),
-    ).toMatchObject({ durationMonths: 0 })
+    ).toMatchObject({ durationDays: 0 })
     expect(() =>
       renewVpnUserFormSchema.parse({
-        durationMonths: 4,
-        dataLimitGb: 50,
-        resetUsage: true,
+        durationDays: 4,
+        additionalDataLimitGb: 50,
         reactivate: false,
       }),
     ).toThrow()

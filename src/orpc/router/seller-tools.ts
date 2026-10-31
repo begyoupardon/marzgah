@@ -238,13 +238,12 @@ export const bulkRenew = authed
   .input(
     z.object({
       usernames: z.array(z.string()).min(1).max(50),
-      durationMonths: z.union([
+      durationDays: z.union([
         z.literal(0),
-        z.literal(1),
-        z.literal(2),
-        z.literal(3),
+        z.literal(30),
+        z.literal(60),
+        z.literal(90),
       ]),
-      resetUsage: z.boolean().default(true),
     }),
   )
   .handler(async ({ input, context }) => {
@@ -256,8 +255,7 @@ export const bulkRenew = authed
           renewVpnUser,
           {
             username,
-            durationMonths: input.durationMonths,
-            resetUsage: input.resetUsage,
+            durationDays: input.durationDays,
             reactivate: true,
           },
           { context: { headers: context.headers } },
@@ -273,7 +271,12 @@ export const bulkRenew = authed
 const importRow = z.object({
   username: z.string().min(1),
   gb: z.coerce.number().int().min(10).max(10_000),
-  months: z.coerce.number().int().min(0).max(3).default(1),
+  days: z.coerce
+    .number()
+    .int()
+    .refine((value) => [30, 60, 90].includes(value))
+    .optional(),
+  months: z.coerce.number().int().min(0).max(3).optional(),
   note: z.string().max(500).optional(),
   phone: z.string().max(32).optional(),
   telegram: z.string().max(64).optional(),
@@ -333,7 +336,11 @@ export const importUsers = authed
             resellerId: input.resellerId,
             username: r.username,
             dataLimitBytes: r.gb * GB,
-            durationMonths: r.months as 0 | 1 | 2 | 3,
+            ...(r.days !== undefined
+              ? { durationDays: r.days as 30 | 60 | 90 }
+              : r.months !== undefined
+                ? { durationMonths: r.months as 0 | 1 | 2 | 3 }
+                : { durationDays: 30 }),
             note: r.note ?? null,
           },
           { context: { headers: context.headers } },

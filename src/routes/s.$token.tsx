@@ -46,7 +46,7 @@ export const Route = createFileRoute('/s/$token')({
   component: CustomerPage,
 })
 
-const MONTHS = [1, 2, 3] as const
+const DURATIONS = [30, 60, 90] as const
 
 function daysLeft(expireAt: string | null) {
   if (!expireAt) return null
@@ -283,13 +283,14 @@ function Renewal({
 }) {
   const { t, numberLocale } = useI18n()
 
-  const [months, setMonths] = useState<(typeof MONTHS)[number]>(1)
+  const [durationDays, setDurationDays] =
+    useState<(typeof DURATIONS)[number]>(30)
   const [message, setMessage] = useState('')
   const send = useMutation({
     mutationFn: () =>
       orpc.public.requestRenewal.call({
         token,
-        months,
+        durationDays,
         message: message.trim() || undefined,
       }),
     onSuccess: () => {
@@ -320,15 +321,15 @@ function Renewal({
               role="radiogroup"
               aria-label={t('مدت تمدید')}
             >
-              {MONTHS.map((m) => (
+              {DURATIONS.map((days) => (
                 <Button
-                  key={m}
+                  key={days}
                   role="radio"
-                  aria-checked={months === m}
-                  variant={months === m ? 'default' : 'outline'}
-                  onClick={() => setMonths(m)}
+                  aria-checked={durationDays === days}
+                  variant={durationDays === days ? 'default' : 'outline'}
+                  onClick={() => setDurationDays(days)}
                 >
-                  {m.toLocaleString(numberLocale)} {t('ماهه')}
+                  {days.toLocaleString(numberLocale)} {t('روز')}
                 </Button>
               ))}
             </div>

@@ -173,7 +173,7 @@ it('bulk renew reports per-user results and keeps going after a failure', async 
   marzbanCalls.length = 0
   const r = (await callAs(
     tools.bulkRenew,
-    { usernames: ['al_one', 'bo_one', 'missing'], durationMonths: 1 },
+    { usernames: ['al_one', 'bo_one', 'missing'], durationDays: 30 },
     alice.id,
   )) as { results: Array<{ username: string; ok: boolean }>; succeeded: number }
   expect(r.results.map((x) => [x.username, x.ok])).toEqual([

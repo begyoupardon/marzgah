@@ -39,6 +39,7 @@ export async function insertBillingEvent(input: {
   type: BillingEventType
   dataLimitGb: number
   durationMonths?: number | null
+  durationDays?: number | null
   pricePerGbToman: number
   actorUserId: string
 }) {
@@ -52,6 +53,7 @@ export async function insertBillingEvent(input: {
     type: input.type,
     dataLimitGb: input.dataLimitGb,
     durationMonths: input.durationMonths ?? null,
+    durationDays: input.durationDays ?? null,
     pricePerGbToman: input.pricePerGbToman,
     amountToman: amount,
     actorUserId: input.actorUserId,
@@ -83,6 +85,7 @@ export function serializeBillingRow(row: typeof billingEvents.$inferSelect) {
     type: row.type,
     dataLimitGb: row.dataLimitGb,
     durationMonths: row.durationMonths,
+    durationDays: row.durationDays,
     pricePerGbToman: row.pricePerGbToman,
     amountToman: row.amountToman,
     actorUserId: row.actorUserId,

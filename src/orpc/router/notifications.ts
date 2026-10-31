@@ -77,11 +77,63 @@ export const sendTestMessage = authed.handler(async ({ context }) => {
 
 export const getTelegramAdmin = adminOnly.handler(async () => {
   const config = await getTelegramConfig()
+  const webhookUrl = `${getEnv().BETTER_AUTH_URL ?? ''}/api/telegram/webhook`
+  let webhook: {
+    state: 'unconfigured' | 'unreachable' | 'matching' | 'missing' | 'mismatch'
+    urlMatches: boolean
+    pendingUpdateCount: number | null
+    lastErrorDate: number | null
+    lastErrorMessage: string | null
+  } = {
+    state: 'unconfigured',
+    urlMatches: false,
+    pendingUpdateCount: null,
+    lastErrorDate: null,
+    lastErrorMessage: null,
+  }
+  if (config) {
+    try {
+      const result = await createTelegramNotifier(config.botToken).call(
+        'getWebhookInfo',
+        {},
+      )
+      if (result.ok && result.result && typeof result.result === 'object') {
+        const info = result.result as {
+          url?: string
+          pending_update_count?: number
+          last_error_date?: number
+          last_error_message?: string
+        }
+        const urlMatches = info.url === webhookUrl
+        webhook = {
+          state: !info.url ? 'missing' : urlMatches ? 'matching' : 'mismatch',
+          urlMatches,
+          pendingUpdateCount: Number.isFinite(info.pending_update_count)
+            ? info.pending_update_count!
+            : 0,
+          lastErrorDate: Number.isFinite(info.last_error_date)
+            ? info.last_error_date!
+            : null,
+          lastErrorMessage:
+            info.last_error_message
+              ?.split(config.botToken)
+              .join('***')
+              .split(config.webhookSecret)
+              .join('***') ?? null,
+        }
+      } else {
+        webhook = { ...webhook, state: 'unreachable' }
+      }
+    } catch {
+      webhook = { ...webhook, state: 'unreachable' }
+    }
+  }
   return {
     configured: Boolean(config),
     enabled: config?.enabled ?? false,
     botUsername: config?.botUsername ?? '',
-    webhookUrl: `${getEnv().BETTER_AUTH_URL ?? ''}/api/telegram/webhook`,
+    webhookUrl,
+    webhook,
   }
 })
 

@@ -56,7 +56,10 @@ export const publicView = base
       usedBytes: u.usedTrafficBytes,
       limitBytes: u.dataLimitBytes,
       expireAt: u.expireAt?.toISOString() ?? null,
-      subscriptionUrl: resolveSubscriptionUrl(u.subscriptionUrl),
+      subscriptionUrl:
+        u.status === 'active'
+          ? resolveSubscriptionUrl(u.subscriptionUrl)
+          : null,
       updatedAt: u.lastSyncedAt?.toISOString() ?? null,
       seller: {
         name: link.publicName ?? null,
@@ -68,10 +71,19 @@ export const publicView = base
 
 export const publicRequestRenewal = base
   .input(
-    tokenInput.extend({
-      months: z.number().int().min(1).max(3),
-      message: z.string().max(400).optional(),
-    }),
+    tokenInput
+      .extend({
+        durationDays: z
+          .union([z.literal(30), z.literal(60), z.literal(90)])
+          .optional(),
+        months: z.number().int().min(1).max(3).optional(),
+        message: z.string().max(400).optional(),
+      })
+      .refine(
+        (input) =>
+          (input.durationDays === undefined) !== (input.months === undefined),
+        { message: 'Select one renewal duration' },
+      ),
   )
   .handler(async ({ input, context }) => {
     const ip = renewIpLimiter.hit(clientIp(context.headers))
@@ -84,7 +96,9 @@ export const publicRequestRenewal = base
     try {
       await requestRenewal({
         vpnUserId: link.vpnUser.id,
-        months: input.months,
+        ...(input.durationDays !== undefined
+          ? { durationDays: input.durationDays }
+          : { months: input.months }),
         message: input.message,
       })
     } catch (error) {
@@ -197,8 +211,9 @@ export const approveRenewalRequest = authed
         renewVpnUser,
         {
           username,
-          durationMonths: request.months as 1 | 2 | 3,
-          resetUsage: true,
+          ...(request.durationDays
+            ? { durationDays: request.durationDays as 30 | 60 | 90 }
+            : { durationMonths: request.months as 1 | 2 | 3 }),
           reactivate: true,
         },
         { context: { headers: context.headers } },
@@ -215,7 +230,10 @@ export const approveRenewalRequest = authed
       entityId: request.id,
       vpnUsername: username,
       resellerId: request.resellerId,
-      payload: { months: request.months },
+      payload: {
+        months: request.durationDays ? null : request.months,
+        durationDays: request.durationDays,
+      },
     })
     return { ok: true }
   })

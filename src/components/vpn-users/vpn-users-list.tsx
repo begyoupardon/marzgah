@@ -55,7 +55,12 @@ export type VpnUserRow = ManageVpnUser & {
   labels?: string[]
 }
 
-export type VpnUserActionType = 'disable' | 'enable' | 'revoke' | 'sync'
+export type VpnUserActionType =
+  | 'disable'
+  | 'enable'
+  | 'revoke'
+  | 'sync'
+  | 'archive'
 
 type ConfirmableAction = VpnUserActionType
 
@@ -89,6 +94,13 @@ const ACTION_COPY: Record<
     confirm: 'لغو اشتراک',
     destructive: true,
   },
+  archive: {
+    title: 'آرشیو کاربر',
+    description:
+      'کاربر از دسترس خارج و لینک مشتری باطل می‌شود. تاریخچه مالی و حسابرسی حفظ می‌شود.',
+    confirm: 'آرشیو کن',
+    destructive: true,
+  },
 }
 
 export function VpnUsersList({
@@ -98,6 +110,7 @@ export function VpnUsersList({
   onManage,
   onContact,
   onAction,
+  allowArchive = false,
 }: {
   users: VpnUserRow[]
   loading?: boolean
@@ -105,6 +118,7 @@ export function VpnUsersList({
   onManage: (user: VpnUserRow) => void
   onContact?: (user: VpnUserRow) => void
   onAction: (type: VpnUserActionType, user: VpnUserRow) => void | Promise<void>
+  allowArchive?: boolean
 }) {
   const { t } = useI18n()
 
@@ -149,6 +163,7 @@ export function VpnUsersList({
             onContact={onContact ? () => onContact(user) : undefined}
             onShare={() => openShare(user)}
             onAction={(type) => requestAction(type, user)}
+            allowArchive={allowArchive}
           />
         ))}
         {!loading && users.length === 0 ? (
@@ -238,6 +253,7 @@ export function VpnUsersList({
                           onManage={() => onManage(user)}
                           onShare={() => openShare(user)}
                           onAction={(type) => requestAction(type, user)}
+                          allowArchive={allowArchive}
                         />
                       </div>
                     </TableCell>
@@ -313,6 +329,7 @@ function VpnUserCard({
   onContact,
   onShare,
   onAction,
+  allowArchive = false,
 }: {
   user: VpnUserRow
   busy?: boolean
@@ -320,6 +337,7 @@ function VpnUserCard({
   onContact?: () => void
   onShare: () => void
   onAction: (type: VpnUserActionType) => void
+  allowArchive?: boolean
 }) {
   const { t } = useI18n()
 
@@ -342,6 +360,7 @@ function VpnUserCard({
           onManage={onManage}
           onShare={onShare}
           onAction={onAction}
+          allowArchive={allowArchive}
         />
       </div>
 
@@ -426,12 +445,14 @@ function UserActionsPopover({
   onManage,
   onShare,
   onAction,
+  allowArchive = false,
 }: {
   user: VpnUserRow
   busy?: boolean
   onManage: () => void
   onShare: () => void
   onAction: (type: VpnUserActionType) => void
+  allowArchive?: boolean
 }) {
   const { t } = useI18n()
 
@@ -469,6 +490,14 @@ function UserActionsPopover({
           label={t('تمدید / ویرایش')}
           onClick={() => run(onManage)}
         />
+        {allowArchive ? (
+          <ActionButton
+            icon={<UnlinkIcon />}
+            label={t('آرشیو کاربر')}
+            destructive
+            onClick={() => run(() => onAction('archive'))}
+          />
+        ) : null}
         <ActionButton
           icon={<PowerIcon />}
           label={user.status === 'disabled' ? t('فعال‌سازی') : t('غیرفعال‌سازی')}

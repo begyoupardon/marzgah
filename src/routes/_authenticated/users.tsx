@@ -46,7 +46,7 @@ import { toastError, toastSuccess } from '#/lib/toast'
 import { orpc } from '#/orpc/client'
 
 const ACTION_TOAST: Record<
-  'disable' | 'enable' | 'revoke' | 'sync',
+  'disable' | 'enable' | 'revoke' | 'sync' | 'archive',
   { success: string; error: string }
 > = {
   disable: {
@@ -65,6 +65,7 @@ const ACTION_TOAST: Record<
     success: 'اطلاعات کاربر به‌روز شد',
     error: 'به‌روزرسانی اطلاعات انجام نشد',
   },
+  archive: { success: 'کاربر آرشیو شد', error: 'آرشیو کاربر انجام نشد' },
 }
 
 const VIEW_LABELS: Record<string, string> = {
@@ -151,7 +152,6 @@ function UsersPage() {
         ...(search.view ? { view: search.view } : {}),
         ...(search.label ? { label: search.label } : {}),
       },
-      placeholderData: (previous) => previous,
       refetchInterval: 30_000,
     }),
   )
@@ -174,7 +174,7 @@ function UsersPage() {
 
   const actionMutation = useMutation({
     mutationFn: async (args: {
-      type: 'disable' | 'enable' | 'revoke' | 'sync'
+      type: 'disable' | 'enable' | 'revoke' | 'sync' | 'archive'
       username: string
     }) => {
       if (args.type === 'disable') {
@@ -191,6 +191,9 @@ function UsersPage() {
       }
       if (args.type === 'revoke') {
         return orpc.vpnUsers.revokeSub.call({ username: args.username })
+      }
+      if (args.type === 'archive') {
+        return orpc.vpnUsers.delete.call({ username: args.username })
       }
       return orpc.vpnUsers.sync.call({ username: args.username })
     },
@@ -523,6 +526,7 @@ function UsersPage() {
         users={users}
         loading={listQuery.isLoading}
         busy={actionMutation.isPending}
+        allowArchive={isAdmin}
         onManage={setManageUser}
         onContact={(user) => setContactUser(user)}
         onAction={async (type, user) => {

@@ -10,12 +10,12 @@ export const MIN_DATA_LIMIT_BYTES = MIN_DATA_LIMIT_GB * BYTES_PER_GB
 
 export const DATA_PRESETS_GB = [25, 50, 100] as const
 
-export const DURATION_MONTHS = [1, 2, 3] as const
-export type DurationMonths = (typeof DURATION_MONTHS)[number]
+export const DURATION_DAYS = [30, 60, 90] as const
+export type DurationDays = (typeof DURATION_DAYS)[number]
 
 /** `0` means unlimited (no expiry). */
 export const UNLIMITED_DURATION = 0 as const
-export type DurationChoice = DurationMonths | typeof UNLIMITED_DURATION
+export type DurationChoice = DurationDays | typeof UNLIMITED_DURATION
 
 export function gbToBytes(gb: number) {
   return Math.round(gb * BYTES_PER_GB)
@@ -35,41 +35,43 @@ export function isValidDataLimitGb(gb: number) {
 }
 
 export function isUnlimitedDuration(
-  months: number | null | undefined,
-): months is typeof UNLIMITED_DURATION {
-  return months === UNLIMITED_DURATION
+  duration: number | null | undefined,
+): duration is typeof UNLIMITED_DURATION {
+  return duration === UNLIMITED_DURATION
 }
 
-export function expireAtFromMonths(
-  months: DurationMonths,
-  from: Date = new Date(),
-) {
-  const date = new Date(from.getTime())
-  date.setMonth(date.getMonth() + months)
-  return date
+export function expireAtFromDays(days: DurationDays, from: Date = new Date()) {
+  return new Date(from.getTime() + days * 86_400_000)
 }
 
 /** Returns `null` for unlimited plans. */
 export function expireAtFromDuration(
-  months: DurationChoice,
+  days: DurationChoice,
   from: Date = new Date(),
 ): Date | null {
-  if (isUnlimitedDuration(months)) return null
-  return expireAtFromMonths(months, from)
+  if (isUnlimitedDuration(days)) return null
+  return expireAtFromDays(days, from)
 }
 
 /**
- * Renew from remaining time when still active; otherwise start from now.
- * Extends by the selected plan duration (1 / 2 / 3 months), or clears expiry
- * when unlimited is chosen.
+ * New renewals always begin now and last exactly 30, 60, or 90 days.
  */
 export function renewExpireAt(
-  currentExpireAt: Date | string | null | undefined,
-  months: DurationChoice,
+  _currentExpireAt: Date | string | null | undefined,
+  days: DurationChoice,
   now: Date = new Date(),
 ): Date | null {
-  if (isUnlimitedDuration(months)) return null
+  if (isUnlimitedDuration(days)) return null
 
+  return expireAtFromDays(days, now)
+}
+
+/** Legacy pending requests keep their original calendar-month semantics. */
+export function renewExpireAtFromMonths(
+  currentExpireAt: Date | string | null | undefined,
+  months: 1 | 2 | 3,
+  now: Date = new Date(),
+) {
   const current =
     currentExpireAt == null
       ? null
@@ -84,14 +86,16 @@ export function renewExpireAt(
       ? current
       : now
 
-  return expireAtFromMonths(months, base)
+  const next = new Date(base.getTime())
+  next.setMonth(next.getMonth() + months)
+  return next
 }
 
-export function durationLabel(months: DurationChoice) {
-  if (isUnlimitedDuration(months)) return 'نامحدود'
-  if (months === 1) return '۱ ماه'
-  if (months === 2) return '۲ ماه'
-  return '۳ ماه'
+export function durationLabel(days: DurationChoice) {
+  if (isUnlimitedDuration(days)) return 'نامحدود'
+  if (days === 30) return '۳۰ روز'
+  if (days === 60) return '۶۰ روز'
+  return '۹۰ روز'
 }
 
 export const dataLimitGbSchema = z
@@ -99,13 +103,13 @@ export const dataLimitGbSchema = z
   .finite()
   .min(MIN_DATA_LIMIT_GB, `حجم باید حداقل ${MIN_DATA_LIMIT_GB} گیگابایت باشد`)
 
-export const durationMonthsSchema = z.union(
-  [z.literal(1), z.literal(2), z.literal(3)],
+export const durationDaysSchema = z.union(
+  [z.literal(30), z.literal(60), z.literal(90)],
   { error: 'مدت اشتراک را انتخاب کنید' },
 )
 
 export const durationChoiceSchema = z.union(
-  [z.literal(0), z.literal(1), z.literal(2), z.literal(3)],
+  [z.literal(0), z.literal(30), z.literal(60), z.literal(90)],
   { error: 'مدت اشتراک را انتخاب کنید' },
 )
 
@@ -113,7 +117,7 @@ export function createVpnUserFormSchema(isAdmin: boolean) {
   return z.object({
     username: localUsernameSchema,
     dataLimitGb: dataLimitGbSchema,
-    durationMonths: durationChoiceSchema,
+    durationDays: durationChoiceSchema,
     note: z.string().max(500, 'یادداشت حداکثر ۵۰۰ کاراکتر باشد').optional(),
     resellerId: isAdmin
       ? z.string().min(1, 'یک نماینده انتخاب کنید')
@@ -128,7 +132,7 @@ export type CreateVpnUserFormValues = z.infer<
 export const createVpnUserDefaults = {
   username: '',
   dataLimitGb: 25,
-  durationMonths: 1 as DurationChoice,
+  durationDays: 30 as DurationChoice,
   note: '',
   resellerId: '',
 } satisfies CreateVpnUserFormValues
@@ -143,9 +147,8 @@ export const editVpnUserFormSchema = z.object({
 export type EditVpnUserFormValues = z.infer<typeof editVpnUserFormSchema>
 
 export const renewVpnUserFormSchema = z.object({
-  durationMonths: durationChoiceSchema,
-  dataLimitGb: dataLimitGbSchema,
-  resetUsage: z.boolean(),
+  durationDays: durationChoiceSchema,
+  additionalDataLimitGb: dataLimitGbSchema,
   reactivate: z.boolean(),
 })
 

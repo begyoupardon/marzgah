@@ -1,5 +1,5 @@
 import { ORPCError } from '@orpc/server'
-import { and, count, desc, eq, inArray, sql, or } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, sql, or, isNull } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import * as z from 'zod'
 
@@ -43,6 +43,7 @@ import {
   isUnlimitedDuration,
   isValidDataLimitBytes,
   renewExpireAt,
+  renewExpireAtFromMonths,
 } from '#/lib/vpn-plans'
 import { authed } from '../middleware'
 
@@ -113,6 +114,7 @@ export const listVpnUsers = authed
         : context.user.id
 
     const conditions: SQL[] = []
+    conditions.push(isNull(vpnUsers.removedAt))
     if (resellerId) {
       conditions.push(eq(vpnUsers.resellerId, resellerId))
     }
@@ -208,12 +210,12 @@ export const createVpnUser = authed
         .refine(isValidDataLimitBytes, {
           message: 'Data limit must be at least 10 GB',
         }),
-      durationMonths: z.union([
-        z.literal(0),
-        z.literal(1),
-        z.literal(2),
-        z.literal(3),
-      ]),
+      durationDays: z
+        .union([z.literal(0), z.literal(30), z.literal(60), z.literal(90)])
+        .optional(),
+      durationMonths: z
+        .union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)])
+        .optional(),
       note: z.string().max(500).nullable().optional(),
       proxies: z.record(z.string(), z.unknown()).optional(),
     }),
@@ -232,16 +234,30 @@ export const createVpnUser = authed
       throw error
     }
 
-    if (
-      isUnlimitedDuration(input.durationMonths) &&
-      !profile.allowUnlimitedExpire
-    ) {
+    const legacyMonths =
+      input.durationDays === undefined ? input.durationMonths : undefined
+    const durationChoice = input.durationDays ?? legacyMonths
+    if (durationChoice === undefined) {
+      throw new ORPCError('BAD_REQUEST', { message: 'مدت اشتراک الزامی است' })
+    }
+    if (isUnlimitedDuration(durationChoice) && !profile.allowUnlimitedExpire) {
       throw new ORPCError('FORBIDDEN', {
         message: 'این نماینده مجاز به ساخت حساب نامحدود نیست',
       })
     }
 
-    const expireAt = expireAtFromDuration(input.durationMonths)
+    const expireAt =
+      input.durationDays !== undefined
+        ? expireAtFromDuration(input.durationDays)
+        : legacyMonths === 0
+          ? null
+          : legacyMonths
+            ? (() => {
+                const d = new Date()
+                d.setMonth(d.getMonth() + legacyMonths)
+                return d
+              })()
+            : null
 
     if (!profile.usernameSuffix) {
       throw new ORPCError('BAD_REQUEST', {
@@ -320,9 +336,11 @@ export const createVpnUser = authed
       marzbanUsername: fullUsername,
       type: 'create',
       dataLimitGb,
-      durationMonths: isUnlimitedDuration(input.durationMonths)
-        ? null
-        : input.durationMonths,
+      durationMonths: legacyMonths && legacyMonths > 0 ? legacyMonths : null,
+      durationDays:
+        input.durationDays && input.durationDays > 0
+          ? input.durationDays
+          : null,
       pricePerGbToman: profile.pricePerGbToman,
       actorUserId: context.user.id,
     })
@@ -339,9 +357,11 @@ export const createVpnUser = authed
       resellerId,
       payload: {
         dataLimitGb,
-        durationMonths: isUnlimitedDuration(input.durationMonths)
-          ? null
-          : input.durationMonths,
+        durationMonths: legacyMonths && legacyMonths > 0 ? legacyMonths : null,
+        durationDays:
+          input.durationDays && input.durationDays > 0
+            ? input.durationDays
+            : null,
         amountToman: billing.amountToman,
         pricePerGbToman: profile.pricePerGbToman,
         billingEventId: billing.id,
@@ -521,21 +541,25 @@ export const renewVpnUser = authed
   .input(
     z.object({
       username: z.string().min(1),
-      durationMonths: z.union([
-        z.literal(0),
-        z.literal(1),
-        z.literal(2),
-        z.literal(3),
-      ]),
-      dataLimitBytes: z
+      durationDays: z
+        .union([z.literal(0), z.literal(30), z.literal(60), z.literal(90)])
+        .optional(),
+      /** Legacy month payload is accepted only for already-pending requests. */
+      durationMonths: z
+        .union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)])
+        .optional(),
+      additionalDataLimitBytes: z
         .number()
         .int()
+        .refine(Number.isSafeInteger, {
+          message: 'Data limit must be a safe integer',
+        })
         .positive()
         .refine(isValidDataLimitBytes, {
           message: 'Data limit must be at least 10 GB',
         })
         .optional(),
-      resetUsage: z.boolean().default(true),
+      resetUsage: z.boolean().optional(),
       reactivate: z.boolean().default(true),
     }),
   )
@@ -557,11 +581,37 @@ export const renewVpnUser = authed
     }
 
     if (
-      isUnlimitedDuration(input.durationMonths) &&
+      (input.durationDays === 0 || input.durationMonths === 0) &&
       !profile.allowUnlimitedExpire
     ) {
       throw new ORPCError('FORBIDDEN', {
         message: 'این نماینده مجاز به تمدید نامحدود نیست',
+      })
+    }
+
+    if (
+      input.durationDays === undefined &&
+      input.durationMonths === undefined
+    ) {
+      throw new ORPCError('BAD_REQUEST', { message: 'مدت تمدید الزامی است' })
+    }
+
+    // A locally known unlimited cap cannot receive an incremental allowance.
+    // Reject it before any backend read, mutation, billing or wallet action.
+    if (owned.dataLimitBytes == null) {
+      throw new ORPCError('BAD_REQUEST', {
+        message: 'حجم پلن برای تمدید مشخص نیست',
+      })
+    }
+    const preflightAdditionalBytes =
+      input.additionalDataLimitBytes ?? owned.dataLimitBytes
+    if (
+      !Number.isSafeInteger(preflightAdditionalBytes) ||
+      !isValidDataLimitBytes(preflightAdditionalBytes) ||
+      !Number.isSafeInteger(owned.dataLimitBytes + preflightAdditionalBytes)
+    ) {
+      throw new ORPCError('BAD_REQUEST', {
+        message: 'حجم افزوده‌شده نامعتبر است',
       })
     }
 
@@ -571,30 +621,50 @@ export const renewVpnUser = authed
     if (!current || current.removedAt) {
       throw new ORPCError('NOT_FOUND', { message: 'کاربر VPN پیدا نشد' })
     }
-    const expireAt = renewExpireAt(current.expireAt, input.durationMonths)
-    const billedBytes = input.dataLimitBytes ?? current.dataLimitBytes
-    if (billedBytes == null || !isValidDataLimitBytes(billedBytes)) {
+    if (
+      current.dataLimitBytes == null ||
+      !isValidDataLimitBytes(current.dataLimitBytes)
+    ) {
       throw new ORPCError('BAD_REQUEST', {
         message: 'حجم پلن برای تمدید مشخص نیست',
       })
     }
 
+    const addedBytes = input.additionalDataLimitBytes ?? current.dataLimitBytes
+    const nextDataLimitBytes = current.dataLimitBytes + addedBytes
+    if (
+      !Number.isSafeInteger(nextDataLimitBytes) ||
+      !isValidDataLimitBytes(addedBytes)
+    ) {
+      throw new ORPCError('BAD_REQUEST', {
+        message: 'حجم افزوده‌شده نامعتبر است',
+      })
+    }
+    const legacyMonths =
+      input.durationDays === undefined ? input.durationMonths : undefined
+    const expireAt =
+      legacyMonths === 0
+        ? null
+        : legacyMonths
+          ? renewExpireAtFromMonths(current.expireAt, legacyMonths)
+          : renewExpireAt(current.expireAt, input.durationDays!)
+    const durationDays =
+      legacyMonths !== undefined
+        ? null
+        : input.durationDays === 0
+          ? null
+          : input.durationDays
+
     await guardSpend(
       owned.resellerId,
-      billingGbFromBytes(billedBytes),
+      billingGbFromBytes(addedBytes),
       profile.pricePerGbToman,
     )
 
     const backend = getBackend(owned.backend)
-    if (input.resetUsage) {
-      await backend.resetUsage(input.username)
-    }
-
     await backend.updateUser(input.username, {
       expireAt,
-      ...(input.dataLimitBytes !== undefined
-        ? { dataLimitBytes: input.dataLimitBytes }
-        : {}),
+      dataLimitBytes: nextDataLimitBytes,
       ...(input.reactivate ? { status: 'active' as const } : {}),
     })
 
@@ -602,10 +672,8 @@ export const renewVpnUser = authed
       resellerId: owned.resellerId,
     })
 
-    const dataLimitGb = billingGbFromBytes(billedBytes)
-    const durationMonths = isUnlimitedDuration(input.durationMonths)
-      ? null
-      : input.durationMonths
+    const dataLimitGb = billingGbFromBytes(addedBytes)
+    const durationMonths = legacyMonths ?? null
     const billing = await insertBillingEvent({
       resellerId: owned.resellerId,
       vpnUserId: owned.id,
@@ -613,6 +681,7 @@ export const renewVpnUser = authed
       type: 'renew',
       dataLimitGb,
       durationMonths,
+      durationDays,
       pricePerGbToman: profile.pricePerGbToman,
       actorUserId: context.user.id,
     })
@@ -630,7 +699,9 @@ export const renewVpnUser = authed
       payload: {
         dataLimitGb,
         durationMonths,
-        resetUsage: input.resetUsage,
+        durationDays,
+        additionalDataLimitGb: billingGbFromBytes(addedBytes),
+        resetUsage: false,
         amountToman: billing.amountToman,
         billingEventId: billing.id,
       },

@@ -403,6 +403,11 @@ function SalesPage() {
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {t(eventTypeLabel(event.type))} · {event.dataLimitGb} GB
+                    {event.durationDays
+                      ? ` · ${event.durationDays} ${t('روز')}`
+                      : event.durationMonths
+                        ? ` · ${event.durationMonths} ${t('ماه')}`
+                        : ''}
                   </p>
                 </div>
                 <SettlementBadge event={event} />
@@ -455,7 +460,14 @@ function SalesPage() {
                     </span>
                   </TableCell>
                   <TableCell>{t(eventTypeLabel(event.type))}</TableCell>
-                  <TableCell>{event.dataLimitGb} GB</TableCell>
+                  <TableCell>
+                    {event.dataLimitGb} GB
+                    {event.durationDays
+                      ? ` · ${event.durationDays} ${t('روز')}`
+                      : event.durationMonths
+                        ? ` · ${event.durationMonths} ${t('ماه')}`
+                        : ''}
+                  </TableCell>
                   <TableCell>{formatToman(event.amountToman)}</TableCell>
                   <TableCell>
                     <SettlementBadge event={event} />

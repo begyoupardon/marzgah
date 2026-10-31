@@ -22,10 +22,14 @@ export function DataLimitField<T extends FieldValues>({
   control,
   name,
   id,
+  label = 'حجم مصرف',
+  description,
 }: {
   control: Control<T>
   name: FieldPath<T>
   id: string
+  label?: string
+  description?: string
 }) {
   const { t } = useI18n()
 
@@ -35,9 +39,15 @@ export function DataLimitField<T extends FieldValues>({
       name={name}
       render={({ field, fieldState }) => (
         <Field data-invalid={fieldState.invalid}>
-          <FieldLabel htmlFor={id}>{t('حجم مصرف')}</FieldLabel>
+          <FieldLabel htmlFor={id}>{t(label)}</FieldLabel>
           <FieldDescription>
-            {t('الزامی — حداقل')} {MIN_DATA_LIMIT_GB} {t('گیگابایت')}
+            {description ? (
+              t(description)
+            ) : (
+              <>
+                {t('الزامی — حداقل')} {MIN_DATA_LIMIT_GB} {t('گیگابایت')}
+              </>
+            )}
           </FieldDescription>
           <div
             role="radiogroup"
@@ -101,7 +111,7 @@ export function DataLimitField<T extends FieldValues>({
   )
 }
 
-export function DurationMonthsField<T extends FieldValues>({
+export function DurationDaysField<T extends FieldValues>({
   control,
   name,
   options,

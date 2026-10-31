@@ -9,6 +9,7 @@ export type BillingEvent = {
   type: 'create' | 'renew' | 'extra_gb'
   dataLimitGb: number
   durationMonths: number | null
+  durationDays?: number | null
   pricePerGbToman: number
   amountToman: number
   claimedPaidAt: string | null

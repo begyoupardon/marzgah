@@ -85,20 +85,65 @@ beforeEach(() => {
   mocks.reset.mockResolvedValue(remote)
   mocks.revoke.mockResolvedValue(remote)
 })
-it('renews from the current Marzban expiry rather than a stale mirror', async () => {
-  await call(renewVpnUser, { username, durationMonths: 1 }, { context })
-  expect(mocks.modify.mock.calls[0][1].expire).toBeGreaterThan(
-    Date.parse('2030-01-01') / 1000,
+it('starts renewal from today, adds quota, and preserves usage', async () => {
+  await call(renewVpnUser, { username, durationDays: 30 }, { context })
+  const expiry = mocks.modify.mock.calls[0][1].expire
+  expect(expiry).toBeGreaterThan(Date.now() / 1000 + 29 * 86_400)
+  expect(expiry).toBeLessThan(Date.now() / 1000 + 31 * 86_400)
+  expect(mocks.bill).toHaveBeenCalledWith(
+    expect.objectContaining({ type: 'renew', dataLimitGb: 10 }),
   )
-  expect(mocks.reset).toHaveBeenCalledOnce()
+  expect(mocks.reset).not.toHaveBeenCalled()
   expect(mocks.bill).toHaveBeenCalledOnce()
 })
-it('validates the renewal quota before resetting any traffic', async () => {
+it('rejects renewal for unlimited quota before backend mutation or billing', async () => {
   mocks.sync.mockResolvedValue({ ...local, dataLimitBytes: null })
   await expect(
-    call(renewVpnUser, { username, durationMonths: 1 }, { context }),
+    call(renewVpnUser, { username, durationDays: 30 }, { context }),
   ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
   expect(mocks.reset).not.toHaveBeenCalled()
+  expect(mocks.modify).not.toHaveBeenCalled()
+  expect(mocks.bill).not.toHaveBeenCalled()
+})
+it('rejects a locally known unlimited cap before reading the backend', async () => {
+  mocks.owned.mockResolvedValue({ ...local, dataLimitBytes: null })
+  await expect(
+    call(renewVpnUser, { username, durationDays: 30 }, { context }),
+  ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+  expect(mocks.sync).not.toHaveBeenCalled()
+  expect(mocks.modify).not.toHaveBeenCalled()
+  expect(mocks.bill).not.toHaveBeenCalled()
+})
+it('rejects sub-minimum added quota before ownership, backend, or billing work', async () => {
+  await expect(
+    call(
+      renewVpnUser,
+      {
+        username,
+        durationDays: 30,
+        additionalDataLimitBytes: 1024 ** 3,
+      },
+      { context },
+    ),
+  ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+  expect(mocks.owned).not.toHaveBeenCalled()
+  expect(mocks.sync).not.toHaveBeenCalled()
+  expect(mocks.modify).not.toHaveBeenCalled()
+  expect(mocks.bill).not.toHaveBeenCalled()
+})
+it('rejects an unsafe total quota before reading or mutating the backend', async () => {
+  await expect(
+    call(
+      renewVpnUser,
+      {
+        username,
+        durationDays: 30,
+        additionalDataLimitBytes: Number.MAX_SAFE_INTEGER,
+      },
+      { context },
+    ),
+  ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+  expect(mocks.sync).not.toHaveBeenCalled()
   expect(mocks.modify).not.toHaveBeenCalled()
   expect(mocks.bill).not.toHaveBeenCalled()
 })

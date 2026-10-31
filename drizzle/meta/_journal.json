@@ -92,6 +92,13 @@
       "when": 1793053971084,
       "tag": "0012_even_zuras",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1793459038267,
+      "tag": "0013_days_renewals",
+      "breakpoints": true
     }
   ]
 }

@@ -18,6 +18,9 @@ todos.json
 data
 backups
 .dev.vars
+test-results/
+playwright-report/
+.playwright-e2e-port
 
 # Generated npm CLI artifacts
 /packages/cli/dist/

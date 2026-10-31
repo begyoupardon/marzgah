@@ -213,10 +213,13 @@ function TelegramLink() {
 }
 
 function TelegramAdmin() {
-  const { t, numberLocale } = useI18n()
+  const { t, numberLocale, formatDate } = useI18n()
 
   const queryClient = useQueryClient()
-  const config = useQuery(orpc.notifications.adminConfig.queryOptions())
+  const config = useQuery({
+    ...orpc.notifications.adminConfig.queryOptions(),
+    refetchInterval: 30_000,
+  })
   const stats = useQuery({
     ...orpc.notifications.stats.queryOptions(),
     refetchInterval: 30_000,
@@ -343,6 +346,41 @@ function TelegramAdmin() {
         <p className="text-xs text-muted-foreground" dir="ltr">
           {config.data?.webhookUrl}
         </p>
+        {config.data?.webhook ? (
+          <div className="space-y-1 rounded-lg border bg-muted/40 p-3 text-sm">
+            <p>
+              {t('وضعیت وب‌هوک:')}{' '}
+              {t(
+                (
+                  {
+                    matching: 'آدرس صحیح',
+                    missing: 'ثبت نشده',
+                    mismatch: 'آدرس متفاوت',
+                    unreachable: 'بررسی ناموفق',
+                    unconfigured: 'تنظیم نشده',
+                  } as const
+                )[config.data.webhook.state],
+              )}
+            </p>
+            {config.data.webhook.pendingUpdateCount !== null ? (
+              <p>
+                {t('به‌روزرسانی‌های در انتظار:')}{' '}
+                {config.data.webhook.pendingUpdateCount.toLocaleString(
+                  numberLocale,
+                )}
+              </p>
+            ) : null}
+            {config.data.webhook.lastErrorMessage ? (
+              <p className="text-destructive">
+                {t('آخرین خطای تحویل:')}{' '}
+                {config.data.webhook.lastErrorDate
+                  ? `${formatDate(new Date(config.data.webhook.lastErrorDate * 1000).toISOString())} · `
+                  : ''}
+                {config.data.webhook.lastErrorMessage}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="flex flex-wrap gap-2 border-t pt-4 text-sm">
           <Badge variant="outline">

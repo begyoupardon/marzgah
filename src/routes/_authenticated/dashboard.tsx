@@ -115,7 +115,9 @@ function RenewalInbox() {
                 {r.username}
               </span>
               <span className="block text-xs leading-5 text-muted-foreground">
-                {r.months.toLocaleString(numberLocale)} {t('ماهه ·')}{' '}
+                {r.durationDays
+                  ? `${r.durationDays.toLocaleString(numberLocale)} ${t('روز ·')}`
+                  : `${r.months.toLocaleString(numberLocale)} ${t('ماهه ·')}`}{' '}
                 {formatDate(r.createdAt)}
               </span>
               {r.message ? (

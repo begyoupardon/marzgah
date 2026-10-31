@@ -331,6 +331,7 @@ async function runResellerCommand(
         .select({
           username: vpnUsers.marzbanUsername,
           months: renewalRequests.months,
+          durationDays: renewalRequests.durationDays,
           message: renewalRequests.message,
           createdAt: renewalRequests.createdAt,
         })
@@ -350,7 +351,7 @@ async function runResellerCommand(
           ? `درخواست‌های تمدید در انتظار (برای بررسی به پنل بروید):\n${rows
               .map(
                 (row) =>
-                  `• ${row.username} — ${faNumber(row.months)} ماه${
+                  `• ${row.username} — ${row.durationDays ? `${faNumber(row.durationDays)} روز` : `${faNumber(row.months)} ماه`}${
                     row.message ? `\n  ${row.message}` : ''
                   }`,
               )

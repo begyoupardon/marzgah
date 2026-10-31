@@ -28,7 +28,7 @@ import {
 import { Textarea } from '#/components/ui/textarea'
 import {
   DataLimitField,
-  DurationMonthsField,
+  DurationDaysField,
 } from '#/components/vpn-users/plan-fields'
 import { ResponsiveFormShell } from '#/components/vpn-users/responsive-form-shell'
 import { getErrorMessage, isConflictError } from '#/lib/errors'
@@ -38,7 +38,7 @@ import { toastError, toastSuccess } from '#/lib/toast'
 import {
   createVpnUserDefaults,
   createVpnUserFormSchema,
-  DURATION_MONTHS,
+  DURATION_DAYS,
   durationLabel,
   expireAtFromDuration,
   gbToBytes,
@@ -101,7 +101,7 @@ export function CreateVpnUserDialog({
   } = form
 
   const dataLimitGb = useWatch({ control, name: 'dataLimitGb' })
-  const durationMonths = useWatch({ control, name: 'durationMonths' })
+  const durationDays = useWatch({ control, name: 'durationDays' })
   const username = useWatch({ control, name: 'username' })
   const selectedResellerId = useWatch({ control, name: 'resellerId' })
 
@@ -129,20 +129,20 @@ export function CreateVpnUserDialog({
   }, [activeProfile, dataLimitGb])
 
   const expirePreview = useMemo(
-    () => expireAtFromDuration(durationMonths),
-    [durationMonths],
+    () => expireAtFromDuration(durationDays),
+    [durationDays],
   )
 
   const allowUnlimited = Boolean(activeProfile?.allowUnlimitedExpire)
   const durationOptions: DurationChoice[] = allowUnlimited
-    ? [...DURATION_MONTHS, UNLIMITED_DURATION]
-    : [...DURATION_MONTHS]
+    ? [...DURATION_DAYS, UNLIMITED_DURATION]
+    : [...DURATION_DAYS]
 
   useEffect(() => {
-    if (!allowUnlimited && isUnlimitedDuration(durationMonths)) {
-      setValue('durationMonths', 1)
+    if (!allowUnlimited && isUnlimitedDuration(durationDays)) {
+      setValue('durationDays', 30)
     }
-  }, [allowUnlimited, durationMonths, setValue])
+  }, [allowUnlimited, durationDays, setValue])
 
   useEffect(() => {
     if (open) reset(createVpnUserDefaults)
@@ -184,7 +184,7 @@ export function CreateVpnUserDialog({
       username: values.username,
       note: values.note?.trim() || null,
       dataLimitBytes: gbToBytes(values.dataLimitGb),
-      durationMonths: values.durationMonths,
+      durationDays: values.durationDays,
       ...(isAdmin ? { resellerId: values.resellerId } : {}),
     })
   })
@@ -318,9 +318,9 @@ export function CreateVpnUserDialog({
             id={`${FORM_ID}-data-limit`}
           />
 
-          <DurationMonthsField
+          <DurationDaysField
             control={control}
-            name="durationMonths"
+            name="durationDays"
             options={durationOptions}
             label={t('مدت اشتراک')}
             description={
@@ -336,7 +336,7 @@ export function CreateVpnUserDialog({
               {typeof dataLimitGb === 'number' && !Number.isNaN(dataLimitGb)
                 ? t('{0} گیگابایت', { '0': dataLimitGb })
                 : '—'}{' '}
-              · {t(durationLabel(durationMonths))} {t('· انقضا')}{' '}
+              · {t(durationLabel(durationDays))} {t('· انقضا')}{' '}
               {expirePreview
                 ? formatDate(expirePreview.toISOString())
                 : t('نامحدود')}

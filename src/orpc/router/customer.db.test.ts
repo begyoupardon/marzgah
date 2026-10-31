@@ -106,6 +106,40 @@ it('shows a customer only their own data, with nothing internal', async () => {
     expect(text).not.toContain(secret)
 })
 
+it('keeps disabled customer status and renewal access but hides connection secrets', async () => {
+  const row = await makeVpnUser(db, alice.id, {
+    marzbanUsername: 'al_disabled',
+    status: 'disabled',
+    dataLimitBytes: 10 * GB,
+    subscriptionUrl: 'https://sub.example.com/secret-disabled-link',
+  })
+  const token = await link('al_disabled', alice.id)
+  const view = (await callAs(
+    api.publicView,
+    { token },
+    null,
+    ip('10.0.0.45'),
+  )) as Record<string, unknown>
+  expect(view.subscriptionUrl).toBeNull()
+  expect(JSON.stringify(view)).not.toContain('secret-disabled-link')
+  await callAs(
+    api.publicRequestRenewal,
+    { token, durationDays: 30 },
+    null,
+    ip('10.0.0.46'),
+  )
+  const [request] = await db
+    .select()
+    .from(renewalRequests)
+    .where(eq(renewalRequests.vpnUserId, row.id))
+  expect(request).toMatchObject({
+    durationDays: 30,
+    months: 1,
+    status: 'pending',
+  })
+  await db.delete(renewalRequests).where(eq(renewalRequests.id, request.id))
+})
+
 it('treats every bad link identically', async () => {
   const token = await link('al_cust', alice.id)
   const unknown = await callAs(
@@ -186,7 +220,7 @@ it('customer asks, seller approves: renewal is billed exactly once', async () =>
   const token = await link('al_cust', alice.id)
   await callAs(
     api.publicRequestRenewal,
-    { token, months: 2, message: 'سلام' },
+    { token, durationDays: 60, message: 'سلام' },
     null,
     ip('10.1.0.1'),
   )
@@ -196,7 +230,7 @@ it('customer asks, seller approves: renewal is billed exactly once', async () =>
   await expect(
     callAs(
       api.publicRequestRenewal,
-      { token, months: 1 },
+      { token, durationDays: 30 },
       null,
       ip('10.1.0.1'),
     ),
@@ -206,9 +240,14 @@ it('customer asks, seller approves: renewal is billed exactly once', async () =>
     api.listRenewalRequests,
     undefined,
     alice.id,
-  )) as Array<{ id: string; months: number; username: string }>
+  )) as Array<{
+    id: string
+    months: number
+    durationDays: number | null
+    username: string
+  }>
   expect(pending).toHaveLength(1)
-  expect(pending[0]).toMatchObject({ months: 2, username: 'al_cust' })
+  expect(pending[0]).toMatchObject({ durationDays: 60, username: 'al_cust' })
   expect(
     (await callAs(api.listRenewalRequests, undefined, bob.id)) as unknown[],
   ).toHaveLength(0)
@@ -221,11 +260,18 @@ it('customer asks, seller approves: renewal is billed exactly once', async () =>
   upstream.length = 0
   await callAs(api.approveRenewalRequest, { id: pending[0].id }, alice.id)
   expect(upstream).toContain('modify:al_cust')
+  expect(upstream).not.toContain('reset:al_cust')
   const bills = await db
     .select()
     .from(billingEvents)
     .where(eq(billingEvents.vpnUserId, aliceUser.id))
   expect(bills.filter((b) => b.type === 'renew')).toHaveLength(1)
+  expect(bills.find((b) => b.type === 'renew')).toMatchObject({
+    durationDays: 60,
+    durationMonths: null,
+    dataLimitGb: 20,
+    amountToman: 20_000,
+  })
   await expect(
     callAs(api.approveRenewalRequest, { id: pending[0].id }, alice.id),
   ).rejects.toMatchObject({ code: 'CONFLICT' })

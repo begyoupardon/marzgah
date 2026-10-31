@@ -13,6 +13,8 @@ const { enqueue } = await import('#/lib/notifications/outbox')
 
 const realFetch = globalThis.fetch
 const calls: Array<{ url: string; body: Record<string, unknown> }> = []
+let webhookInfo: unknown = true
+let failWebhookInfo = false
 globalThis.fetch = (async (url: string, init?: RequestInit) => {
   calls.push({
     url: String(url),
@@ -20,6 +22,10 @@ globalThis.fetch = (async (url: string, init?: RequestInit) => {
   })
   if (String(url).endsWith('/getMe'))
     return Response.json({ ok: true, result: { username: 'my_bot' } })
+  if (String(url).endsWith('/getWebhookInfo'))
+    return Response.json(
+      failWebhookInfo ? { ok: false } : { ok: true, result: webhookInfo },
+    )
   return Response.json({ ok: true, result: true })
 }) as unknown as typeof fetch
 afterAll(() => {
@@ -159,6 +165,75 @@ it('registers the webhook only over https, with the secret token', async () => {
   expect(set.body.allowed_updates).toEqual(['message'])
   await expect(
     callAs(api.registerTelegramWebhook, undefined, alice.id),
+  ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+  process.env.BETTER_AUTH_URL = before
+})
+
+it('reports webhook registration health to admins without exposing secrets', async () => {
+  const before = process.env.BETTER_AUTH_URL
+  process.env.BETTER_AUTH_URL = 'https://panel.example.com'
+  const secret = (await (
+    await import('#/lib/notifications/telegram')
+  ).getTelegramConfig(db))!.webhookSecret
+  webhookInfo = {
+    url: 'https://panel.example.com/api/telegram/webhook',
+    pending_update_count: 3,
+    last_error_date: 1793450000,
+    last_error_message: `failure ${TOKEN} ${secret}`,
+  }
+  const matching = (await callAs(
+    api.getTelegramAdmin,
+    undefined,
+    admin.id,
+  )) as {
+    webhook: {
+      state: string
+      urlMatches: boolean
+      pendingUpdateCount: number
+      lastErrorMessage: string | null
+    }
+  }
+  expect(matching.webhook).toMatchObject({
+    state: 'matching',
+    urlMatches: true,
+    pendingUpdateCount: 3,
+  })
+  expect(matching.webhook.lastErrorMessage).not.toContain(TOKEN)
+  expect(matching.webhook.lastErrorMessage).not.toContain(secret)
+  expect(JSON.stringify(matching)).not.toContain('webhookSecret')
+  webhookInfo = { url: 'https://other.example/hook', pending_update_count: 0 }
+  expect(
+    (
+      (await callAs(
+        api.getTelegramAdmin,
+        undefined,
+        admin.id,
+      )) as typeof matching
+    ).webhook.state,
+  ).toBe('mismatch')
+  webhookInfo = { url: '', pending_update_count: 0 }
+  expect(
+    (
+      (await callAs(
+        api.getTelegramAdmin,
+        undefined,
+        admin.id,
+      )) as typeof matching
+    ).webhook.state,
+  ).toBe('missing')
+  failWebhookInfo = true
+  expect(
+    (
+      (await callAs(
+        api.getTelegramAdmin,
+        undefined,
+        admin.id,
+      )) as typeof matching
+    ).webhook.state,
+  ).toBe('unreachable')
+  failWebhookInfo = false
+  await expect(
+    callAs(api.getTelegramAdmin, undefined, alice.id),
   ).rejects.toMatchObject({ code: 'FORBIDDEN' })
   process.env.BETTER_AUTH_URL = before
 })

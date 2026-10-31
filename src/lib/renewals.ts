@@ -31,11 +31,23 @@ export function cleanMessage(raw: string | undefined | null) {
 }
 
 export async function requestRenewal(
-  input: { vpnUserId: string; months: number; message?: string | null },
+  input: {
+    vpnUserId: string
+    durationDays?: number
+    months?: number
+    message?: string | null
+  },
   { db = defaultDb, now = new Date() }: Deps = {},
 ) {
-  if (!Number.isInteger(input.months) || input.months < 1 || input.months > 3) {
-    throw new RenewalError('months must be 1-3', 'BAD_INPUT')
+  const legacy = input.durationDays === undefined
+  if (
+    legacy
+      ? !Number.isInteger(input.months) ||
+        input.months! < 1 ||
+        input.months! > 3
+      : ![30, 60, 90].includes(input.durationDays!)
+  ) {
+    throw new RenewalError('duration must be 30, 60, or 90 days', 'BAD_INPUT')
   }
   const [target] = await db
     .select()
@@ -51,7 +63,8 @@ export async function requestRenewal(
       id,
       vpnUserId: target.id,
       resellerId: target.resellerId,
-      months: input.months,
+      months: legacy ? input.months! : 1,
+      durationDays: legacy ? null : input.durationDays!,
       message: cleanMessage(input.message),
     })
   } catch {
@@ -64,7 +77,9 @@ export async function requestRenewal(
         userId: target.resellerId,
         event: 'renewal_requested',
         dedupeKey: `renewal-requested:${id}`,
-        text: `🔁 ${target.marzbanUsername} درخواست تمدید ${input.months.toLocaleString('fa-IR')} ماهه داده است.`,
+        text: legacy
+          ? `🔁 ${target.marzbanUsername} درخواست تمدید ${input.months!.toLocaleString('fa-IR')} ماهه داده است.`
+          : `🔁 ${target.marzbanUsername} درخواست تمدید ${input.durationDays!.toLocaleString('fa-IR')} روزه داده است.`,
       },
       { db, now },
     )
@@ -82,6 +97,7 @@ export async function listPendingRenewals(
     .select({
       id: renewalRequests.id,
       months: renewalRequests.months,
+      durationDays: renewalRequests.durationDays,
       message: renewalRequests.message,
       createdAt: renewalRequests.createdAt,
       username: vpnUsers.marzbanUsername,

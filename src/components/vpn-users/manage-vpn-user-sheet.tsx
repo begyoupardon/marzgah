@@ -19,7 +19,7 @@ import { Switch } from '#/components/ui/switch'
 import { Textarea } from '#/components/ui/textarea'
 import {
   DataLimitField,
-  DurationMonthsField,
+  DurationDaysField,
 } from '#/components/vpn-users/plan-fields'
 import { ResponsiveFormShell } from '#/components/vpn-users/responsive-form-shell'
 import { SubscriptionShareDialog } from '#/components/vpn-users/subscription-share-dialog'
@@ -28,7 +28,7 @@ import { statusColor, statusLabel } from '#/lib/format'
 import { toastError, toastSuccess } from '#/lib/toast'
 import {
   bytesToGb,
-  DURATION_MONTHS,
+  DURATION_DAYS,
   durationLabel,
   editVpnUserFormSchema,
   gbToBytes,
@@ -89,9 +89,8 @@ export function ManageVpnUserSheet({
   const renewForm = useForm<RenewVpnUserFormValues>({
     resolver: zodResolver(renewVpnUserFormSchema),
     defaultValues: {
-      durationMonths: 1,
-      dataLimitGb: 25,
-      resetUsage: true,
+      durationDays: 30,
+      additionalDataLimitGb: 25,
       reactivate: true,
     },
     mode: 'onTouched',
@@ -105,9 +104,8 @@ export function ManageVpnUserSheet({
     const gb = bytesToGb(user.dataLimitBytes) ?? 25
     editForm.reset({ dataLimitGb: gb, note: user.note ?? '', password: '' })
     renewForm.reset({
-      durationMonths: 1,
-      dataLimitGb: gb,
-      resetUsage: true,
+      durationDays: 30,
+      additionalDataLimitGb: gb,
       reactivate: true,
     })
   }, [open, user, editForm, renewForm])
@@ -140,16 +138,19 @@ export function ManageVpnUserSheet({
 
   const renewDuration = useWatch({
     control: renewForm.control,
-    name: 'durationMonths',
+    name: 'durationDays',
   })
-  const renewGb = useWatch({ control: renewForm.control, name: 'dataLimitGb' })
+  const renewGb = useWatch({
+    control: renewForm.control,
+    name: 'additionalDataLimitGb',
+  })
 
   const durationOptions: DurationChoice[] = allowUnlimitedExpire
-    ? [...DURATION_MONTHS, UNLIMITED_DURATION]
-    : [...DURATION_MONTHS]
+    ? [...DURATION_DAYS, UNLIMITED_DURATION]
+    : [...DURATION_DAYS]
 
   const renewPreview = useMemo(
-    () => renewExpireAt(user?.expireAt, renewDuration || 1),
+    () => renewExpireAt(user?.expireAt, renewDuration || 30),
     [user?.expireAt, renewDuration],
   )
 
@@ -180,9 +181,8 @@ export function ManageVpnUserSheet({
     renewForm.clearErrors('root')
     renewMutation.mutate({
       username: user.marzbanUsername,
-      durationMonths: values.durationMonths,
-      dataLimitBytes: gbToBytes(values.dataLimitGb),
-      resetUsage: values.resetUsage,
+      durationDays: values.durationDays,
+      additionalDataLimitBytes: gbToBytes(values.additionalDataLimitGb),
       reactivate: values.reactivate,
     })
   }
@@ -208,7 +208,11 @@ export function ManageVpnUserSheet({
               type="submit"
               form={activeFormId}
               className="h-11 sm:h-8"
-              disabled={pending || !user}
+              disabled={
+                pending ||
+                !user ||
+                (mode === 'renew' && user.dataLimitBytes == null)
+              }
             >
               {pending
                 ? mode === 'edit'
@@ -367,51 +371,66 @@ export function ManageVpnUserSheet({
                 noValidate
               >
                 <FieldGroup>
-                  <DurationMonthsField
+                  <DurationDaysField
                     control={renewForm.control}
-                    name="durationMonths"
+                    name="durationDays"
                     options={durationOptions}
                     label={t('مدت تمدید')}
                     description={
                       allowUnlimitedExpire
                         ? t(
-                            'از تاریخ فعلی تمدید می‌شود؛ نامحدود انقضا را حذف می‌کند',
+                            'تمدید از امروز آغاز می‌شود؛ نامحدود انقضا را حذف می‌کند',
                           )
-                        : t('اگر هنوز اعتبار دارد، از تاریخ فعلی تمدید می‌شود')
+                        : t(
+                            'تمدید از امروز آغاز می‌شود؛ زمان باقی‌مانده حذف خواهد شد',
+                          )
                     }
                   />
 
+                  <div className="rounded-xl border bg-muted/40 p-3 text-sm">
+                    <p>
+                      {t('انقضای فعلی:')}{' '}
+                      {user?.expireAt
+                        ? formatDate(user.expireAt)
+                        : t('بدون انقضا')}
+                    </p>
+                    <p>
+                      {t('انقضای جدید:')}{' '}
+                      {renewPreview
+                        ? formatDate(renewPreview.toISOString())
+                        : t('بدون انقضا')}
+                    </p>
+                    {user?.dataLimitBytes != null &&
+                    typeof renewGb === 'number' &&
+                    Number.isFinite(renewGb) ? (
+                      <p>
+                        {t('سقف جدید:')}{' '}
+                        {bytesToGb(user.dataLimitBytes)! + renewGb} GB
+                      </p>
+                    ) : null}
+                    <p className="text-muted-foreground">
+                      {t(
+                        'مصرف فعلی حفظ می‌شود و حجم انتخابی به سقف فعلی اضافه می‌شود.',
+                      )}
+                    </p>
+                  </div>
+                  {user?.dataLimitBytes == null ? (
+                    <p
+                      role="alert"
+                      className="rounded-lg border border-destructive/40 p-3 text-sm text-destructive"
+                    >
+                      {t(
+                        'برای حجم نامحدود امکان افزودن حجم از این مسیر وجود ندارد.',
+                      )}
+                    </p>
+                  ) : null}
+
                   <DataLimitField
                     control={renewForm.control}
-                    name="dataLimitGb"
+                    name="additionalDataLimitGb"
                     id={`${RENEW_FORM_ID}-data-limit`}
-                  />
-
-                  <Controller
-                    control={renewForm.control}
-                    name="resetUsage"
-                    render={({ field, fieldState }) => (
-                      <Field
-                        orientation="horizontal"
-                        data-invalid={fieldState.invalid}
-                        className="rounded-xl border p-3"
-                      >
-                        <FieldContent>
-                          <FieldLabel htmlFor={`${RENEW_FORM_ID}-reset`}>
-                            {t('ریست حجم مصرفی')}
-                          </FieldLabel>
-                          <FieldDescription>
-                            {t('مصرف فعلی صفر شود')}
-                          </FieldDescription>
-                        </FieldContent>
-                        <Switch
-                          id={`${RENEW_FORM_ID}-reset`}
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                          aria-invalid={fieldState.invalid}
-                        />
-                      </Field>
-                    )}
+                    label="حجم اضافه‌شونده (گیگابایت)"
+                    description="این مقدار به سقف فعلی اضافه و فقط همین مقدار صورتحساب می‌شود. حداقل ۱۰ گیگابایت."
                   />
 
                   <Controller

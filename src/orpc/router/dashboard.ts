@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, sum } from 'drizzle-orm'
+import { and, asc, count, desc, eq, sum, isNull } from 'drizzle-orm'
 import * as z from 'zod'
 
 import { db } from '#/db'
@@ -20,8 +20,8 @@ export const getDashboard = authed
         : context.user.id
 
     const whereClause = resellerId
-      ? eq(vpnUsers.resellerId, resellerId)
-      : undefined
+      ? and(isNull(vpnUsers.removedAt), eq(vpnUsers.resellerId, resellerId))
+      : isNull(vpnUsers.removedAt)
 
     const [totals] = await db
       .select({
