@@ -24,6 +24,8 @@ import {
   sendTestMessage,
   startTelegramLink,
   telegramStatus,
+  resellerTelegramBotStatus,
+  saveTelegramReseller,
   unlinkMyTelegram,
 } from './notifications'
 import {
@@ -115,6 +117,8 @@ export const router = {
   },
   notifications: {
     status: telegramStatus,
+    resellerBotStatus: resellerTelegramBotStatus,
+    saveResellerBot: saveTelegramReseller,
     startLink: startTelegramLink,
     unlink: unlinkMyTelegram,
     sendTest: sendTestMessage,

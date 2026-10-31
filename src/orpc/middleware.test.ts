@@ -50,5 +50,5 @@ it('never grants admin access to a deleted account with a stale session', async 
   mocks.role.mockResolvedValue([])
   await expect(
     call(adminProcedure, undefined, { context }),
-  ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+  ).rejects.toMatchObject({ code: 'UNAUTHORIZED' })
 })

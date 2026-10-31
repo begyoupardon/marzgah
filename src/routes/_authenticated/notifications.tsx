@@ -47,9 +47,94 @@ function NotificationsPage() {
         </p>
       </div>
       <TelegramLink />
+      {session.user.role === 'reseller' ? <TelegramResellerBot /> : null}
       {session.user.role === 'reseller' ? <Branding /> : null}
       {session.user.role === 'admin' ? <TelegramAdmin /> : null}
     </div>
+  )
+}
+
+function TelegramResellerBot() {
+  const { t } = useI18n()
+  const queryClient = useQueryClient()
+  const [token, setToken] = useState('')
+  const status = useQuery(orpc.notifications.resellerBotStatus.queryOptions())
+  const save = useMutation({
+    mutationFn: () =>
+      orpc.notifications.saveResellerBot.call({
+        botToken: token,
+        enabled: true,
+      }),
+    onSuccess: async (result) => {
+      setToken('')
+      await queryClient.invalidateQueries({
+        queryKey: orpc.notifications.resellerBotStatus.key(),
+      })
+      await queryClient.invalidateQueries({
+        queryKey: orpc.notifications.status.key(),
+      })
+      toastSuccess(`${t('ربات ثبت شد')}: @${result.botUsername}`)
+    },
+    onError: (err) => toastError(t('ثبت ربات انجام نشد'), err),
+  })
+  return (
+    <Card>
+      <CardHeader className="border-b">
+        <CardTitle>{t('ربات تلگرام نمایندگی')}</CardTitle>
+        <CardDescription>
+          {t(
+            'یک ربات از BotFather بسازید و توکن آن را وارد کنید. توکن رمزگذاری‌شده نگهداری می‌شود.',
+          )}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4 pt-4">
+        {status.data?.configured ? (
+          <div className="text-sm">
+            <p>
+              {t('ربات')}: <span dir="ltr">@{status.data.botUsername}</span>
+            </p>
+            <p>
+              {t('وضعیت وب‌هوک')}: {t(status.data.webhook.state)}
+            </p>
+            {status.data.webhook.pendingUpdateCount !== null ? (
+              <p>
+                {t('به‌روزرسانی‌های در انتظار:')}{' '}
+                {status.data.webhook.pendingUpdateCount.toLocaleString()}
+              </p>
+            ) : null}
+            {status.data.webhook.lastErrorMessage ? (
+              <p className="text-destructive">
+                {t('آخرین خطای تحویل:')} {status.data.webhook.lastErrorMessage}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+        <div className="space-y-2">
+          <Label htmlFor="reseller-telegram-token">
+            {t(
+              status.data?.configured
+                ? 'توکن جدید برای چرخش (اختیاری)'
+                : 'توکن BotFather',
+            )}
+          </Label>
+          <Input
+            id="reseller-telegram-token"
+            type="password"
+            autoComplete="new-password"
+            value={token}
+            onChange={(event) => setToken(event.target.value)}
+            placeholder="123456:ABC…"
+            dir="ltr"
+          />
+        </div>
+        <Button
+          disabled={save.isPending || token.trim().length < 10}
+          onClick={() => save.mutate()}
+        >
+          {t('ذخیره و ثبت وب‌هوک')}
+        </Button>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -117,7 +202,9 @@ function TelegramLink() {
         ) : null}
         {status.data && !status.data.available ? (
           <p className="text-sm text-muted-foreground">
-            {t('مدیر هنوز ربات تلگرام را فعال نکرده است.')}
+            {status.data.role === 'reseller'
+              ? t('ابتدا ربات اختصاصی خود را در همین صفحه ثبت کنید.')
+              : t('مدیر هنوز ربات تلگرام را فعال نکرده است.')}
           </p>
         ) : null}
 
@@ -128,12 +215,12 @@ function TelegramLink() {
                 <p className="font-medium">{t('مدیریت پنل از طریق ربات')}</p>
                 <p className="mt-2 text-muted-foreground">
                   {t(
-                    'دستورهای ربات: /menu، /wallet، /expiring، /renewals و /status نام‌کاربری',
+                    'با /menu فهرست مدیریت را ببینید. تغییرات حساس با تأیید پنج‌دقیقه‌ای انجام می‌شوند.',
                   )}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {t(
-                    'ربات فقط اطلاعات مشتریان خودتان را نمایش می‌دهد. برای تایید یا رد درخواست تمدید از پنل استفاده کنید.',
+                    'ربات از دسترسی‌های همین حساب استفاده می‌کند و فقط مشتریان خودتان را مدیریت می‌کند.',
                   )}
                 </p>
               </div>
@@ -379,6 +466,29 @@ function TelegramAdmin() {
                 {config.data.webhook.lastErrorMessage}
               </p>
             ) : null}
+          </div>
+        ) : null}
+
+        {(config.data?.bots.length ?? 0) > 0 ? (
+          <div className="space-y-2 border-t pt-4">
+            <p className="text-sm font-medium">{t('ربات‌های متصل')}</p>
+            <ul className="divide-y rounded-md border">
+              {config.data!.bots.map((bot) => (
+                <li
+                  key={bot.id}
+                  className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm"
+                >
+                  <span dir="ltr">@{bot.botUsername}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {bot.kind === 'platform'
+                      ? t('ربات مدیر')
+                      : `${t('ربات فروشنده')} · ${bot.ownerUserId}`}
+                    {bot.legacyShared ? ` · ${t('اتصال مشترک قدیمی')}` : ''}
+                    {bot.enabled ? ` · ${t('فعال')}` : ` · ${t('غیرفعال')}`}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </div>
         ) : null}
 

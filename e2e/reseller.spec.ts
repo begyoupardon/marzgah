@@ -38,7 +38,7 @@ test('reseller navigates across sections, history, reload, and mobile layout', a
   await page.setViewportSize({ width: 390, height: 844 })
   await page.getByRole('button', { name: 'باز و بسته کردن منو' }).click()
   await expect(page.locator('nav a[href$="/users"]')).toBeVisible()
-  await page.locator('nav a[href$="/users"]').click()
+  await page.locator('nav:visible a[href$="/users"]').last().click()
   await expect(page).toHaveURL(/users$/)
   const mobileWidth = await page
     .locator('body')
@@ -92,4 +92,24 @@ test('reseller UI never exposes archive actions', async ({ page }) => {
   await page.locator('nav a[href$="/users"]').click()
   await page.getByRole('button', { name: 'عملیات' }).click()
   await expect(page.getByRole('button', { name: 'آرشیو کاربر' })).toHaveCount(0)
+})
+
+test('reseller Telegram settings use a protected BotFather token field on mobile', async ({
+  page,
+}) => {
+  await signIn(page)
+  await page.locator('nav a[href$="/notifications"]').click()
+  await expect(
+    page.getByText('ربات تلگرام نمایندگی', { exact: true }),
+  ).toBeVisible()
+  const token = page.getByLabel('توکن BotFather')
+  await expect(token).toHaveAttribute('type', 'password')
+  await expect(page.getByText(/توکن رمزگذاری‌شده/)).toBeVisible()
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(
+    page.getByRole('button', { name: 'ذخیره و ثبت وب‌هوک' }),
+  ).toBeVisible()
+  expect(
+    await page.locator('body').evaluate((el) => el.scrollWidth),
+  ).toBeLessThanOrEqual(390)
 })

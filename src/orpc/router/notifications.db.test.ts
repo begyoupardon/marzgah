@@ -26,6 +26,12 @@ globalThis.fetch = (async (url: string, init?: RequestInit) => {
     return Response.json(
       failWebhookInfo ? { ok: false } : { ok: true, result: webhookInfo },
     )
+  if (String(url).endsWith('/setWebhook')) {
+    webhookInfo = {
+      url: JSON.parse(init?.body as string).url,
+      pending_update_count: 0,
+    }
+  }
   return Response.json({ ok: true, result: true })
 }) as unknown as typeof fetch
 afterAll(() => {
@@ -68,6 +74,12 @@ it('only admins can configure the bot, and the token is never returned', async (
 })
 
 it('walks a seller through linking, then unlinking', async () => {
+  process.env.BETTER_AUTH_URL = 'https://panel.example.com'
+  await callAs(
+    api.saveTelegramReseller,
+    { botToken: '999999:ALICE-OWN-BOT', enabled: true },
+    alice.id,
+  )
   const started = (await callAs(
     api.startTelegramLink,
     undefined,
@@ -75,13 +87,15 @@ it('walks a seller through linking, then unlinking', async () => {
   )) as { code: string; deepLink: string }
   expect(started.deepLink).toBe(`https://t.me/my_bot?start=${started.code}`)
 
-  const { getTelegramConfig } = await import('#/lib/notifications/telegram')
-  const config = (await getTelegramConfig(db))!
+  const { getResellerTelegramBot } =
+    await import('#/lib/notifications/telegram')
+  const config = (await getResellerTelegramBot(alice.id, db))!
   const res = await handleTelegramUpdate(
     new Request('https://panel.test/api/telegram/webhook', {
       method: 'POST',
       headers: { 'x-telegram-bot-api-secret-token': config.webhookSecret },
       body: JSON.stringify({
+        update_id: 9911,
         message: {
           text: `/start ${started.code}`,
           from: { id: 4242 },
@@ -110,6 +124,68 @@ it('walks a seller through linking, then unlinking', async () => {
   expect(await callAs(api.telegramStatus, undefined, alice.id)).toMatchObject({
     linked: false,
   })
+})
+
+it('keeps reseller bot settings private, checks webhook health, and rejects shared bot tokens', async () => {
+  process.env.BETTER_AUTH_URL = 'https://panel.example.com'
+  await expect(
+    callAs(
+      api.saveTelegramReseller,
+      { botToken: '999999:ALICE-OWN-BOT', enabled: true },
+      admin.id,
+    ),
+  ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+  const result = await callAs(
+    api.saveTelegramReseller,
+    { botToken: '999999:UNIQUE-ALICE-BOT', enabled: true },
+    alice.id,
+  )
+  expect(result).toMatchObject({
+    ok: true,
+    botUsername: 'my_bot',
+    enabled: true,
+  })
+  expect(
+    await callAs(api.resellerTelegramBotStatus, undefined, alice.id),
+  ).toMatchObject({
+    configured: true,
+    webhook: { state: 'matching', urlMatches: true },
+  })
+  expect(
+    JSON.stringify(
+      await callAs(api.resellerTelegramBotStatus, undefined, alice.id),
+    ),
+  ).not.toContain('UNIQUE-ALICE-BOT')
+  webhookInfo = {
+    url: 'https://wrong.example/hook',
+    pending_update_count: 4,
+    last_error_date: 123,
+    last_error_message: 'failed for 999999:UNIQUE-ALICE-BOT',
+  }
+  expect(
+    await callAs(api.resellerTelegramBotStatus, undefined, alice.id),
+  ).toMatchObject({
+    webhook: { state: 'mismatch', pendingUpdateCount: 4, lastErrorDate: 123 },
+  })
+  expect(
+    JSON.stringify(
+      await callAs(api.resellerTelegramBotStatus, undefined, alice.id),
+    ),
+  ).not.toContain('UNIQUE-ALICE-BOT')
+  webhookInfo = { url: '' }
+  expect(
+    await callAs(api.resellerTelegramBotStatus, undefined, alice.id),
+  ).toMatchObject({ webhook: { state: 'missing' } })
+  expect(
+    await callAs(api.resellerTelegramBotStatus, undefined, bob.id),
+  ).toMatchObject({ configured: false })
+  await expect(
+    callAs(
+      api.saveTelegramReseller,
+      { botToken: '999999:UNIQUE-ALICE-BOT', enabled: true },
+      bob.id,
+    ),
+  ).rejects.toMatchObject({ code: 'CONFLICT' })
 })
 
 it('lets only admins revoke linked Telegram accounts and audits the revocation', async () => {
@@ -162,7 +238,7 @@ it('registers the webhook only over https, with the secret token', async () => {
   const set = calls.find((c) => c.url.endsWith('/setWebhook'))!
   expect(set.body.url).toBe('https://panel.example.com/api/telegram/webhook')
   expect(typeof set.body.secret_token).toBe('string')
-  expect(set.body.allowed_updates).toEqual(['message'])
+  expect(set.body.allowed_updates).toEqual(['message', 'callback_query'])
   await expect(
     callAs(api.registerTelegramWebhook, undefined, alice.id),
   ).rejects.toMatchObject({ code: 'FORBIDDEN' })

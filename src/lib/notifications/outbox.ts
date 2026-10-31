@@ -4,6 +4,7 @@ import { db as defaultDb } from '#/db'
 import { notifications, telegramLinks } from '#/db/schema'
 import type { Db } from '#/db/types'
 import type { Notifier } from './types'
+import { getBotById, createTelegramNotifier } from './telegram'
 
 export const MAX_ATTEMPTS = 6
 const LEASE_MS = 5 * 60_000
@@ -50,11 +51,13 @@ export async function drainOutbox({
   db = defaultDb,
   now = new Date(),
   batch = 25,
+  notifierForBot,
 }: {
-  notifier: Notifier
+  notifier?: Notifier
   db?: Db
   now?: Date
   batch?: number
+  notifierForBot?: (botId: string | null) => Promise<Notifier | null>
 }): Promise<DrainResult> {
   const result: DrainResult = { sent: 0, retried: 0, dead: 0, skipped: 0 }
   const due = await db
@@ -99,7 +102,22 @@ export async function drainOutbox({
 
     let outcome: Awaited<ReturnType<Notifier['send']>>
     try {
-      outcome = await notifier.send(link.chatId, row.text)
+      const selected = notifierForBot
+        ? await notifierForBot(link.botId)
+        : link.botId
+          ? await getBotById(link.botId, db).then((bot) =>
+              bot?.enabled ? createTelegramNotifier(bot.botToken) : null,
+            )
+          : (notifier ?? null)
+      if (!selected) {
+        await db
+          .update(notifications)
+          .set({ status: 'skipped', lastError: 'linked bot is unavailable' })
+          .where(eq(notifications.id, id))
+        result.skipped++
+        continue
+      }
+      outcome = await selected.send(link.chatId, row.text)
     } catch (error) {
       outcome = {
         ok: false,

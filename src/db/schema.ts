@@ -249,12 +249,50 @@ export const settings = sqliteTable('settings', {
     .notNull(),
 })
 
+/** One platform bot plus optional reseller-owned bots, all served by this app. */
+export const telegramBots = sqliteTable(
+  'telegram_bots',
+  {
+    id: text('id').primaryKey(),
+    kind: text('kind', { enum: ['platform', 'reseller'] }).notNull(),
+    ownerUserId: text('owner_user_id').references(() => user.id, {
+      onDelete: 'cascade',
+    }),
+    botUsername: text('bot_username').notNull(),
+    tokenCiphertext: text('token_ciphertext').notNull(),
+    webhookSecretHash: text('webhook_secret_hash').notNull().unique(),
+    webhookSecretCiphertext: text('webhook_secret_ciphertext').notNull(),
+    enabled: integer('enabled', { mode: 'boolean' }).default(true).notNull(),
+    legacyShared: integer('legacy_shared', { mode: 'boolean' })
+      .default(false)
+      .notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex('telegram_bots_owner_idx').on(t.ownerUserId),
+    uniqueIndex('telegram_bots_platform_idx')
+      .on(t.kind)
+      .where(sql`${t.kind} = 'platform'`),
+    index('telegram_bots_enabled_idx').on(t.enabled),
+  ],
+)
+
 /** One Telegram chat per panel user; created when they confirm a link code. */
 export const telegramLinks = sqliteTable('telegram_links', {
   userId: text('user_id')
     .primaryKey()
     .references(() => user.id, { onDelete: 'cascade' }),
   chatId: text('chat_id').notNull().unique(),
+  /** Nullable only for links made before the multi-bot migration. */
+  botId: text('bot_id').references(() => telegramBots.id, {
+    onDelete: 'set null',
+  }),
   linkedAt: integer('linked_at', { mode: 'timestamp_ms' })
     .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
     .notNull(),
@@ -266,8 +304,55 @@ export const telegramLinkCodes = sqliteTable('telegram_link_codes', {
   userId: text('user_id')
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' }),
+  botId: text('bot_id').references(() => telegramBots.id, {
+    onDelete: 'cascade',
+  }),
   expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
 })
+
+/** Opaque single-use confirmations for Telegram mutations. */
+export const telegramConfirmations = sqliteTable(
+  'telegram_confirmations',
+  {
+    id: text('id').primaryKey(),
+    botId: text('bot_id')
+      .notNull()
+      .references(() => telegramBots.id, { onDelete: 'cascade' }),
+    actorUserId: text('actor_user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    chatId: text('chat_id').notNull(),
+    action: text('action').notNull(),
+    payloadJson: text('payload_json').notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    consumedAt: integer('consumed_at', { mode: 'timestamp_ms' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+  },
+  (t) => [
+    index('telegram_confirmations_due_idx').on(t.expiresAt, t.consumedAt),
+    index('telegram_confirmations_actor_idx').on(t.actorUserId),
+  ],
+)
+
+/** Telegram retries updates; a per-bot receipt prevents duplicate mutations. */
+export const telegramUpdates = sqliteTable(
+  'telegram_updates',
+  {
+    botId: text('bot_id')
+      .notNull()
+      .references(() => telegramBots.id, { onDelete: 'cascade' }),
+    updateId: text('update_id').notNull(),
+    receivedAt: integer('received_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex('telegram_updates_bot_update_idx').on(t.botId, t.updateId),
+    index('telegram_updates_received_idx').on(t.receivedAt),
+  ],
+)
 
 /** Transactional outbox: rows are written with the business event, sent later. */
 export const notifications = sqliteTable(

@@ -27,16 +27,17 @@ export async function syncAllUsers() {
 
 /** Queue expiry / traffic / wallet warnings. Safe to run often: keys dedupe. */
 export async function scanNotifications() {
-  const config = await getTelegramConfig()
-  if (!config?.enabled) return null
   return runAllScans()
 }
 
 /** Send whatever is due. A no-op until the Telegram integration is enabled. */
 export async function drainNotifications() {
   const config = await getTelegramConfig()
-  if (!config?.enabled) return null
-  return drainOutbox({ notifier: createTelegramNotifier(config.botToken) })
+  return drainOutbox({
+    ...(config?.enabled
+      ? { notifier: createTelegramNotifier(config.botToken) }
+      : {}),
+  })
 }
 
 export async function autoBackup() {

@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { createTestDb } from '../../../test/helpers/db'
 import { makeReseller } from '../../../test/helpers/factories'
 import { notifications, telegramLinks } from '#/db/schema'
+import { saveTelegramBot } from './telegram'
 import { MAX_ATTEMPTS, backoffMs, drainOutbox, enqueue } from './outbox'
 import type { Notifier, SendResult } from './types'
 
@@ -163,6 +164,44 @@ it('skips recipients with no linked channel', async () => {
   expect(result.skipped).toBeGreaterThanOrEqual(1)
   expect(sent.find((s) => s.text === 'n')).toBeUndefined()
   expect((await row(`${r.id}:nolink`)).status).toBe('skipped')
+})
+
+it('routes each linked notification through the recipient’s configured bot', async () => {
+  const reseller = await makeReseller(db)
+  const bot = await saveTelegramBot(
+    {
+      kind: 'reseller',
+      ownerUserId: reseller.id,
+      botToken: '123456:OUTBOX-BOT',
+      botUsername: 'outbox_bot',
+    },
+    db,
+  )
+  await db
+    .insert(telegramLinks)
+    .values({ userId: reseller.id, chatId: 'bot-chat', botId: bot.id })
+  await enqueue(
+    {
+      userId: reseller.id,
+      event: 'test',
+      dedupeKey: `${reseller.id}:bot-route`,
+      text: 'routed',
+    },
+    { db, now: T0 },
+  )
+  const selected: Array<string | null> = []
+  const result = await drainOutbox({
+    notifier: fakeNotifier([{ ok: false, error: 'unused' }]).notifier,
+    db,
+    now: T0,
+    notifierForBot: async (botId) => {
+      selected.push(botId)
+      return { send: async () => ({ ok: true }) }
+    },
+  })
+  expect(selected).toContain(bot.id)
+  expect(result.sent).toBe(1)
+  expect((await row(`${reseller.id}:bot-route`)).status).toBe('sent')
 })
 
 it('a thrown notifier counts as a transient failure and does not block other rows', async () => {

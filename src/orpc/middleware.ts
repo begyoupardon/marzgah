@@ -13,6 +13,13 @@ import {
 
 export type AppContext = {
   headers: Headers
+  /** Server-only identity supplied by the verified Telegram webhook dispatcher. */
+  telegramActor?: {
+    userId: string
+    botId: string
+    botOwnerId: string | null
+    chatId: string
+  }
 }
 
 export type ProcedureState = {
@@ -62,24 +69,33 @@ export const base = os
   })
 
 export const authed = base.use(async ({ context, next }) => {
-  const session = await auth.api.getSession({ headers: context.headers })
-  if (!session?.user) {
+  const telegramActor = context.telegramActor
+  const session = telegramActor
+    ? null
+    : await auth.api.getSession({ headers: context.headers })
+  const userId = telegramActor?.userId ?? session?.user.id
+  if (!userId) {
     throw new ORPCError('UNAUTHORIZED', {
       message: 'نشست شما منقضی شده است. دوباره وارد شوید',
     })
   }
 
   const [row] = await db
-    .select({ role: user.role })
+    .select({ role: user.role, name: user.name, email: user.email })
     .from(user)
-    .where(eq(user.id, session.user.id))
+    .where(eq(user.id, userId))
     .limit(1)
+  if (!row) {
+    throw new ORPCError('UNAUTHORIZED', {
+      message: 'حساب کاربری معتبر نیست',
+    })
+  }
 
-  const role = row?.role === 'admin' ? 'admin' : 'reseller'
+  const role = row.role === 'admin' ? 'admin' : 'reseller'
   const currentUser = {
-    id: session.user.id,
-    name: session.user.name,
-    email: session.user.email,
+    id: userId,
+    name: session?.user.name ?? row.name,
+    email: session?.user.email ?? row.email,
     role,
   }
 
@@ -90,7 +106,7 @@ export const authed = base.use(async ({ context, next }) => {
   return next({
     context: {
       user: currentUser,
-      session: session.session,
+      session: session?.session ?? null,
     },
   })
 })

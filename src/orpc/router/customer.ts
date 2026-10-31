@@ -216,7 +216,12 @@ export const approveRenewalRequest = authed
             : { durationMonths: request.months as 1 | 2 | 3 }),
           reactivate: true,
         },
-        { context: { headers: context.headers } },
+        {
+          context: {
+            headers: context.headers,
+            telegramActor: context.telegramActor,
+          },
+        },
       )
     } catch (error) {
       await reopen(request.id)

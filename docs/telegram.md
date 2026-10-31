@@ -1,92 +1,79 @@
-# Telegram setup and reseller bot guide
+# Telegram bots
 
-Marzgah uses one administrator-configured Telegram bot. Each panel user links their own private Telegram account; the bot uses that link to identify the account. Reseller commands only read that reseller's data. Creating, renewing, disabling, approving, and rejecting still require the authenticated web panel.
+Marzgah hosts Telegram bots directly. Configure one platform bot for administrators and, optionally, one BotFather bot per reseller. Telegram updates are authenticated by a unique webhook secret for each bot. Commands execute the same server-side procedures as the web panel, so current role checks, reseller ownership, billing, validation, and audit logging apply. **Do not create or distribute Marzgah API keys for bots.**
 
 ## Requirements
 
-- A public HTTPS URL for the panel. Set `BETTER_AUTH_URL` to the public panel origin, for example `https://panel.example.com` (without a trailing slash). Telegram must be able to reach `https://panel.example.com/api/telegram/webhook`.
-- An administrator account in Marzgah.
-- A Telegram account for the administrator who creates the bot.
-- For queued Telegram notifications, run the Bun deployment so its background worker can drain the notification outbox. Cloudflare Worker deployments currently queue notifications but do not run that background worker; see [Cloudflare notes](#cloudflare-workers).
+- A public HTTPS panel URL in `BETTER_AUTH_URL`, for example `https://panel.example.com`.
+- The panel's database and `BETTER_AUTH_SECRET` must persist across deployments.
+- The VPS or Worker must accept Telegram webhook requests at `/api/telegram/webhook`.
+- Create each bot with [@BotFather](https://t.me/BotFather) and keep its token private.
 
-## 1. Create a bot
+## Administrator platform bot
 
-1. Open Telegram and start a chat with [@BotFather](https://t.me/BotFather).
-2. Send `/newbot` and follow the prompts for a display name and username. The username must end in `bot`.
-3. Copy the bot token from BotFather. Treat it like a password: do not put it in source control or share it in a chat.
+1. In Telegram, open @BotFather, run `/newbot`, and copy the token.
+2. Sign in as an administrator and open **Notifications → Telegram**.
+3. Save the platform bot token and register its webhook. The panel validates the token with Telegram and registers the HTTPS webhook.
+4. Check webhook status in the admin settings. A matching URL indicates Telegram reports the configured panel URL. The status can also report a missing or mismatched URL, queued updates, and Telegram's last delivery error.
+5. Generate a link from the panel and start the bot from the same Telegram account you intend to bind.
 
-Optionally, configure the command picker in BotFather with `/setcommands`, select your bot, then paste:
+The platform bot is for administrator accounts. Previously linked reseller accounts on a migrated shared bot remain supported during the transition; when those resellers connect their own bot, their existing Telegram link moves to it.
 
-```text
-menu - Show available commands
-help - Show the command list
-wallet - Show wallet balance
-expiring - List subscriptions expiring soon
-renewals - List pending customer renewal requests
-status - Show one customer's subscription status
-unlink - Disconnect this Telegram account
-```
+## Reseller-owned bot
 
-The command picker is optional; the bot also responds to commands typed in its private chat.
+1. As the reseller, create a bot with @BotFather (`/newbot`) and copy its token.
+2. Open **Notifications → Telegram** in your reseller panel.
+3. Enter the token and choose **Save and register webhook**. Marzgah checks the token, encrypts it before storing it, generates a separate webhook secret, and registers the bot.
+4. Confirm the webhook status reports `matching` and use **Connect Telegram** to link your personal Telegram account.
+5. Press **Start** in the bot's private chat. Linking expires after 15 minutes and can only be used once.
 
-## 2. Configure the bot in Marzgah
+Each reseller may configure one bot. Saving a replacement token rotates the webhook secret and registers the replacement bot. Keep the bot token out of shell history, tickets, screenshots, and logs. The panel never displays it after saving. Webhook secrets and bot tokens are encrypted at rest using the app's configured encryption secret.
 
-1. Sign in as an administrator and open **اعلان‌ها** (Notifications).
-2. In the administrator bot settings, enter the bot username (without `@`) and token, enable the bot, then save.
-3. Select **ثبت وب‌هوک در تلگرام** (Register Telegram webhook). Marzgah validates the token and registers the HTTPS webhook.
-4. Use **ارسال پیام آزمایشی** (Send test message) after linking your own account in the next section.
+## Linking and identity
 
-The bot token is stored encrypted in the database and is not returned to the browser after saving. The webhook secret is generated by the app and sent to Telegram when the webhook is registered. Do not change `BETTER_AUTH_SECRET` after setup: it is also used to encrypt stored settings.
+Telegram uses the numeric Telegram account ID from a private chat, not a display name or username. The link code is generated by an authenticated panel session, stored as a hash, bound to the selected bot, expires after 15 minutes, and is consumed once. Linking the same panel user to a different bot replaces the old association. A linked Telegram account cannot be attached to a second panel account at the same time.
 
-If you change the bot token, save it and register the webhook again. If you change the panel domain, update `BETTER_AUTH_URL` and register the webhook again so Telegram points to the new address.
+Every update loads the linked account's current role from the database. The platform bot accepts administrators and legacy reseller links only while the migrated shared-bot mode is active. A reseller bot accepts only its owner. Changing roles or unlinking takes effect on the next update. Bot callbacks and commands are restricted to private chats.
 
-## 3. Link an administrator or reseller account
+## Commands and permissions
 
-Each user links their own account; an admin cannot create a link on behalf of a reseller.
+Use `/menu` or `/help` to see the command list available to the current role. Common commands include:
 
-1. While signed into the panel as that user, open **اعلان‌ها**.
-2. Select **اتصال تلگرام** (Connect Telegram), then use the generated button to open the bot.
-3. Press **Start** in the bot's private chat. The link code is single-use and expires after 15 minutes.
-4. Return to the panel and confirm that the account shows as connected. Send a test message if desired.
+| Command                                   | Purpose                                              |
+| ----------------------------------------- | ---------------------------------------------------- |
+| `/dashboard`                              | View a dashboard summary                             |
+| `/users [search]`                         | List or search users in the caller's permitted scope |
+| `/status username`                        | View an accessible user's status                     |
+| `/wallet`                                 | View own wallet; admins may specify a reseller ID    |
+| `/billing`                                | List accessible billing records                      |
+| `/renewals`                               | List renewal requests visible to the caller          |
+| `/create username GB 30\|60\|90`          | Create a subscription                                |
+| `/renew username 30\|60\|90 additionalGB` | Renew and add quota                                  |
+| `/disable username`, `/enable username`   | Disable or re-enable a subscription                  |
+| `/reset username`, `/revoke username`     | Reset usage or revoke its subscription link          |
+| `/approve requestId`, `/reject requestId` | Decide a renewal request when authorized             |
+| `/unlink`                                 | Unlink this Telegram account                         |
 
-Link codes are stored as hashes. The bot identifies the sender by Telegram's numeric account ID; it does not authorize users based on a Telegram username. A private chat is required.
+Administrator-only operations include `/archive`, `/resellers`, `/suspend`, `/resume`, `/settle`, `/adjust`, `/balance`, and `/limits`. Their exact arguments are shown by `/menu` and remain subject to panel authorization.
 
-## 4. Reseller commands
+Sensitive mutations require a confirmation button. Confirmations expire after five minutes, are single-use, and are bound to the actor, bot, and Telegram chat. The application rechecks permissions and ownership while executing the action. Duplicate Telegram update IDs are ignored to prevent retries from repeating actions. Never forward a confirmation button to another person.
 
-Send these lowercase commands in the bot's **private chat**:
+Some operations may be easier to complete in the panel, especially commands with long identifiers or free-text reasons. API keys, bot tokens, webhook secrets, and security-secret rotation are panel-only and are never exposed as bot commands.
 
-| Command            | Result                                                                                            |
-| ------------------ | ------------------------------------------------------------------------------------------------- |
-| `/menu` or `/help` | Show the command list                                                                             |
-| `/wallet`          | Show the reseller's wallet balance                                                                |
-| `/expiring`        | List up to 10 of that reseller's subscriptions expiring within 7 days                             |
-| `/renewals`        | List up to 10 pending renewal requests for that reseller; review and decide them in the web panel |
-| `/status username` | Show status, traffic usage, and expiry for a customer owned by that reseller                      |
-| `/unlink`          | Disconnect the current Telegram account from the panel account                                    |
+## Migration from the former shared bot
 
-For `/status`, use the customer's exact username as shown in the panel. The bot returns the same “not found” response if the username does not belong to the linked reseller, so it does not disclose another reseller's customers.
+On first read after the additive database migration, Marzgah copies the former encrypted Telegram settings into the platform-bot table and associates existing links and pending link codes with that bot. Existing linked resellers keep working during migration. When a reseller configures and links their own bot, that link moves to the reseller bot. Do not delete the old bot until all resellers who need it have moved and the platform bot is confirmed working.
 
-Bot commands are read-only except `/unlink`. The bot does not create or change VPN users, charge wallets, or approve/reject renewals. Use the authenticated panel for those operations.
+## Operations and troubleshooting
 
-## 5. Unlink an account
+| Symptom                                | Check                                                                                                                                            |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Token rejected                         | Copy the token from @BotFather without spaces; regenerate it there if it was exposed.                                                            |
+| Webhook reports missing or mismatch    | Check `BETTER_AUTH_URL`, HTTPS reachability, and that no other service has replaced the webhook; save/register again.                            |
+| Telegram reports delivery errors       | Review the admin webhook health details and server logs; confirm `/api/telegram/webhook` responds to Telegram.                                   |
+| Link code is invalid                   | Generate a fresh code, open the correct bot, and press Start within 15 minutes.                                                                  |
+| Bot says the account is not permitted  | Use the platform bot as an admin or the reseller's own bot as that reseller; then create a fresh link from the panel.                            |
+| A reseller cannot see a customer       | Confirm the customer belongs to that reseller and is not archived. The bot uses the same ownership checks as the panel.                          |
+| Commands work but notifications do not | Confirm the user is linked to an enabled bot and inspect notification outbox health. Background notification jobs depend on the deployment mode. |
 
-- A reseller can select **قطع اتصال** (Disconnect) in the panel or send `/unlink` to the bot.
-- An administrator can open the Telegram settings and remove a user from **اتصال‌های فعال کاربران** (Users with active Telegram links). The list shows up to the 100 most recently linked accounts.
-- Link and unlink events, bot commands, and administrator revocations are recorded in the audit log. Command audit entries do not include the requested customer username or returned customer data.
-
-## Cloudflare Workers
-
-The webhook and direct bot commands can be handled by the Worker, but the app's notification outbox is drained by a Bun background job. On Cloudflare, expiry, traffic, wallet, and renewal notifications will remain queued until you implement and configure scheduled Worker jobs to run the notification scans and outbox drain. For notifications without additional Worker scheduling, use the Bun deployment described in [deploy.md](deploy.md#b-bun-directly).
-
-## Troubleshooting
-
-| Symptom                                    | What to check                                                                                                                                                     |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Webhook registration fails                 | Confirm the token and bot username, set `BETTER_AUTH_URL` to a reachable `https://` URL, then save and register again.                                            |
-| Bot says the link code is invalid          | Generate a new code from the panel and press Start within 15 minutes. Codes can only be used once.                                                                |
-| Bot asks you to connect again              | Confirm that you started the correct bot in a private chat and that the panel shows the account as connected.                                                     |
-| `/status` says customer not found          | Use the exact panel username and make sure that customer belongs to the linked reseller and has not been removed.                                                 |
-| Commands work, but alerts do not arrive    | Check that the bot is enabled, the account is linked, and the notification outbox is healthy. On Cloudflare, the outbox background job is not enabled by default. |
-| Telegram alerts stopped after a deployment | Check that the deployment retained the same database and `BETTER_AUTH_SECRET`, then confirm the bot link and webhook in the panel.                                |
-
-See [deploy.md](deploy.md#telegram) for the deployment checklist and [features.md](features.md#notifications-telegram) for notification delivery behavior.
+For deployment requirements see [deploy.md](deploy.md#telegram). Cloudflare Worker deployments need scheduled jobs for queued notification delivery; see [deploy.md](deploy.md).

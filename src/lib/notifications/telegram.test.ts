@@ -2,8 +2,9 @@ import { expect, it } from 'bun:test'
 import { eq } from 'drizzle-orm'
 
 import { createTestDb } from '../../../test/helpers/db'
-import { makeReseller, makeVpnUser } from '../../../test/helpers/factories'
-import { auditLogs, telegramLinkCodes, telegramLinks } from '#/db/schema'
+import { makeReseller } from '../../../test/helpers/factories'
+import { telegramLinkCodes, telegramLinks } from '#/db/schema'
+import { setSetting } from '#/lib/settings'
 import {
   confirmLink,
   createLinkCode,
@@ -11,12 +12,18 @@ import {
   getTelegramConfig,
   handleTelegramUpdate,
   saveTelegramConfig,
+  saveTelegramBot,
+  claimTelegramUpdate,
+  createTelegramConfirmation,
+  consumeTelegramConfirmation,
+  getPlatformTelegramBot,
 } from './telegram'
 import type { Notifier } from './types'
 
 const db = await createTestDb()
 const T0 = new Date('2026-03-01T10:00:00Z')
 const TOKEN = '123456:SECRET-TOKEN'
+let updateId = 0
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status })
@@ -161,6 +168,7 @@ function update(
     method: 'POST',
     headers: { 'x-telegram-bot-api-secret-token': secret },
     body: JSON.stringify({
+      update_id: ++updateId,
       message: {
         text,
         from: { id: senderId },
@@ -171,12 +179,21 @@ function update(
 }
 
 it('the bot webhook rejects bad secrets and links on a valid /start code', async () => {
-  const config = (await getTelegramConfig(db))!
+  const r = await makeReseller(db)
+  const bot = await saveTelegramBot(
+    {
+      kind: 'reseller',
+      ownerUserId: r.id,
+      botToken: '123456:OWN-TOKEN',
+      botUsername: 'own_bot',
+      enabled: true,
+    },
+    db,
+  )
   const replies: string[] = []
   const notifier: Notifier = {
     send: async (_c, t) => (replies.push(t), { ok: true }),
   }
-  const r = await makeReseller(db)
 
   expect(
     (
@@ -195,11 +212,11 @@ it('the bot webhook rejects bad secrets and links on a valid /start code', async
     ).status,
   ).toBe(403)
 
-  const { code } = await createLinkCode(r.id, { db })
+  const { code } = await createLinkCode(r.id, { db, botId: bot.id })
   expect(
     (
       await handleTelegramUpdate(
-        update(config.webhookSecret, `/start ${code}`, 'group'),
+        update(bot.webhookSecret, `/start ${code}`, 'group'),
         { db, notifier },
       )
     ).status,
@@ -210,10 +227,10 @@ it('the bot webhook rejects bad secrets and links on a valid /start code', async
 
   expect(
     (
-      await handleTelegramUpdate(
-        update(config.webhookSecret, `/start ${code}`),
-        { db, notifier },
-      )
+      await handleTelegramUpdate(update(bot.webhookSecret, `/start ${code}`), {
+        db,
+        notifier,
+      })
     ).status,
   ).toBe(200)
   expect(
@@ -226,7 +243,7 @@ it('the bot webhook rejects bad secrets and links on a valid /start code', async
   ).toBe('777')
   expect(replies.at(-1)).toContain('متصل شد')
 
-  await handleTelegramUpdate(update(config.webhookSecret, `/start ${code}`), {
+  await handleTelegramUpdate(update(bot.webhookSecret, `/start ${code}`), {
     db,
     notifier,
   })
@@ -244,14 +261,18 @@ it('refuses webhook calls while the integration is disabled', async () => {
 })
 
 it('scopes reseller bot lookups, audits commands, and lets the owner unlink', async () => {
-  const config = (await getTelegramConfig(db))!
   const reseller = await makeReseller(db)
-  const otherReseller = await makeReseller(db)
-  const owned = await makeVpnUser(db, reseller.id)
-  await makeVpnUser(db, otherReseller.id, {
-    marzbanUsername: 'someone_else',
-  })
-  const { code } = await createLinkCode(reseller.id, { db })
+  const bot = await saveTelegramBot(
+    {
+      kind: 'reseller',
+      ownerUserId: reseller.id,
+      botToken: '123456:OWN-TOKEN-2',
+      botUsername: 'seller_bot',
+      enabled: true,
+    },
+    db,
+  )
+  const { code } = await createLinkCode(reseller.id, { db, botId: bot.id })
   await confirmLink(code, '808', { db })
   const replies: string[] = []
   const notifier: Notifier = {
@@ -259,32 +280,19 @@ it('scopes reseller bot lookups, audits commands, and lets the owner unlink', as
   }
 
   await handleTelegramUpdate(
-    update(
-      config.webhookSecret,
-      `/status ${owned.marzbanUsername}`,
-      'private',
-      808,
-    ),
+    update(bot.webhookSecret, '/menu', 'private', 808),
     { db, notifier },
   )
-  expect(replies.at(-1)).toContain(owned.marzbanUsername)
+  expect(replies.at(-1)).toContain('/create')
 
   await handleTelegramUpdate(
-    update(config.webhookSecret, '/status someone_else', 'private', 808),
+    update(bot.webhookSecret, '/menu', 'private', 808),
     { db, notifier },
   )
-  expect(replies.at(-1)).toBe('مشتری پیدا نشد.')
-
-  const logs = await db
-    .select()
-    .from(auditLogs)
-    .where(eq(auditLogs.actorUserId, reseller.id))
-  expect(
-    logs.filter((row) => row.action === 'telegram.command/status'),
-  ).toHaveLength(2)
+  expect(replies.at(-1)).toContain('/wallet')
 
   await handleTelegramUpdate(
-    update(config.webhookSecret, '/unlink', 'private', 808),
+    update(bot.webhookSecret, '/unlink', 'private', 808),
     { db, notifier },
   )
   expect(
@@ -293,4 +301,139 @@ it('scopes reseller bot lookups, audits commands, and lets the owner unlink', as
       .from(telegramLinks)
       .where(eq(telegramLinks.userId, reseller.id)),
   ).toHaveLength(0)
+})
+
+it('deduplicates updates and binds one-use confirmations to bot, user, and chat', async () => {
+  const r = await makeReseller(db)
+  const bot = await saveTelegramBot(
+    {
+      kind: 'reseller',
+      ownerUserId: r.id,
+      botToken: '123456:CONFIRM-TOKEN',
+      botUsername: 'confirm_bot',
+    },
+    db,
+  )
+  expect(await claimTelegramUpdate(bot.id, 'dup-1', { db, now: T0 })).toBe(true)
+  expect(await claimTelegramUpdate(bot.id, 'dup-1', { db, now: T0 })).toBe(
+    false,
+  )
+  const confirmation = await createTelegramConfirmation(
+    {
+      botId: bot.id,
+      actorUserId: r.id,
+      chatId: '123',
+      action: 'update',
+      payload: { status: 'disabled' },
+    },
+    { db, now: T0 },
+  )
+  expect(
+    await consumeTelegramConfirmation(
+      confirmation.token,
+      { botId: bot.id, actorUserId: r.id, chatId: 'wrong' },
+      { db, now: T0 },
+    ),
+  ).toBeNull()
+  expect(
+    await consumeTelegramConfirmation(
+      confirmation.token,
+      { botId: bot.id, actorUserId: r.id, chatId: '123' },
+      { db, now: T0 },
+    ),
+  ).toMatchObject({ action: 'update' })
+  expect(
+    await consumeTelegramConfirmation(
+      confirmation.token,
+      { botId: bot.id, actorUserId: r.id, chatId: '123' },
+      { db, now: T0 },
+    ),
+  ).toBeNull()
+  expect(
+    await consumeTelegramConfirmation(
+      confirmation.token,
+      { botId: bot.id, actorUserId: r.id, chatId: '123' },
+      { db, now: new Date(T0.getTime() + 6 * 60_000) },
+    ),
+  ).toBeNull()
+})
+
+it('does not accept a Telegram link on a different reseller bot', async () => {
+  const owner = await makeReseller(db)
+  const intruder = await makeReseller(db)
+  const ownerBot = await saveTelegramBot(
+    {
+      kind: 'reseller',
+      ownerUserId: owner.id,
+      botToken: '123456:OWNER-BOT',
+      botUsername: 'owner_only_bot',
+    },
+    db,
+  )
+  const intruderBot = await saveTelegramBot(
+    {
+      kind: 'reseller',
+      ownerUserId: intruder.id,
+      botToken: '123456:INTRUDER-BOT',
+      botUsername: 'intruder_bot',
+    },
+    db,
+  )
+  const { code } = await createLinkCode(intruder.id, {
+    db,
+    botId: intruderBot.id,
+  })
+  await confirmLink(code, '899', { db, botId: intruderBot.id })
+  expect(
+    await db
+      .select()
+      .from(telegramLinks)
+      .where(eq(telegramLinks.chatId, '899')),
+  ).toHaveLength(1)
+  const replies: string[] = []
+  await handleTelegramUpdate(
+    update(ownerBot.webhookSecret, '/menu', 'private', 899),
+    {
+      db,
+      notifier: {
+        send: async (_chat, text) => (replies.push(text), { ok: true }),
+      },
+    },
+  )
+  expect(replies.at(-1)).toContain('اتصال تلگرام')
+  expect(replies.at(-1)).not.toContain('/create')
+})
+
+it('migrates the former shared bot config and preserves linked reseller chats', async () => {
+  const legacyDb = await createTestDb()
+  const reseller = await makeReseller(legacyDb)
+  await setSetting(
+    'telegram',
+    {
+      botToken: '123456:LEGACY-TOKEN',
+      botUsername: 'legacy_bot',
+      webhookSecret: 'legacy-webhook-secret',
+      enabled: true,
+    },
+    { encrypted: true },
+    legacyDb,
+  )
+  await legacyDb
+    .insert(telegramLinks)
+    .values({ userId: reseller.id, chatId: 'legacy-chat' })
+  const migrated = await getPlatformTelegramBot(legacyDb)
+  expect(migrated).toMatchObject({
+    kind: 'platform',
+    legacyShared: true,
+    botUsername: 'legacy_bot',
+    botToken: '123456:LEGACY-TOKEN',
+  })
+  expect(
+    (
+      await legacyDb
+        .select()
+        .from(telegramLinks)
+        .where(eq(telegramLinks.userId, reseller.id))
+    )[0],
+  ).toMatchObject({ botId: migrated?.id, chatId: 'legacy-chat' })
 })

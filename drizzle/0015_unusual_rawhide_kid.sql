@@ -1,0 +1,1 @@
+ALTER TABLE `telegram_bots` ADD `webhook_secret_ciphertext` text NOT NULL;

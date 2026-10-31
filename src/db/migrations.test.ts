@@ -17,6 +17,9 @@ it('applies every migration on a fresh database', async () => {
     'billing_events',
     'audit_logs',
     'webhook_events',
+    'telegram_bots',
+    'telegram_confirmations',
+    'telegram_updates',
   ]) {
     expect(names).toContain(t)
   }
@@ -28,6 +31,10 @@ it('applies every migration on a fresh database', async () => {
   )
   expect(billingColumns.map((c) => c.name)).toContain('duration_days')
   expect(requestColumns.map((c) => c.name)).toContain('duration_days')
+  const botColumns = await db.all<{ name: string }>(
+    sql`pragma table_info('telegram_bots')`,
+  )
+  expect(botColumns.map((c) => c.name)).toContain('webhook_secret_ciphertext')
 })
 
 it('keeps the journal in step with the sql files', async () => {

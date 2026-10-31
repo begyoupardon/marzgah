@@ -10,6 +10,10 @@ import {
   createLinkCode,
   createTelegramNotifier,
   getTelegramConfig,
+  getPlatformTelegramBot,
+  getResellerTelegramBot,
+  listTelegramBots,
+  saveTelegramBot,
   isLinked,
   saveTelegramConfig,
   unlinkTelegram,
@@ -17,20 +21,54 @@ import {
 import { adminOnly, authed } from '../middleware'
 
 export const telegramStatus = authed.handler(async ({ context }) => {
-  const config = await getTelegramConfig()
+  const ownBot =
+    context.user.role === 'reseller'
+      ? await getResellerTelegramBot(context.user.id)
+      : await getPlatformTelegramBot()
+  const legacy =
+    context.user.role === 'reseller' && !ownBot
+      ? await getPlatformTelegramBot()
+      : null
+  const config = ownBot?.enabled
+    ? ownBot
+    : legacy?.enabled && legacy.legacyShared
+      ? legacy
+      : null
+  const [link] = await db
+    .select({ botId: telegramLinks.botId })
+    .from(telegramLinks)
+    .where(eq(telegramLinks.userId, context.user.id))
+    .limit(1)
   return {
-    available: Boolean(config?.enabled),
+    available: Boolean(config),
     botUsername: config?.enabled ? config.botUsername : null,
     linked: await isLinked(context.user.id),
     role: context.user.role,
+    botKind: config?.kind ?? null,
+    configuredOwnBot: Boolean(ownBot),
+    linkedBotId: link?.botId ?? null,
   }
 })
 
 export const startTelegramLink = authed.handler(async ({ context }) => {
-  const config = await getTelegramConfig()
+  const ownBot =
+    context.user.role === 'reseller'
+      ? await getResellerTelegramBot(context.user.id)
+      : await getPlatformTelegramBot()
+  const legacy =
+    context.user.role === 'reseller' && !ownBot
+      ? await getPlatformTelegramBot()
+      : null
+  const config = ownBot?.enabled
+    ? ownBot
+    : legacy?.enabled && legacy.legacyShared
+      ? legacy
+      : null
   if (!config?.enabled)
     throw new ORPCError('BAD_REQUEST', { message: 'اتصال تلگرام فعال نیست' })
-  const { code, expiresAt } = await createLinkCode(context.user.id)
+  const { code, expiresAt } = await createLinkCode(context.user.id, {
+    botId: config.id,
+  })
   return {
     code,
     expiresAt: expiresAt.toISOString(),
@@ -53,9 +91,6 @@ export const unlinkMyTelegram = authed.handler(async ({ context }) => {
 })
 
 export const sendTestMessage = authed.handler(async ({ context }) => {
-  const config = await getTelegramConfig()
-  if (!config?.enabled)
-    throw new ORPCError('BAD_REQUEST', { message: 'اتصال تلگرام فعال نیست' })
   const { telegramLinks } = await import('#/db/schema')
   const [link] = await db
     .select()
@@ -64,6 +99,13 @@ export const sendTestMessage = authed.handler(async ({ context }) => {
     .limit(1)
   if (!link)
     throw new ORPCError('BAD_REQUEST', { message: 'ابتدا تلگرام را متصل کنید' })
+  const config = link.botId
+    ? await (
+        await import('#/lib/notifications/telegram')
+      ).getBotById(link.botId)
+    : await getTelegramConfig()
+  if (!config?.enabled)
+    throw new ORPCError('BAD_REQUEST', { message: 'اتصال تلگرام فعال نیست' })
   const result = await createTelegramNotifier(config.botToken).send(
     link.chatId,
     '🔔 پیام آزمایشی از پنل',
@@ -134,6 +176,7 @@ export const getTelegramAdmin = adminOnly.handler(async () => {
     botUsername: config?.botUsername ?? '',
     webhookUrl,
     webhook,
+    bots: await listTelegramBots(),
   }
 })
 
@@ -147,6 +190,18 @@ export const saveTelegramAdmin = adminOnly
   )
   .handler(async ({ input, context }) => {
     try {
+      const token = input.botToken?.trim()
+      if (token) {
+        const me = await createTelegramNotifier(token).call('getMe', {})
+        if (
+          !me.ok ||
+          !me.result ||
+          typeof me.result !== 'object' ||
+          !('username' in me.result)
+        )
+          throw new Error('Invalid token')
+        input.botUsername = String((me.result as { username: string }).username)
+      }
       await saveTelegramConfig(input)
     } catch {
       throw new ORPCError('BAD_REQUEST', { message: 'توکن ربات الزامی است' })
@@ -163,6 +218,141 @@ export const saveTelegramAdmin = adminOnly
     })
     return { ok: true }
   })
+
+export const saveTelegramReseller = authed
+  .input(
+    z.object({
+      botToken: z.string().trim().min(10).max(200),
+      enabled: z.boolean().default(true),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    if (context.user.role !== 'reseller') throw new ORPCError('FORBIDDEN')
+    const base = getEnv().BETTER_AUTH_URL
+    if (!base?.startsWith('https://'))
+      throw new ORPCError('BAD_REQUEST', {
+        message: 'BETTER_AUTH_URL باید HTTPS باشد',
+      })
+    const me = await createTelegramNotifier(input.botToken).call('getMe', {})
+    if (
+      !me.ok ||
+      !me.result ||
+      typeof me.result !== 'object' ||
+      !('username' in me.result)
+    )
+      throw new ORPCError('BAD_REQUEST', { message: 'توکن ربات معتبر نیست' })
+    const username = String((me.result as { username: string }).username)
+    let saved
+    try {
+      saved = await saveTelegramBot({
+        kind: 'reseller',
+        ownerUserId: context.user.id,
+        botToken: input.botToken,
+        botUsername: username,
+        enabled: input.enabled,
+      })
+    } catch {
+      throw new ORPCError('CONFLICT', {
+        message: 'این ربات قبلاً در یک حساب ثبت شده است',
+      })
+    }
+    const set = await createTelegramNotifier(saved.botToken).call(
+      'setWebhook',
+      {
+        url: `${base}/api/telegram/webhook`,
+        secret_token: saved.webhookSecret,
+        allowed_updates: ['message', 'callback_query'],
+      },
+    )
+    if (!set.ok)
+      throw new ORPCError('BAD_GATEWAY', { message: 'ثبت وب‌هوک ناموفق بود' })
+    await writeAuditLog({
+      actorUserId: context.user.id,
+      actorRole: 'reseller',
+      action: 'telegram.reseller_bot_config',
+      entityType: 'telegram',
+      entityId: saved.id,
+      resellerId: context.user.id,
+      payload: { username, enabled: input.enabled },
+    })
+    return { ok: true, botUsername: username, enabled: saved.enabled }
+  })
+
+export const resellerTelegramBotStatus = authed.handler(async ({ context }) => {
+  if (context.user.role !== 'reseller') throw new ORPCError('FORBIDDEN')
+  const bot = await getResellerTelegramBot(context.user.id)
+  if (!bot)
+    return {
+      configured: false,
+      enabled: false,
+      botUsername: null,
+      webhook: {
+        state: 'unconfigured' as const,
+        urlMatches: false,
+        pendingUpdateCount: null,
+        lastErrorDate: null,
+        lastErrorMessage: null,
+      },
+    }
+  const base = getEnv().BETTER_AUTH_URL
+  try {
+    const result = await createTelegramNotifier(bot.botToken).call(
+      'getWebhookInfo',
+      {},
+    )
+    const info = result.result as
+      | {
+          url?: string
+          pending_update_count?: number
+          last_error_date?: number
+          last_error_message?: string
+        }
+      | undefined
+    const urlMatches = info?.url === `${base}/api/telegram/webhook`
+    return {
+      configured: true,
+      enabled: bot.enabled,
+      botUsername: bot.botUsername,
+      webhook: {
+        state: !result.ok
+          ? ('unreachable' as const)
+          : urlMatches
+            ? ('matching' as const)
+            : info?.url
+              ? ('mismatch' as const)
+              : ('missing' as const),
+        urlMatches,
+        pendingUpdateCount: Number.isFinite(info?.pending_update_count)
+          ? info!.pending_update_count!
+          : result.ok
+            ? 0
+            : null,
+        lastErrorDate: Number.isFinite(info?.last_error_date)
+          ? info!.last_error_date!
+          : null,
+        lastErrorMessage:
+          info?.last_error_message
+            ?.split(bot.botToken)
+            .join('***')
+            .split(bot.webhookSecret)
+            .join('***') ?? null,
+      },
+    }
+  } catch {
+    return {
+      configured: true,
+      enabled: bot.enabled,
+      botUsername: bot.botUsername,
+      webhook: {
+        state: 'unreachable' as const,
+        urlMatches: false,
+        pendingUpdateCount: null,
+        lastErrorDate: null,
+        lastErrorMessage: null,
+      },
+    }
+  }
+})
 
 /** Validate the token (getMe) and point Telegram at this panel. */
 export const registerTelegramWebhook = adminOnly.handler(
@@ -186,7 +376,7 @@ export const registerTelegramWebhook = adminOnly.handler(
     const set = await bot.call('setWebhook', {
       url: `${base}/api/telegram/webhook`,
       secret_token: config.webhookSecret,
-      allowed_updates: ['message'],
+      allowed_updates: ['message', 'callback_query'],
     })
     if (!set.ok)
       throw new ORPCError('BAD_GATEWAY', { message: 'ثبت وب‌هوک ناموفق بود' })

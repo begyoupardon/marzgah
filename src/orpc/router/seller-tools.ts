@@ -258,7 +258,12 @@ export const bulkRenew = authed
             durationDays: input.durationDays,
             reactivate: true,
           },
-          { context: { headers: context.headers } },
+          {
+            context: {
+              headers: context.headers,
+              telegramActor: context.telegramActor,
+            },
+          },
         )
         results.push({ username, ok: true })
       } catch (error) {
@@ -343,7 +348,12 @@ export const importUsers = authed
                 : { durationDays: 30 }),
             note: r.note ?? null,
           },
-          { context: { headers: context.headers } },
+          {
+            context: {
+              headers: context.headers,
+              telegramActor: context.telegramActor,
+            },
+          },
         )) as { id: string }
         if (r.phone || r.telegram || r.labels) {
           await db
