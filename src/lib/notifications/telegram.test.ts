@@ -2,8 +2,8 @@ import { expect, it } from 'bun:test'
 import { eq } from 'drizzle-orm'
 
 import { createTestDb } from '../../../test/helpers/db'
-import { makeReseller } from '../../../test/helpers/factories'
-import { telegramLinkCodes, telegramLinks } from '#/db/schema'
+import { makeReseller, makeVpnUser } from '../../../test/helpers/factories'
+import { auditLogs, telegramLinkCodes, telegramLinks } from '#/db/schema'
 import {
   confirmLink,
   createLinkCode,
@@ -151,11 +151,22 @@ it('a new code replaces the old one, and a chat can belong to only one user', as
   expect(rows.map((r) => r.userId)).toEqual([b.id])
 })
 
-function update(secret: string, text: string, type = 'private') {
+function update(
+  secret: string,
+  text: string,
+  type = 'private',
+  senderId = 777,
+) {
   return new Request('https://panel.test/api/telegram/webhook', {
     method: 'POST',
     headers: { 'x-telegram-bot-api-secret-token': secret },
-    body: JSON.stringify({ message: { text, chat: { id: 777, type } } }),
+    body: JSON.stringify({
+      message: {
+        text,
+        from: { id: senderId },
+        chat: { id: senderId, type },
+      },
+    }),
   })
 }
 
@@ -230,4 +241,56 @@ it('refuses webhook calls while the integration is disabled', async () => {
       .status,
   ).toBe(403)
   await saveTelegramConfig({ botUsername: 'my_bot', enabled: true }, db)
+})
+
+it('scopes reseller bot lookups, audits commands, and lets the owner unlink', async () => {
+  const config = (await getTelegramConfig(db))!
+  const reseller = await makeReseller(db)
+  const otherReseller = await makeReseller(db)
+  const owned = await makeVpnUser(db, reseller.id)
+  await makeVpnUser(db, otherReseller.id, {
+    marzbanUsername: 'someone_else',
+  })
+  const { code } = await createLinkCode(reseller.id, { db })
+  await confirmLink(code, '808', { db })
+  const replies: string[] = []
+  const notifier: Notifier = {
+    send: async (_chatId, text) => (replies.push(text), { ok: true }),
+  }
+
+  await handleTelegramUpdate(
+    update(
+      config.webhookSecret,
+      `/status ${owned.marzbanUsername}`,
+      'private',
+      808,
+    ),
+    { db, notifier },
+  )
+  expect(replies.at(-1)).toContain(owned.marzbanUsername)
+
+  await handleTelegramUpdate(
+    update(config.webhookSecret, '/status someone_else', 'private', 808),
+    { db, notifier },
+  )
+  expect(replies.at(-1)).toBe('مشتری پیدا نشد.')
+
+  const logs = await db
+    .select()
+    .from(auditLogs)
+    .where(eq(auditLogs.actorUserId, reseller.id))
+  expect(
+    logs.filter((row) => row.action === 'telegram.command/status'),
+  ).toHaveLength(2)
+
+  await handleTelegramUpdate(
+    update(config.webhookSecret, '/unlink', 'private', 808),
+    { db, notifier },
+  )
+  expect(
+    await db
+      .select()
+      .from(telegramLinks)
+      .where(eq(telegramLinks.userId, reseller.id)),
+  ).toHaveLength(0)
 })

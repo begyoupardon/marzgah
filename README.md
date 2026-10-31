@@ -119,6 +119,7 @@ docs/              guides (below)
 ## Documentation
 
 - [docs/deploy.md](docs/deploy.md) – Docker, bare Bun, Cloudflare, reverse proxy, backups, upgrades, webhooks
+- [docs/telegram.md](docs/telegram.md) – create the bot, register its webhook, link reseller accounts, commands, and troubleshooting
 - [docs/features.md](docs/features.md) – how wallet, notifications, the customer page and seller tools work
 - [docs/architecture.md](docs/architecture.md) – design decisions and data model
 - [docs/backends.md](docs/backends.md) – the `VpnBackend` interface and how to add a server type

@@ -105,10 +105,7 @@ Marzban retries; two simultaneous deliveries of the same event are processed onc
 
 ## Telegram
 
-1. In Telegram, ask **@BotFather** for a new bot and copy the token.
-2. In the panel: **اعلان‌ها** → bot settings → paste the token and the bot username, switch it on, save.
-3. Press **ثبت وب‌هوک در تلگرام**. This needs `BETTER_AUTH_URL` to be an `https://` address Telegram can reach.
-4. Each person links their own chat from the same page (one-time code, valid 15 minutes).
+Follow the [Telegram setup and reseller bot guide](telegram.md) to create the bot, register the webhook, link accounts, and use reseller commands.
 
 The bot token is stored encrypted and is never shown again. Messages are sent as plain text.
 

@@ -3,11 +3,12 @@ import { eq } from 'drizzle-orm'
 
 import { callAs, setupRouterTest } from '../../../test/helpers/orpc'
 import { makeReseller, makeUser } from '../../../test/helpers/factories'
-import { notifications } from '#/db/schema'
+import { auditLogs, notifications, telegramLinks } from '#/db/schema'
 
 const db = await setupRouterTest()
 const api = await import('./notifications')
-const { handleTelegramUpdate } = await import('#/lib/notifications/telegram')
+const { confirmLink, createLinkCode, handleTelegramUpdate } =
+  await import('#/lib/notifications/telegram')
 const { enqueue } = await import('#/lib/notifications/outbox')
 
 const realFetch = globalThis.fetch
@@ -77,6 +78,7 @@ it('walks a seller through linking, then unlinking', async () => {
       body: JSON.stringify({
         message: {
           text: `/start ${started.code}`,
+          from: { id: 4242 },
           chat: { id: 4242, type: 'private' },
         },
       }),
@@ -102,6 +104,39 @@ it('walks a seller through linking, then unlinking', async () => {
   expect(await callAs(api.telegramStatus, undefined, alice.id)).toMatchObject({
     linked: false,
   })
+})
+
+it('lets only admins revoke linked Telegram accounts and audits the revocation', async () => {
+  const reseller = await makeReseller(db)
+  const { code } = await createLinkCode(reseller.id, { db })
+  await confirmLink(code, '8484', { db })
+
+  await expect(
+    callAs(api.telegramLinkedAccounts, undefined, reseller.id),
+  ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+  const links = (await callAs(
+    api.telegramLinkedAccounts,
+    undefined,
+    admin.id,
+  )) as Array<{ userId: string }>
+  expect(links.some((link) => link.userId === reseller.id)).toBe(true)
+
+  await expect(
+    callAs(api.adminUnlinkTelegram, { userId: reseller.id }, reseller.id),
+  ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+  await callAs(api.adminUnlinkTelegram, { userId: reseller.id }, admin.id)
+  expect(
+    await db
+      .select()
+      .from(telegramLinks)
+      .where(eq(telegramLinks.userId, reseller.id)),
+  ).toHaveLength(0)
+  expect(
+    await db
+      .select()
+      .from(auditLogs)
+      .where(eq(auditLogs.action, 'telegram.admin_unlink')),
+  ).toHaveLength(1)
 })
 
 it('registers the webhook only over https, with the secret token', async () => {

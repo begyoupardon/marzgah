@@ -16,9 +16,11 @@ import {
 import { getDashboard, getMe } from './dashboard'
 import {
   getTelegramAdmin,
+  adminUnlinkTelegram,
   outboxStats,
   registerTelegramWebhook,
   saveTelegramAdmin,
+  telegramLinkedAccounts,
   sendTestMessage,
   startTelegramLink,
   telegramStatus,
@@ -120,6 +122,8 @@ export const router = {
     saveConfig: saveTelegramAdmin,
     registerWebhook: registerTelegramWebhook,
     stats: outboxStats,
+    linkedAccounts: telegramLinkedAccounts,
+    adminUnlink: adminUnlinkTelegram,
   },
   public: { view: publicView, requestRenewal: publicRequestRenewal },
   customers: {

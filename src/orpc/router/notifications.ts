@@ -3,7 +3,7 @@ import { desc, eq, sql } from 'drizzle-orm'
 import * as z from 'zod'
 
 import { db } from '#/db'
-import { notifications } from '#/db/schema'
+import { notifications, telegramLinks, user } from '#/db/schema'
 import { getEnv } from '#/lib/env'
 import { writeAuditLog } from '#/lib/ledger'
 import {
@@ -22,6 +22,7 @@ export const telegramStatus = authed.handler(async ({ context }) => {
     available: Boolean(config?.enabled),
     botUsername: config?.enabled ? config.botUsername : null,
     linked: await isLinked(context.user.id),
+    role: context.user.role,
   }
 })
 
@@ -39,6 +40,15 @@ export const startTelegramLink = authed.handler(async ({ context }) => {
 
 export const unlinkMyTelegram = authed.handler(async ({ context }) => {
   await unlinkTelegram(context.user.id)
+  await writeAuditLog({
+    actorUserId: context.user.id,
+    actorRole: context.user.role === 'admin' ? 'admin' : 'reseller',
+    action: 'telegram.unlink',
+    entityType: 'telegram',
+    entityId: context.user.id,
+    resellerId: context.user.role === 'reseller' ? context.user.id : null,
+    payload: { channel: 'panel' },
+  })
   return { ok: true }
 })
 
@@ -166,3 +176,43 @@ export const outboxStats = adminOnly.handler(async () => {
     failures,
   }
 })
+
+export const telegramLinkedAccounts = adminOnly.handler(async () => {
+  const rows = await db
+    .select({
+      userId: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      linkedAt: telegramLinks.linkedAt,
+    })
+    .from(telegramLinks)
+    .innerJoin(user, eq(user.id, telegramLinks.userId))
+    .orderBy(desc(telegramLinks.linkedAt))
+    .limit(100)
+  return rows.map((row) => ({ ...row, linkedAt: row.linkedAt.toISOString() }))
+})
+
+export const adminUnlinkTelegram = adminOnly
+  .input(z.object({ userId: z.string().min(1).max(128) }))
+  .handler(async ({ input, context }) => {
+    const [target] = await db
+      .select({ id: user.id, role: user.role })
+      .from(telegramLinks)
+      .innerJoin(user, eq(user.id, telegramLinks.userId))
+      .where(eq(telegramLinks.userId, input.userId))
+      .limit(1)
+    if (!target)
+      throw new ORPCError('NOT_FOUND', { message: 'اتصال تلگرام پیدا نشد' })
+    await unlinkTelegram(target.id)
+    await writeAuditLog({
+      actorUserId: context.user.id,
+      actorRole: 'admin',
+      action: 'telegram.admin_unlink',
+      entityType: 'telegram',
+      entityId: target.id,
+      resellerId: target.role === 'reseller' ? target.id : null,
+      payload: { channel: 'panel' },
+    })
+    return { ok: true }
+  })

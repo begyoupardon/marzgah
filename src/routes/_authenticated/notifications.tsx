@@ -1,7 +1,13 @@
 import { useI18n } from '#/components/locale-provider'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, getRouteApi } from '@tanstack/react-router'
-import { BellIcon, CopyIcon, ExternalLinkIcon, SendIcon } from 'lucide-react'
+import {
+  BellIcon,
+  CopyIcon,
+  ExternalLinkIcon,
+  SendIcon,
+  XIcon,
+} from 'lucide-react'
 import { useState } from 'react'
 
 import { QueryErrorState } from '#/components/query-error-state'
@@ -116,21 +122,38 @@ function TelegramLink() {
         ) : null}
 
         {status.data?.available && linked ? (
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              disabled={test.isPending}
-              onClick={() => test.mutate()}
-            >
-              <SendIcon /> {t('ارسال پیام آزمایشی')}
-            </Button>
-            <Button
-              variant="outline"
-              disabled={unlink.isPending}
-              onClick={() => unlink.mutate()}
-            >
-              {t('قطع اتصال')}
-            </Button>
+          <div className="space-y-4">
+            {status.data.role === 'reseller' ? (
+              <div className="rounded-lg border bg-muted/40 p-4 text-sm">
+                <p className="font-medium">{t('مدیریت پنل از طریق ربات')}</p>
+                <p className="mt-2 text-muted-foreground">
+                  {t(
+                    'دستورهای ربات: /menu، /wallet، /expiring، /renewals و /status نام‌کاربری',
+                  )}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t(
+                    'ربات فقط اطلاعات مشتریان خودتان را نمایش می‌دهد. برای تایید یا رد درخواست تمدید از پنل استفاده کنید.',
+                  )}
+                </p>
+              </div>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                disabled={test.isPending}
+                onClick={() => test.mutate()}
+              >
+                <SendIcon /> {t('ارسال پیام آزمایشی')}
+              </Button>
+              <Button
+                variant="outline"
+                disabled={unlink.isPending}
+                onClick={() => unlink.mutate()}
+              >
+                {t('قطع اتصال')}
+              </Button>
+            </div>
           </div>
         ) : null}
 
@@ -198,6 +221,9 @@ function TelegramAdmin() {
     ...orpc.notifications.stats.queryOptions(),
     refetchInterval: 30_000,
   })
+  const linkedAccounts = useQuery(
+    orpc.notifications.linkedAccounts.queryOptions(),
+  )
   const [token, setToken] = useState('')
   const [username, setUsername] = useState<string | null>(null)
   const [enabled, setEnabled] = useState<boolean | null>(null)
@@ -238,6 +264,17 @@ function TelegramAdmin() {
         r.username ? `@${r.username}` : undefined,
       ),
     onError: (err) => toastError(t('ثبت وب‌هوک انجام نشد'), err),
+  })
+  const adminUnlink = useMutation({
+    mutationFn: (userId: string) =>
+      orpc.notifications.adminUnlink.call({ userId }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: orpc.notifications.linkedAccounts.key(),
+      })
+      toastSuccess(t('اتصال کاربر قطع شد'))
+    },
+    onError: (err) => toastError(t('قطع اتصال انجام نشد'), err),
   })
 
   const counts = stats.data?.counts ?? {}
@@ -332,6 +369,49 @@ function TelegramAdmin() {
             ))}
           </ul>
         ) : null}
+
+        <div className="space-y-2 border-t pt-4">
+          <p className="text-sm font-medium">{t('اتصال‌های فعال کاربران')}</p>
+          {linkedAccounts.error ? (
+            <QueryErrorState
+              error={linkedAccounts.error}
+              onRetry={() => void linkedAccounts.refetch()}
+            />
+          ) : linkedAccounts.data?.length ? (
+            <ul className="divide-y rounded-md border">
+              {linkedAccounts.data.map((account) => (
+                <li
+                  key={account.userId}
+                  className="flex items-center justify-between gap-3 p-3"
+                >
+                  <div className="min-w-0 text-sm">
+                    <p className="truncate font-medium">
+                      {account.name} · {account.email}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {account.role === 'reseller' ? t('فروشنده') : t('مدیر')} ·{' '}
+                      {new Date(account.linkedAt).toLocaleDateString(
+                        numberLocale,
+                      )}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={adminUnlink.isPending}
+                    onClick={() => adminUnlink.mutate(account.userId)}
+                  >
+                    <XIcon /> {t('قطع اتصال')}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {t('حساب متصل‌شده‌ای وجود ندارد')}
+            </p>
+          )}
+        </div>
       </CardContent>
     </Card>
   )

@@ -88,7 +88,7 @@ The app download links in `src/lib/client-apps.ts` are suggestions, verify and e
 
 ## Notifications (Telegram)
 
-Setup: [deploy.md](deploy.md#telegram). Messages are plain text, queued in a database outbox and sent by a background job
+Setup: [Telegram setup guide](telegram.md). Messages are plain text, queued in a database outbox and sent by a background job
 every minute; a scan job runs hourly.
 
 | Event             | To          | When                                                                                      |

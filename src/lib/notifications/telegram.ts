@@ -1,8 +1,18 @@
-import { and, eq, gt, lt, ne } from 'drizzle-orm'
+import { and, asc, eq, gt, isNull, lt, ne } from 'drizzle-orm'
 
 import { db as defaultDb } from '#/db'
-import { telegramLinkCodes, telegramLinks, user } from '#/db/schema'
+import {
+  auditLogs,
+  renewalRequests,
+  telegramLinkCodes,
+  telegramLinks,
+  user,
+  vpnUsers,
+} from '#/db/schema'
 import type { Db } from '#/db/types'
+import { getBalance } from '#/lib/wallet'
+import { viewCondition } from '#/lib/user-filters'
+import { createRateLimiter } from '#/lib/rate-limit'
 import { getSetting, setSetting } from '#/lib/settings'
 import type { Notifier, SendResult } from './types'
 
@@ -18,6 +28,7 @@ const CONFIG_KEY = 'telegram'
 const API = 'https://api.telegram.org'
 const CODE_TTL_MS = 15 * 60_000
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+const telegramRequestLimit = createRateLimiter({ windowMs: 60_000, max: 30 })
 
 export const getTelegramConfig = (db: Db = defaultDb) =>
   getSetting<TelegramConfig>(CONFIG_KEY, db)
@@ -206,7 +217,196 @@ function timingSafeEqual(a: string, b: string) {
 }
 
 type Update = {
-  message?: { text?: string; chat?: { id: number; type: string } }
+  message?: {
+    text?: string
+    from?: { id: number }
+    chat?: { id: number; type: string }
+  }
+}
+
+const MENU = [
+  'دستورهای ربات:',
+  '/wallet — موجودی کیف پول',
+  '/expiring — اشتراک‌های در حال انقضا',
+  '/renewals — درخواست‌های تمدید',
+  '/status نام‌کاربری — وضعیت یک مشتری',
+  '/unlink — قطع اتصال تلگرام',
+].join('\n')
+
+const faNumber = (value: number) => value.toLocaleString('fa-IR')
+
+function formatDate(value: Date | null) {
+  return value
+    ? new Intl.DateTimeFormat('fa-IR', { dateStyle: 'medium' }).format(value)
+    : 'بدون تاریخ'
+}
+
+async function auditBotAction(userId: string, action: string, db: Db) {
+  try {
+    const [account] = await db
+      .select({ role: user.role })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1)
+    if (!account) return
+    await db.insert(auditLogs).values({
+      id: crypto.randomUUID(),
+      actorUserId: userId,
+      actorRole: account.role,
+      action: `telegram.${action}`,
+      entityType: 'telegram',
+      entityId: userId,
+      resellerId: account.role === 'reseller' ? userId : null,
+      payloadJson: JSON.stringify({ channel: 'bot' }),
+    })
+  } catch {
+    // A logging outage must not turn Telegram's webhook into a retry loop.
+    console.error('Telegram audit write failed')
+  }
+}
+
+async function runResellerCommand(
+  text: string,
+  userId: string,
+  chatId: string,
+  send: Notifier,
+  db: Db,
+) {
+  const [account] = await db
+    .select({ role: user.role })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1)
+  if (account?.role !== 'reseller') {
+    await send.send(chatId, 'این ربات برای حساب‌های فروشنده فعال است.')
+    return
+  }
+
+  const [command, ...args] = text.split(/\s+/)
+  const normalizedCommand = command?.replace(/@\w+$/, '')
+  const allowedCommands = [
+    '/menu',
+    '/help',
+    '/wallet',
+    '/expiring',
+    '/renewals',
+    '/status',
+    '/unlink',
+  ]
+  if (normalizedCommand && allowedCommands.includes(normalizedCommand)) {
+    await auditBotAction(userId, `command${normalizedCommand}`, db)
+  }
+  switch (normalizedCommand) {
+    case '/menu':
+    case '/help':
+      await send.send(chatId, MENU)
+      return
+    case '/wallet': {
+      const balance = await getBalance(userId, db)
+      await send.send(chatId, `موجودی کیف پول: ${faNumber(balance)} تومان`)
+      return
+    }
+    case '/expiring': {
+      const rows = await db
+        .select({
+          username: vpnUsers.marzbanUsername,
+          expireAt: vpnUsers.expireAt,
+        })
+        .from(vpnUsers)
+        .where(and(eq(vpnUsers.resellerId, userId), viewCondition('expiring')))
+        .orderBy(asc(vpnUsers.expireAt))
+        .limit(10)
+      await send.send(
+        chatId,
+        rows.length
+          ? `اشتراک‌های در حال انقضا (حداکثر ۱۰ مورد):\n${rows
+              .map((row) => `• ${row.username} — ${formatDate(row.expireAt)}`)
+              .join('\n')}`
+          : 'اشتراک در حال انقضایی ندارید.',
+      )
+      return
+    }
+    case '/renewals': {
+      const rows = await db
+        .select({
+          username: vpnUsers.marzbanUsername,
+          months: renewalRequests.months,
+          message: renewalRequests.message,
+          createdAt: renewalRequests.createdAt,
+        })
+        .from(renewalRequests)
+        .innerJoin(vpnUsers, eq(vpnUsers.id, renewalRequests.vpnUserId))
+        .where(
+          and(
+            eq(renewalRequests.resellerId, userId),
+            eq(renewalRequests.status, 'pending'),
+          ),
+        )
+        .orderBy(asc(renewalRequests.createdAt))
+        .limit(10)
+      await send.send(
+        chatId,
+        rows.length
+          ? `درخواست‌های تمدید در انتظار (برای بررسی به پنل بروید):\n${rows
+              .map(
+                (row) =>
+                  `• ${row.username} — ${faNumber(row.months)} ماه${
+                    row.message ? `\n  ${row.message}` : ''
+                  }`,
+              )
+              .join('\n')}`
+          : 'درخواست تمدید در انتظاری ندارید.',
+      )
+      return
+    }
+    case '/status': {
+      const username = args.join(' ').replace(/^@/, '').slice(0, 128)
+      if (!username) {
+        await send.send(chatId, 'روش استفاده: /status نام‌کاربری')
+        return
+      }
+      const [row] = await db
+        .select({
+          username: vpnUsers.marzbanUsername,
+          status: vpnUsers.status,
+          used: vpnUsers.usedTrafficBytes,
+          limit: vpnUsers.dataLimitBytes,
+          expireAt: vpnUsers.expireAt,
+        })
+        .from(vpnUsers)
+        .where(
+          and(
+            eq(vpnUsers.resellerId, userId),
+            eq(vpnUsers.marzbanUsername, username),
+            isNull(vpnUsers.removedAt),
+          ),
+        )
+        .limit(1)
+      if (!row) {
+        await send.send(chatId, 'مشتری پیدا نشد.')
+        return
+      }
+      const usage = `${(row.used / 1024 ** 3).toFixed(2)} / ${
+        row.limit === null
+          ? 'نامحدود'
+          : `${(row.limit / 1024 ** 3).toFixed(2)} GB`
+      }`
+      await send.send(
+        chatId,
+        `وضعیت ${row.username}: ${row.status}\nمصرف: ${usage}\nانقضا: ${formatDate(row.expireAt)}`,
+      )
+      return
+    }
+    case '/unlink':
+      await send.send(
+        chatId,
+        'اتصال تلگرام قطع شد. برای اتصال دوباره از پنل کد جدید بگیرید.',
+      )
+      await unlinkTelegram(userId, db)
+      return
+    default:
+      await send.send(chatId, MENU)
+  }
 }
 
 /**
@@ -229,24 +429,67 @@ export async function handleTelegramUpdate(
   const update = (await request.json().catch(() => null)) as Update | null
   const text = update?.message?.text?.trim()
   const chat = update?.message?.chat
-  if (!text || !chat || chat.type !== 'private')
+  const senderId = update?.message?.from?.id
+  if (
+    !text ||
+    !chat ||
+    chat.type !== 'private' ||
+    !senderId ||
+    chat.id !== senderId
+  )
     return Response.json({ ok: true })
 
-  const match = /^\/start(?:@\w+)?\s+([A-Za-z0-9]{6,16})$/.exec(text)
   const send = notifier ?? createTelegramNotifier(config.botToken)
-  if (!match) {
+  if (!telegramRequestLimit.hit(String(senderId), now.getTime()).allowed) {
     await send.send(
       String(chat.id),
-      'برای اتصال، از دکمه «اتصال تلگرام» داخل پنل استفاده کنید.',
+      'درخواست‌ها زیاد است. یک دقیقه دیگر دوباره تلاش کنید.',
     )
     return Response.json({ ok: true })
   }
-  const linked = await confirmLink(match[1], String(chat.id), { db, now })
-  await send.send(
-    String(chat.id),
-    linked
-      ? '✅ حساب شما به پنل متصل شد. اعلان‌ها از این پس اینجا ارسال می‌شود.'
-      : 'کد نامعتبر یا منقضی شده است. در پنل دوباره کد بگیرید.',
-  )
+  try {
+    const match = /^\/start(?:@\w+)?\s+([A-Za-z0-9]{6,16})$/.exec(text)
+    if (match) {
+      const linked = await confirmLink(match[1], String(senderId), { db, now })
+      let isReseller = false
+      if (linked) {
+        await auditBotAction(linked.userId, 'link', db)
+        const [account] = await db
+          .select({ role: user.role })
+          .from(user)
+          .where(eq(user.id, linked.userId))
+          .limit(1)
+        isReseller = account?.role === 'reseller'
+      }
+      await send.send(
+        String(chat.id),
+        linked
+          ? `✅ حساب شما متصل شد. اعلان‌ها از این پس اینجا ارسال می‌شود.${
+              isReseller ? `\n\n${MENU}` : ''
+            }`
+          : 'کد نامعتبر یا منقضی شده است. در پنل دوباره کد بگیرید.',
+      )
+      return Response.json({ ok: true })
+    }
+
+    const [link] = await db
+      .select({ userId: telegramLinks.userId })
+      .from(telegramLinks)
+      .where(eq(telegramLinks.chatId, String(senderId)))
+      .limit(1)
+    if (!link) {
+      await send.send(
+        String(chat.id),
+        'برای اتصال، از دکمه «اتصال تلگرام» داخل پنل استفاده کنید.',
+      )
+      return Response.json({ ok: true })
+    }
+    await runResellerCommand(text, link.userId, String(chat.id), send, db)
+  } catch {
+    await send.send(
+      String(chat.id),
+      'انجام درخواست ممکن نشد. کمی بعد دوباره تلاش کنید.',
+    )
+  }
   return Response.json({ ok: true })
 }
