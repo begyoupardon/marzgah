@@ -112,6 +112,7 @@ export async function buildCli() {
     /<!-- release-only-start -->[\s\S]*?<!-- release-only-end -->/g,
     '',
   )
+  files['.marzgah-version'] = `${manifest.version}\n`
   // Materialize Bun.file blobs before archiving: older Bun Archive versions
   // accept Blob values in their types but can emit zero-length entries for them.
   const contents: Record<string, string | Uint8Array> = {}

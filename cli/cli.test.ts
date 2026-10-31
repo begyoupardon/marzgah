@@ -66,3 +66,8 @@ it('rejects short admin passwords', () => {
   const r = cli('create-admin', '--email', 'e@f.test', '--password', 'short')
   expect(r.code).not.toBe(0)
 })
+
+it('exposes the upgrade command', () => {
+  expect(cli('--help').out).toContain('upgrade')
+  expect(cli('upgrade', '--help').out).toContain('Back up and upgrade')
+})

@@ -55,6 +55,7 @@ Check your setup any time with `bun run cli doctor`.
 | Command                                 | What it does                                                                                          |
 | --------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `init`                                  | Interactive first-time setup (see above)                                                              |
+| `upgrade`                               | Back up and upgrade an existing CLI-created panel from the current CLI release                        |
 | `migrate`                               | Apply SQLite migrations. Also runs automatically on boot (disable with `AUTO_MIGRATE=false`)          |
 | `create-admin --email … --password …`   | Create an admin (password ≥ 12 chars). Prompts when flags are omitted                                 |
 | `reset-password --email … --password …` | Set a new password for any user                                                                       |

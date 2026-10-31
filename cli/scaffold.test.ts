@@ -27,6 +27,7 @@ await Bun.write(
       }),
       'cli/index.ts': '// CLI',
       'src/db/schema.ts': '// schema',
+      '.marzgah-version': 'test\n',
     },
     { compress: 'gzip' },
   ),
@@ -38,6 +39,7 @@ test('scaffolds a complete project without installing dependencies or creating c
   expect(isPanelProject(target)).toBe(true)
   expect(existsSync(join(target, '.env'))).toBe(false)
   expect(existsSync(join(target, 'node_modules'))).toBe(false)
+  expect(readFileSync(join(target, '.marzgah-version'), 'utf8')).toBe('test\n')
 })
 test('refuses to overwrite an existing directory', async () => {
   const target = join(temporary, 'existing')

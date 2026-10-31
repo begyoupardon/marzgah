@@ -21,6 +21,7 @@ backups
 test-results/
 playwright-report/
 .playwright-e2e-port
+.marzgah-backups/
 
 # Generated npm CLI artifacts
 /packages/cli/dist/

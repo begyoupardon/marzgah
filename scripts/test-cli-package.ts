@@ -95,6 +95,7 @@ try {
   const cli = join(temporary, 'node_modules', manifest.name, 'dist/index.js')
   const bin = join(temporary, 'node_modules/.bin/marzgah')
   assert.ok(run([bin, '--help'], temporary).output.includes('create-admin'))
+  assert.ok(run([bin, '--help'], temporary).output.includes('upgrade'))
   assert.equal(
     run([bin, '--version'], temporary).stdout.trim(),
     manifest.version,
@@ -117,11 +118,18 @@ try {
       `Extraction changed ${name}`,
     )
     if (name !== 'package.json' && name !== 'README.md') {
-      assert.deepEqual(
-        extracted,
-        await Bun.file(join(root, name)).bytes(),
-        `Template does not match source: ${name}`,
-      )
+      if (name === '.marzgah-version') {
+        assert.equal(
+          new TextDecoder().decode(extracted).trim(),
+          manifest.version,
+        )
+      } else {
+        assert.deepEqual(
+          extracted,
+          await Bun.file(join(root, name)).bytes(),
+          `Template does not match source: ${name}`,
+        )
+      }
     }
   }
   const gzip = await Bun.file(
@@ -130,6 +138,7 @@ try {
   assert.equal(gzip[0], 0x1f)
   assert.equal(gzip[1], 0x8b)
   assert.ok(existsSync(join(project, 'src/routes/__root.tsx')))
+  assert.ok(existsSync(join(project, '.marzgah-version')))
   assert.ok(existsSync(join(project, 'public/licenses/Arad-OFL.txt')))
   assert.ok(existsSync(join(project, 'drizzle/meta/_journal.json')))
   assert.ok(!existsSync(join(project, '.env')))
@@ -137,12 +146,24 @@ try {
   assert.ok(!existsSync(join(project, 'data')))
   const projectManifest = readFileSync(join(project, 'package.json'), 'utf8')
   assert.equal(JSON.parse(projectManifest).private, true)
+  assert.ok(
+    run([bin, 'upgrade', '--yes'], project).output.includes('already has'),
+  )
   run([process.execPath, 'install', '--frozen-lockfile'], project)
   assert.ok(
     existsSync(
       join(project, 'node_modules/@tanstack/react-start/package.json'),
     ),
   )
+  run([bin, 'migrate'], project)
+  writeFileSync(join(project, '.marzgah-version'), '0.0.0-test\n')
+  const upgraded = run([bin, 'upgrade', '--yes'], project)
+  assert.ok(upgraded.output.includes('Panel files upgraded'))
+  assert.equal(
+    readFileSync(join(project, '.marzgah-version'), 'utf8').trim(),
+    manifest.version,
+  )
+  assert.ok(existsSync(join(project, '.marzgah-backups')))
   run([bin, 'init', project, '--scaffold-only'], temporary, 1)
   assert.equal(
     readFileSync(join(project, 'package.json'), 'utf8'),

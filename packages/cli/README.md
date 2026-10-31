@@ -21,6 +21,22 @@ bun run cli init
 
 Inside an existing generated project, `init` with no directory runs the configuration wizard.
 
+## Upgrade an existing panel
+
+Run the newest CLI from the panel directory. It backs up the SQLite database and application files, preserves `.env`,
+`data/`, `docker-compose.yml`, and `wrangler.jsonc`, then installs dependencies, applies migrations, and builds:
+
+```sh
+cd my-panel
+bunx @begyoupardon/marzgah@latest upgrade
+```
+
+Stop the running panel service before upgrading, then restart it after the command succeeds. The command prints backup
+paths and restores the previous app files automatically if installation, migration, or build fails. App source files
+are refreshed from the release template, so keep custom app code in version control and review it before upgrading.
+For an older project created before version tracking was added, the command asks for confirmation before its first
+upgrade.
+
 ## Administer a panel
 
 Run commands from the panel's directory, where its `.env` and data live:
@@ -28,6 +44,7 @@ Run commands from the panel's directory, where its `.env` and data live:
 ```sh
 cd my-panel
 bunx @begyoupardon/marzgah doctor
+bunx @begyoupardon/marzgah upgrade
 bunx @begyoupardon/marzgah migrate
 bunx @begyoupardon/marzgah create-admin
 bunx @begyoupardon/marzgah reset-password

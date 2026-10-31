@@ -25,6 +25,7 @@ const main = defineCommand({
   },
   subCommands: {
     init: () => lazy(() => import('./commands/init.ts')),
+    upgrade: () => lazy(() => import('./commands/upgrade.ts')),
     migrate: () => lazy(() => import('./commands/migrate.ts')),
     'create-admin': () => lazy(() => import('./commands/create-admin.ts')),
     'reset-password': () => lazy(() => import('./commands/reset-password.ts')),
