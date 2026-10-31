@@ -30,7 +30,7 @@ jobs:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
           package-manager-cache: false
-      - run: npm install --global npm@11
+      - run: npm install --global npm@11.5.1
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run test
@@ -38,5 +38,3 @@ jobs:
       - run: bun run test:cli-package
       - run: npm publish --access public
         working-directory: packages/cli
-        env:
-          NODE_AUTH_TOKEN: ''
