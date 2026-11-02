@@ -2,15 +2,8 @@ import { useI18n } from '#/components/locale-provider'
 import { useEffect, useMemo, useState } from 'react'
 import QRCode from 'qrcode'
 import { CopyIcon, DownloadIcon, Share2Icon } from 'lucide-react'
-
 import { Button } from '#/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '#/components/ui/dialog'
+import { Dialog, DialogContent } from '#/components/ui/dialog'
 import { toast } from '#/components/ui/toast'
 
 export type SubscriptionShareTarget = {
@@ -126,12 +119,12 @@ export function SubscriptionShareDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[min(92dvh,36rem)] w-full max-w-md flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
-        <DialogHeader className="shrink-0 gap-1 border-b px-4 py-4 pe-12 text-start">
+        {/* <DialogHeader className="shrink-0 gap-1 border-b px-4 py-4 pe-12 text-start">
           <DialogTitle>{t('اشتراک و QR')}</DialogTitle>
           <DialogDescription>
             {t('لینک و کد QR را کپی کنید یا در تلگرام و واتساپ بفرستید')}
           </DialogDescription>
-        </DialogHeader>
+        </DialogHeader> */}
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
           <div className="flex flex-col items-center gap-4">
@@ -203,12 +196,6 @@ export function SubscriptionShareDialog({
                 {t('اشتراک QR + لینک')}
               </Button>
             ) : null}
-
-            <p className="text-center text-xs text-muted-foreground">
-              {t(
-                'اشتراک، تصویر QR و لینک اشتراک را با هم می‌فرستد. در موبایل تلگرام یا واتساپ را از لیست انتخاب کنید.',
-              )}
-            </p>
           </div>
         </div>
       </DialogContent>
