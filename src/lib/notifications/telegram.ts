@@ -42,6 +42,10 @@ const CONFIG_KEY = 'telegram'
 const API = 'https://api.telegram.org'
 const CODE_TTL_MS = 15 * 60_000
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+/** Last button tap that reached this process, for /diag. */
+let lastCallback: { at: Date; data: string } | null = null
+export const getLastTelegramCallback = () => lastCallback
+
 const telegramRequestLimit = createRateLimiter({ windowMs: 60_000, max: 30 })
 
 async function hashText(text: string) {
@@ -672,6 +676,8 @@ export async function handleTelegramUpdate(
     return Response.json({ ok: true })
   if (!(await claimTelegramUpdate(bot.id, update.update_id!, { db, now })))
     return Response.json({ ok: true })
+  if (update.callback_query)
+    lastCallback = { at: now, data: update.callback_query.data ?? '' }
   const text = update?.message?.text?.trim()
   const chat = update?.message?.chat
   const callback = update.callback_query

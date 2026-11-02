@@ -134,3 +134,48 @@ it('re-registers a webhook that Telegram holds without callback_query, and leave
     expect((await repairBotWebhooks(db, api(hook))).repaired).toBe(0)
   expect(setCalls).toHaveLength(0)
 })
+
+it('/diag reports the webhook state and repairs a missing callback_query', async () => {
+  process.env.BETTER_AUTH_URL = 'https://panel.test'
+  const bot = await linkedBot()
+  const { routeTelegramCommand } = await import('./telegram-commands')
+  const methods: string[] = []
+  const realFetch = globalThis.fetch
+  globalThis.fetch = (async (url: string) => {
+    const method = String(url).split('/').pop()!
+    methods.push(method)
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        result:
+          method === 'getWebhookInfo'
+            ? {
+                url: 'https://panel.test/api/telegram/webhook',
+                allowed_updates: ['message'],
+                pending_update_count: 3,
+                last_error_message: 'Read timeout expired',
+              }
+            : true,
+      }),
+    )
+  }) as unknown as typeof fetch
+  try {
+    let out = ''
+    await routeTelegramCommand(
+      '/diag',
+      {
+        userId: bot.ownerUserId!,
+        botId: bot.id,
+        botOwnerId: bot.ownerUserId,
+        chatId: '555',
+      },
+      bot,
+      { db, send: async (text) => void (out = text) },
+    )
+    expect(methods).toEqual(['getWebhookInfo', 'setWebhook'])
+    expect(out).toContain('اصلاح شد')
+    expect(out).toContain('Read timeout expired')
+  } finally {
+    globalThis.fetch = realFetch
+  }
+})

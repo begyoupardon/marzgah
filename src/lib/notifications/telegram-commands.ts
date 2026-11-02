@@ -9,10 +9,13 @@ import {
   consumeTelegramConfirmation,
   createTelegramConfirmation,
   unlinkTelegram,
+  createTelegramNotifier,
+  getLastTelegramCallback,
   auditBotAction,
   type TelegramBot,
 } from './telegram'
 import type { Db } from '#/db/types'
+import { getEnv } from '#/lib/env'
 import {
   USER_ACTIONS,
   backHome,
@@ -329,6 +332,7 @@ export const telegramMenu = (role: string, ownBot: boolean) =>
         ]
       : []),
     '/approve|/reject شناسه‌درخواست — تصمیم تمدید',
+    '/diag — تشخیص مشکل دکمه‌ها و وب‌هوک',
     '/unlink — قطع اتصال تلگرام',
     ownBot ? 'این ربات به حساب شما متصل است.' : '',
   ]
@@ -435,6 +439,46 @@ async function runConfirmation(
   )
 }
 
+/** Lets the owner see why buttons might be dead without shell access; repairs the one known cause. */
+async function diagnose(bot: TelegramBot, send: Reply, now: Date) {
+  const api = createTelegramNotifier(bot.botToken)
+  const info = await api.call('getWebhookInfo', {})
+  const hook = (info.result ?? {}) as {
+    url?: string
+    allowed_updates?: string[]
+    pending_update_count?: number
+    last_error_date?: number
+    last_error_message?: string
+  }
+  const expected = `${(getEnv().BETTER_AUTH_URL ?? '').replace(/\/$/, '')}/api/telegram/webhook`
+  const allowed = hook.allowed_updates
+  const buttonsAllowed = !allowed || allowed.includes('callback_query')
+  let repaired = false
+  if (info.ok && hook.url === expected && !buttonsAllowed) {
+    const set = await api.call('setWebhook', {
+      url: expected,
+      secret_token: bot.webhookSecret,
+      allowed_updates: ['message', 'callback_query'],
+    })
+    repaired = set.ok
+  }
+  const tap = getLastTelegramCallback()
+  const lines = [
+    '🩺 <b>تشخیص ربات</b>',
+    '',
+    `وب‌هوک: ${hook.url === expected ? '✅ درست' : `❌ ${esc(hook.url || 'تنظیم نشده')}`}`,
+    `دریافت دکمه‌ها (callback_query): ${buttonsAllowed ? '✅ مجاز' : repaired ? '🔧 غیرفعال بود و اصلاح شد؛ دوباره دکمه را بزنید' : '❌ غیرفعال'}`,
+    `به‌روزرسانی‌های در صف: ${hook.pending_update_count ?? 0}`,
+    hook.last_error_message
+      ? `آخرین خطای تحویل: ${esc(hook.last_error_message)}`
+      : 'آخرین خطای تحویل: —',
+    tap
+      ? `آخرین دکمه رسیده به سرور: <code>${esc(tap.data)}</code> (${Math.round((now.getTime() - tap.at.getTime()) / 1000)} ثانیه پیش)`
+      : 'آخرین دکمه رسیده به سرور: هرگز (از آخرین راه‌اندازی)',
+  ]
+  return showScreen(send, backHome(lines.join('\n')))
+}
+
 export async function routeTelegramCommand(
   text: string,
   actor: Actor,
@@ -447,6 +491,7 @@ export async function routeTelegramCommand(
     await unlinkTelegram(actor.userId, db)
     return send('اتصال تلگرام قطع شد.')
   }
+  if (word === '/diag') return diagnose(bot, send, now)
   if (word === '/confirm' && token)
     return runConfirmation(token, actor, { db, send, now })
   if (word === '/cancel' && token) {
