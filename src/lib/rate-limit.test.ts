@@ -12,10 +12,10 @@ it('allows up to max per window per key, then blocks with a retry hint', () => {
   expect(rl.hit('a', 1001).allowed).toBe(true) // window reset
 })
 
-it('takes the first forwarded address', () => {
-  expect(
-    clientIp(new Headers({ 'x-forwarded-for': '1.2.3.4, 10.0.0.1' })),
-  ).toBe('1.2.3.4')
+it('takes the address the nearest proxy appended, not a client-supplied one', () => {
+  expect(clientIp(new Headers({ 'x-forwarded-for': '6.6.6.6, 1.2.3.4' }))).toBe(
+    '1.2.3.4',
+  )
   expect(clientIp(new Headers({ 'x-real-ip': '9.9.9.9' }))).toBe('9.9.9.9')
   expect(clientIp(new Headers())).toBe('unknown')
 })

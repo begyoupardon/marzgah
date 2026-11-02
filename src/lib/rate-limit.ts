@@ -28,10 +28,19 @@ export function createRateLimiter({
   }
 }
 
-/** First hop from X-Forwarded-For (set by the reverse proxy), else a shared bucket. */
+const onCloudflare = () =>
+  globalThis.navigator?.userAgent === 'Cloudflare-Workers'
+
+/**
+ * Client IP from a header the nearest trusted proxy set. Cloudflare overwrites
+ * cf-connecting-ip; elsewhere the proxy appends to X-Forwarded-For, so the last
+ * entry is its doing and earlier ones are client-controlled.
+ * shortcut: with no proxy at all the header is client-controlled, put one in front.
+ */
 export function clientIp(headers: Headers) {
+  if (onCloudflare()) return headers.get('cf-connecting-ip') || 'unknown'
   return (
-    headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    headers.get('x-forwarded-for')?.split(',').at(-1)?.trim() ||
     headers.get('x-real-ip') ||
     'unknown'
   )

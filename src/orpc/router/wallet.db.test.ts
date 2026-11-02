@@ -124,7 +124,7 @@ it('creates reseller with initial balance and credit limit', async () => {
     {
       email: 'reseller-init@example.com',
       name: 'Init Reseller',
-      password: 'pass',
+      password: 'long-enough-pass-12',
       usernameSuffix: 'init',
       pricePerGbToman: 15000,
       initialBalanceToman: 200_000,

@@ -63,12 +63,24 @@ export type ResellerFormTarget = {
 
 const FORM_ID = 'reseller-form'
 
+const passwordRuleMessage = 'رمز عبور باید ۱۲ تا ۱۲۸ نویسه باشد'
+const passwordRule = z
+  .string()
+  .min(12, passwordRuleMessage)
+  .max(128, passwordRuleMessage)
+
 function createResellerFormSchema(mode: ResellerFormMode) {
   return z.object({
     name: z.string().trim().min(1, 'نام الزامی است'),
     email: mode === 'create' ? z.email('ایمیل معتبر وارد کنید') : z.string(),
     password:
-      mode === 'create' ? z.string().min(1, 'رمز عبور الزامی است') : z.string(),
+      mode === 'create'
+        ? z.string().min(1, 'رمز عبور الزامی است').pipe(passwordRule)
+        : z
+            .string()
+            .refine((v) => v === '' || passwordRule.safeParse(v).success, {
+              message: passwordRuleMessage,
+            }),
     usernameSuffix: usernameSuffixSchema,
     pricePerGbToman: z
       .number({ error: 'قیمت هر گیگ الزامی است' })

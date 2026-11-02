@@ -68,7 +68,10 @@ export const createReseller = adminOnly
     z.object({
       email: z.email(),
       name: z.string().min(1),
-      password: z.string().min(1, 'رمز عبور الزامی است'),
+      password: z
+        .string()
+        .min(12, 'رمز عبور باید حداقل ۱۲ نویسه باشد')
+        .max(128),
       usernameSuffix: usernameSuffixSchema,
       pricePerGbToman: z
         .number()
@@ -161,7 +164,7 @@ export const updateReseller = adminOnly
       creditLimitToman: z.number().int().min(0).nullable().optional(),
       targetBalanceToman: z.number().int().min(0).optional(),
       /** Any non-empty string; no length/complexity rules (e.g. "1234" is ok). */
-      password: z.string().min(1).optional(),
+      password: z.string().min(12).max(128).optional(),
     }),
   )
   .handler(async ({ input, context }) => {

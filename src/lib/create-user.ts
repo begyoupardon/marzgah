@@ -49,7 +49,7 @@ export async function createCredentialUser(options: {
   return { id, email, name: options.name, role: options.role }
 }
 
-/** Update credential password with no length/complexity rules. */
+/** Update credential password. Callers enforce the length rules. */
 export async function setCredentialPassword(userId: string, password: string) {
   const [existing] = await db
     .select({ id: account.id })

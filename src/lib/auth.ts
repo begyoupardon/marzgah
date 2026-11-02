@@ -6,7 +6,12 @@ import { db } from '#/db'
 import * as schema from '#/db/schema'
 
 export const auth = betterAuth({
-  advanced: { disableOriginCheck: false },
+  advanced: {
+    disableOriginCheck: false,
+    ...(globalThis.navigator?.userAgent === 'Cloudflare-Workers'
+      ? { ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] } }
+      : {}),
+  },
   rateLimit: {
     enabled: true,
     window: 60,
@@ -24,8 +29,10 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     disableSignUp: true,
-    minPasswordLength: 1,
-    maxPasswordLength: Number.MAX_SAFE_INTEGER,
+    // Min applies to new/changed passwords only; sign-in of older short ones still works.
+    // Max stays generous so existing long credentials keep working, but is bounded for hashing cost.
+    minPasswordLength: 12,
+    maxPasswordLength: 1024,
   },
   user: {
     additionalFields: {
