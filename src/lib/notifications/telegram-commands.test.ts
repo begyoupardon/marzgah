@@ -1,6 +1,8 @@
-import { expect, it } from 'bun:test'
+import { afterAll, expect, it } from 'bun:test'
 
 import { setupRouterTest } from '../../../test/helpers/orpc'
+import { FakeBackend } from '../../../test/fakes/backend'
+import { resetBackends, setBackend } from '#/lib/backends/registry'
 import {
   makeReseller,
   makeUser,
@@ -8,13 +10,18 @@ import {
 } from '../../../test/helpers/factories'
 
 const db = await setupRouterTest()
-const [{ routeTelegramCommand }, { getResellerTelegramBot, saveTelegramBot }] =
-  await Promise.all([import('./telegram-commands'), import('./telegram')])
+afterAll(() => resetBackends())
+const [
+  { routeTelegramCommand, handleTelegramCallback },
+  { getResellerTelegramBot, saveTelegramBot },
+] = await Promise.all([import('./telegram-commands'), import('./telegram')])
 
 it('executes read commands through shared procedures and preserves reseller scoping', async () => {
   const owner = await makeReseller(db)
   const other = await makeReseller(db)
-  const own = await makeVpnUser(db, owner.id, { marzbanUsername: 'owned_user' })
+  const own = await makeVpnUser(db, owner.id, {
+    marzbanUsername: 'owned_user',
+  })
   await makeVpnUser(db, other.id, { marzbanUsername: 'private_user' })
   const bot = await saveTelegramBot(
     {
@@ -34,8 +41,8 @@ it('executes read commands through shared procedures and preserves reseller scop
   }
   await routeTelegramCommand('/users', actor, bot, {
     db,
-    send: async (text) => {
-      output.push(text)
+    send: async (text, keyboard) => {
+      output.push(text, ...(keyboard ?? []).flat().map((b) => b.text))
     },
   })
   expect(output.join('\n')).toContain(own.marzbanUsername)
@@ -78,4 +85,55 @@ it('executes read commands through shared procedures and preserves reseller scop
 
   const migratedBot = await getResellerTelegramBot(owner.id, db)
   expect(migratedBot?.id).toBe(bot.id)
+})
+
+it('walks card → action → confirm through buttons, and guards admin-only actions', async () => {
+  const owner = await makeReseller(db)
+  const fake = new FakeBackend()
+  fake.seed({ username: 'btn_user' })
+  setBackend('marzban', fake)
+  await makeVpnUser(db, owner.id, { marzbanUsername: 'btn_user' })
+  const bot = await saveTelegramBot(
+    {
+      kind: 'reseller',
+      ownerUserId: owner.id,
+      botToken: '123456:BUTTON-TEST',
+      botUsername: 'btn_bot',
+    },
+    db,
+  )
+  const actor = {
+    userId: owner.id,
+    botId: bot.id,
+    botOwnerId: owner.id,
+    chatId: '9001',
+  }
+  let last: { text: string; keyboard?: { text: string; data: string }[][] } = {
+    text: '',
+  }
+  const send = async (text: string, keyboard?: any) => {
+    last = { text, keyboard }
+  }
+
+  await handleTelegramCallback('u:btn_user', actor, { db, send })
+  expect(last.text).toContain('btn_user')
+  const flat = last.keyboard!.flat()
+  expect(flat.some((b) => b.data === 'a:ar:btn_user')).toBe(false)
+  for (const b of flat)
+    expect(Buffer.byteLength(b.data)).toBeLessThanOrEqual(64)
+
+  // admin-only action is refused for a reseller even if the data is forged
+  await handleTelegramCallback('a:ar:btn_user', actor, { db, send })
+  expect(last.text).toContain('نامعتبر')
+
+  await handleTelegramCallback('a:ds:btn_user', actor, { db, send })
+  const confirm = last
+    .keyboard!.flat()
+    .find((b) => b.data.startsWith('confirm:'))
+  expect(confirm).toBeDefined()
+  await handleTelegramCallback(confirm!.data, actor, { db, send })
+  expect(last.text).toContain('انجام شد')
+  // single use
+  await handleTelegramCallback(confirm!.data, actor, { db, send })
+  expect(last.text).toContain('منقضی')
 })

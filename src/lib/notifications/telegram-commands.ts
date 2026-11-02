@@ -13,6 +13,22 @@ import {
   type TelegramBot,
 } from './telegram'
 import type { Db } from '#/db/types'
+import {
+  USER_ACTIONS,
+  backHome,
+  billingScreen,
+  confirmScreen,
+  dashboardScreen,
+  esc,
+  mainMenu,
+  renewalsScreen,
+  resellersScreen,
+  userCardScreen,
+  userListScreen,
+  walletScreen,
+  type Keyboard,
+  type Screen,
+} from './telegram-ui'
 
 const GB = 1024 ** 3
 const commandProcedures: Record<string, any> = {
@@ -68,7 +84,6 @@ function parseAction(text: string, role: string) {
   }
   const userInput = (target: string) => ({ username: target })
   switch (command) {
-    case '/menu':
     case '/help':
       return { help: true as const }
     case '/dashboard':
@@ -77,7 +92,7 @@ function parseAction(text: string, role: string) {
       return {
         read: {
           command: 'users',
-          input: { q: args.join(' ') || undefined, pageSize: 20 },
+          input: { q: args.join(' ') || undefined, pageSize: 10 },
         } as CommandAction,
       }
     case '/wallet':
@@ -328,83 +343,103 @@ async function invoke(action: CommandAction, actor: Actor) {
   })
 }
 
-function summarize(action: string, result: any, requestedUsername?: string) {
-  if (action === 'users' || action === 'status') {
-    const rows = result?.items ?? []
-    const matched = requestedUsername
-      ? rows.filter((row: any) => row.marzbanUsername === requestedUsername)
-      : rows
-    if (requestedUsername && !matched.length) return 'کاربر پیدا نشد.'
-    return (
-      matched
-        .slice(0, 10)
-        .map(
-          (row: any) =>
-            `• ${row.marzbanUsername} — ${row.status} — ${Math.round(row.usedTrafficBytes / GB)} / ${row.dataLimitBytes === null ? '∞' : Math.round(row.dataLimitBytes / GB)} GB`,
-        )
-        .join('\n') || 'کاربری پیدا نشد.'
-    )
+type Reply = (text: string, keyboard?: Keyboard) => Promise<void>
+type Ctx = { db: Db; send: Reply; now?: Date }
+
+function renderRead(
+  command: string,
+  result: any,
+  role: string,
+  { username, paged = false }: { username?: string; paged?: boolean } = {},
+): Screen {
+  switch (command) {
+    case 'dashboard':
+      return dashboardScreen(result)
+    case 'users': {
+      if (!username) return userListScreen(result, paged)
+      const row = (result?.items ?? []).find(
+        (r: any) => r.marzbanUsername === username,
+      )
+      return row ? userCardScreen(row, role) : backHome('کاربر پیدا نشد.', [])
+    }
+    case 'wallet':
+    case 'resellerWallet':
+      return walletScreen(result)
+    case 'billing':
+      return billingScreen(result)
+    case 'renewals':
+      return renewalsScreen(result)
+    case 'resellers':
+      return resellersScreen(result)
+    default:
+      return backHome('انجام شد.')
   }
-  if (action === 'dashboard') {
-    const stats = result?.stats
-    return stats
-      ? `کاربران: ${stats.totalUsers} · فعال: ${stats.activeUsers} · منقضی: ${stats.expiredUsers}\nمصرف: ${Math.round(stats.usedTrafficBytes / GB)} GB`
-      : 'خلاصه دریافت شد.'
-  }
-  if (action === 'wallet' || action === 'resellerWallet')
-    return `موجودی: ${Number(result?.balanceToman ?? 0).toLocaleString('fa-IR')} تومان`
-  if (action === 'renewals')
-    return (
-      (result ?? [])
-        .slice(0, 10)
-        .map((row: any) => `• ${row.username} · ${row.status}`)
-        .join('\n') || 'درخواستی نیست.'
-    )
-  if (action === 'resellers')
-    return (
-      (result ?? [])
-        .slice(0, 20)
-        .map((row: any) => `• ${row.name} · ${row.id} · ${row.status}`)
-        .join('\n') || 'نماینده‌ای نیست.'
-    )
-  if (action === 'billing')
-    return (
-      (Array.isArray(result) ? result : (result?.items ?? []))
-        .slice(0, 10)
-        .map(
-          (row: any) =>
-            `• ${row.username} · ${Number(row.amountToman).toLocaleString('fa-IR')} تومان · ${row.settledAt ? 'تسویه' : 'بدهکار'}`,
-        )
-        .join('\n') || 'ردیف مالی نیست.'
-    )
-  return 'انجام شد.'
 }
 
-export async function executeTelegramAction(
+async function roleOf(actor: Actor, db: Db) {
+  const [account] = await db
+    .select({ role: user.role })
+    .from(user)
+    .where(eq(user.id, actor.userId))
+    .limit(1)
+  return account?.role ?? 'reseller'
+}
+
+const scope = (actor: Actor) => ({
+  botId: actor.botId,
+  actorUserId: actor.userId,
+  chatId: actor.chatId,
+})
+
+async function showScreen(send: Reply, screen: Screen) {
+  await send(screen.text, screen.keyboard)
+}
+
+async function askConfirmation(
   action: CommandAction,
+  summary: string,
   actor: Actor,
-  requestedUsername?: string,
+  { db, send, now = new Date() }: Ctx,
 ) {
-  const result = await invoke(action, actor)
-  return summarize(String(action.command), result, requestedUsername)
+  const confirmation = await createTelegramConfirmation(
+    {
+      ...scope(actor),
+      action: String(action.command),
+      payload: { ...action, summary },
+    },
+    { db, now },
+  )
+  return showScreen(send, confirmScreen(summary, confirmation.token))
+}
+
+async function runConfirmation(
+  token: string,
+  actor: Actor,
+  { db, send, now = new Date() }: Ctx,
+) {
+  const confirmation = await consumeTelegramConfirmation(token, scope(actor), {
+    db,
+    now,
+  })
+  if (!confirmation)
+    return showScreen(send, backHome('⌛️ این تأیید منقضی یا نامعتبر است.'))
+  const { command, input, summary } = confirmation.payload as {
+    command: string
+    input?: unknown
+    summary?: string
+  }
+  await invoke({ command, input } as CommandAction, actor)
+  return showScreen(
+    send,
+    backHome(`✅ <b>انجام شد</b>${summary ? `\n${esc(summary)}` : ''}`),
+  )
 }
 
 export async function routeTelegramCommand(
   text: string,
   actor: Actor,
   bot: TelegramBot,
-  {
-    db,
-    send,
-    now = new Date(),
-  }: {
-    db: Db
-    send: (
-      text: string,
-      buttons?: Array<{ text: string; data: string }>,
-    ) => Promise<void>
-    now?: Date
-  },
+  { db, send, now = new Date() }: Ctx,
 ) {
   const [word, token] = words(text)
   if (word === '/unlink') {
@@ -412,93 +447,121 @@ export async function routeTelegramCommand(
     await unlinkTelegram(actor.userId, db)
     return send('اتصال تلگرام قطع شد.')
   }
-  if (word === '/confirm' && token) {
-    const confirmation = await consumeTelegramConfirmation(
-      token,
-      { botId: actor.botId, actorUserId: actor.userId, chatId: actor.chatId },
-      { db, now },
-    )
-    if (!confirmation) return send('این تأیید منقضی یا نامعتبر است.')
-    const payload = confirmation.payload as { command: string; input?: unknown }
-    const result = await executeTelegramAction(
-      { command: payload.command, input: payload.input } as CommandAction,
-      actor,
-    )
-    return send(`✅ انجام شد\n${result}`)
-  }
+  if (word === '/confirm' && token)
+    return runConfirmation(token, actor, { db, send, now })
   if (word === '/cancel' && token) {
-    await cancelTelegramConfirmation(
-      token,
-      { botId: actor.botId, actorUserId: actor.userId, chatId: actor.chatId },
-      db,
-    )
-    return send('درخواست لغو شد.')
+    await cancelTelegramConfirmation(token, scope(actor), db)
+    return showScreen(send, backHome('درخواست لغو شد.'))
   }
 
-  const [account] = await db
-    .select({ role: user.role })
-    .from(user)
-    .where(eq(user.id, actor.userId))
-    .limit(1)
-  const role = account?.role ?? 'reseller'
+  const role = await roleOf(actor, db)
   const parsed = parseAction(text, role)
-  if (!parsed) return send(telegramMenu(role, bot.kind === 'reseller'))
-  if ('help' in parsed) {
-    return send(telegramMenu(role, bot.kind === 'reseller'))
-  }
+  if (!parsed) return showScreen(send, mainMenu(role))
+  if ('help' in parsed)
+    return showScreen(
+      send,
+      backHome(esc(telegramMenu(role, bot.kind === 'reseller'))),
+    )
   if ('read' in parsed && parsed.read) {
     const result = await invoke(parsed.read, actor)
-    return send(
-      summarize(String(parsed.read.command), result, parsed.findUsername),
+    return showScreen(
+      send,
+      renderRead(String(parsed.read.command), result, role, {
+        username: parsed.findUsername,
+      }),
     )
   }
-  if ('action' in parsed) {
-    const confirmation = await createTelegramConfirmation(
-      {
-        botId: actor.botId,
-        actorUserId: actor.userId,
-        chatId: actor.chatId,
-        action: String(parsed.action.command),
-        payload: parsed.action,
-      },
-      { db, now },
-    )
-    return send(
-      `تأیید کنید: ${parsed.summary}\nاین درخواست ۵ دقیقه اعتبار دارد.`,
-      [
-        { text: 'تأیید', data: `confirm:${confirmation.token}` },
-        { text: 'لغو', data: `cancel:${confirmation.token}` },
-      ],
-    )
-  }
+  if ('action' in parsed)
+    return askConfirmation(parsed.action, parsed.summary, actor, {
+      db,
+      send,
+      now,
+    })
 }
 
+/** Button taps: navigation (m:/u:), user actions (a:), renewals (ra:/rr:), confirmations. */
 export async function handleTelegramCallback(
   data: string,
   actor: Actor,
-  { db, send, now = new Date() }: Parameters<typeof routeTelegramCommand>[3],
+  { db, send, now = new Date() }: Ctx,
 ) {
-  const [verb, token] = data.split(':')
-  if (!token || !['confirm', 'cancel'].includes(verb ?? ''))
-    return send('درخواست نامعتبر است.')
-  if (verb === 'cancel') {
-    await cancelTelegramConfirmation(
-      token,
-      { botId: actor.botId, actorUserId: actor.userId, chatId: actor.chatId },
-      db,
-    )
-    return send('درخواست لغو شد.')
+  const ctx = { db, send, now }
+  const [verb, ...rest] = data.split(':')
+  const arg = rest.join(':')
+  if (verb === 'noop') return
+  if (verb === 'confirm' && arg) return runConfirmation(arg, actor, ctx)
+  if (verb === 'cancel' && arg) {
+    await cancelTelegramConfirmation(arg, scope(actor), db)
+    return showScreen(send, backHome('✖️ درخواست لغو شد.'))
   }
-  const confirmation = await consumeTelegramConfirmation(
-    token,
-    { botId: actor.botId, actorUserId: actor.userId, chatId: actor.chatId },
-    { db, now },
-  )
-  if (!confirmation) return send('این تأیید منقضی یا نامعتبر است.')
-  const payload = confirmation.payload as { command: string; input?: unknown }
-  const result = await executeTelegramAction(
-    { command: payload.command, input: payload.input } as CommandAction,
-    actor,
-  )
-  return send(`✅ انجام شد\n${result}`)
+
+  const role = await roleOf(actor, db)
+  const read = async (
+    command: string,
+    input?: unknown,
+    opts?: { username?: string; paged?: boolean },
+  ) =>
+    showScreen(
+      send,
+      renderRead(command, await invoke({ command, input }, actor), role, opts),
+    )
+
+  if (verb === 'm') {
+    const [target, page] = arg.split(':')
+    switch (target) {
+      case 'home':
+        return showScreen(send, mainMenu(role))
+      case 'help':
+        return showScreen(
+          send,
+          backHome(esc(telegramMenu(role, actor.botOwnerId !== null))),
+        )
+      case 'dash':
+        return read('dashboard', {})
+      case 'users':
+        return read(
+          'users',
+          { page: Math.max(1, Number(page) || 1), pageSize: 10 },
+          { paged: true },
+        )
+      case 'wallet':
+        return role === 'admin'
+          ? showScreen(
+              send,
+              backHome(
+                'برای کیف پول نماینده از /wallet شناسه‌نماینده استفاده کنید.',
+              ),
+            )
+          : read('wallet')
+      case 'billing':
+        return read('billing', { status: 'outstanding' })
+      case 'renewals':
+        return read('renewals')
+      case 'resellers':
+        return read('resellers')
+    }
+  }
+  if (verb === 'u' && arg)
+    return read('users', { q: arg, pageSize: 10 }, { username: arg })
+  if (verb === 'a') {
+    const [code, ...nameParts] = arg.split(':')
+    const username = nameParts.join(':')
+    const spec = USER_ACTIONS[code ?? '']
+    if (!spec || !username || (spec.adminOnly && role !== 'admin'))
+      return showScreen(send, backHome('درخواست نامعتبر است.'))
+    return askConfirmation(
+      { command: spec.command, input: { ...spec.input, username } },
+      `${spec.label} ${username}`,
+      actor,
+      ctx,
+    )
+  }
+  if ((verb === 'ra' || verb === 'rr') && arg)
+    return askConfirmation(
+      { command: verb === 'ra' ? 'approve' : 'reject', input: { id: arg } },
+      `${verb === 'ra' ? 'تأیید' : 'رد'} درخواست تمدید`,
+      actor,
+      ctx,
+    )
+  return showScreen(send, backHome('درخواست نامعتبر است.'))
 }

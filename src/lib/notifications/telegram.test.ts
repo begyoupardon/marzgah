@@ -280,13 +280,13 @@ it('scopes reseller bot lookups, audits commands, and lets the owner unlink', as
   }
 
   await handleTelegramUpdate(
-    update(bot.webhookSecret, '/menu', 'private', 808),
+    update(bot.webhookSecret, '/help', 'private', 808),
     { db, notifier },
   )
   expect(replies.at(-1)).toContain('/create')
 
   await handleTelegramUpdate(
-    update(bot.webhookSecret, '/menu', 'private', 808),
+    update(bot.webhookSecret, '/help', 'private', 808),
     { db, notifier },
   )
   expect(replies.at(-1)).toContain('/wallet')

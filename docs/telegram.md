@@ -37,7 +37,9 @@ Every update loads the linked account's current role from the database. The plat
 
 ## Commands and permissions
 
-Use `/menu` or `/help` to see the command list available to the current role. Common commands include:
+`/start` and `/menu` open a button menu (dashboard, users, wallet, billing, renewals, and resellers for admins). Users are browsed page by page; tapping a user opens a card with usage, expiry, and buttons to renew (30/60/90 days), enable or disable, reset usage, revoke the link, and, for admins, archive. Navigation edits the current message instead of posting a new one. Every button action goes through the same confirmation step as the typed commands.
+
+Use `/help` to see the typed command list available to the current role. The typed commands remain available as shortcuts and are the only way to create users or adjust wallets for now. Common commands include:
 
 | Command                                   | Purpose                                              |
 | ----------------------------------------- | ---------------------------------------------------- |
@@ -54,7 +56,7 @@ Use `/menu` or `/help` to see the command list available to the current role. Co
 | `/approve requestId`, `/reject requestId` | Decide a renewal request when authorized             |
 | `/unlink`                                 | Unlink this Telegram account                         |
 
-Administrator-only operations include `/archive`, `/resellers`, `/suspend`, `/resume`, `/settle`, `/adjust`, `/balance`, and `/limits`. Their exact arguments are shown by `/menu` and remain subject to panel authorization.
+Administrator-only operations include `/archive`, `/resellers`, `/suspend`, `/resume`, `/settle`, `/adjust`, `/balance`, and `/limits`. Their exact arguments are shown by `/help` and remain subject to panel authorization.
 
 Sensitive mutations require a confirmation button. Confirmations expire after five minutes, are single-use, and are bound to the actor, bot, and Telegram chat. The application rechecks permissions and ownership while executing the action. Duplicate Telegram update IDs are ignored to prevent retries from repeating actions. Never forward a confirmation button to another person.
 

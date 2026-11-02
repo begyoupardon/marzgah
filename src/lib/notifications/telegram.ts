@@ -12,6 +12,7 @@ import {
 } from '#/db/schema'
 import type { Db } from '#/db/types'
 import { createRateLimiter } from '#/lib/rate-limit'
+import { mainMenu, type Keyboard } from './telegram-ui'
 import { decryptJson, encryptJson, getSetting } from '#/lib/settings'
 import type { Notifier, SendResult } from './types'
 
@@ -335,7 +336,11 @@ export function createTelegramNotifier(
         if (r.ok) return { ok: true }
         const error = scrub(r.description ?? `HTTP ${r.status}`, token)
         if (r.status === 429)
-          return { ok: false, retryAfterMs: (r.retryAfter ?? 30) * 1000, error }
+          return {
+            ok: false,
+            retryAfterMs: (r.retryAfter ?? 30) * 1000,
+            error,
+          }
         if (r.status === 403)
           return { ok: false, permanent: true, unlink: true, error }
         if (r.status === 400 && /chat not found/i.test(error))
@@ -542,6 +547,14 @@ export async function adminUserIds(db: Db = defaultDb) {
   return rows.map((r) => r.id)
 }
 
+function stripTags(html: string) {
+  return html
+    .replace(/<[^>]+>/g, '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+}
+
 function timingSafeEqual(a: string, b: string) {
   if (a.length !== b.length) return false
   let out = 0
@@ -560,7 +573,7 @@ type Update = {
     id: string
     data?: string
     from?: { id: number }
-    message?: { chat?: { id: number; type: string } }
+    message?: { message_id?: number; chat?: { id: number; type: string } }
   }
 }
 
@@ -638,6 +651,39 @@ export async function handleTelegramUpdate(
     )
     return Response.json({ ok: true })
   }
+  const sendRich = async (
+    chatId: string,
+    text: string,
+    keyboard?: Keyboard,
+    editMessageId?: number,
+  ) => {
+    const body = {
+      chat_id: chatId,
+      text,
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+      reply_markup: keyboard?.length
+        ? {
+            inline_keyboard: keyboard.map((row) =>
+              row.map((b) => ({ text: b.text, callback_data: b.data })),
+            ),
+          }
+        : undefined,
+    }
+    if (editMessageId) {
+      const edited = await send.call!('editMessageText', {
+        ...body,
+        message_id: editMessageId,
+      })
+      if (edited.ok || /not modified/i.test(edited.description ?? '')) return
+    }
+    await send.call!('sendMessage', body)
+  }
+  // Always stop the button's loading spinner, even if the action later fails.
+  if (callback)
+    await send.call?.('answerCallbackQuery', {
+      callback_query_id: callback.id,
+    })
   try {
     const match = /^\/start(?:@\w+)?\s+([A-Za-z0-9]{6,16})$/.exec(text ?? '')
     if (match) {
@@ -657,12 +703,25 @@ export async function handleTelegramUpdate(
         role = account?.role ?? 'reseller'
       }
       const { telegramMenu } = await import('./telegram-commands')
-      await send.send(
-        String(activeChat.id),
-        linked
-          ? `✅ حساب شما متصل شد. اعلان‌ها از این پس اینجا ارسال می‌شود.\n\n${telegramMenu(role, bot.kind === 'reseller')}`
-          : 'کد نامعتبر یا منقضی شده است. در پنل دوباره کد بگیرید.',
-      )
+      const chatId = String(activeChat.id)
+      if (!linked) {
+        await send.send(
+          chatId,
+          'کد نامعتبر یا منقضی شده است. در پنل دوباره کد بگیرید.',
+        )
+      } else if (send.call) {
+        await send.send(
+          chatId,
+          '✅ حساب شما متصل شد. اعلان‌ها از این پس اینجا ارسال می‌شود.',
+        )
+        const menu = mainMenu(role)
+        await sendRich(chatId, menu.text, menu.keyboard)
+      } else {
+        await send.send(
+          chatId,
+          `✅ حساب شما متصل شد. اعلان‌ها از این پس اینجا ارسال می‌شود.\n\n${telegramMenu(role, bot.kind === 'reseller')}`,
+        )
+      }
       return Response.json({ ok: true })
     }
 
@@ -703,29 +762,12 @@ export async function handleTelegramUpdate(
     }
     const { routeTelegramCommand, handleTelegramCallback } =
       await import('./telegram-commands')
-    const sendText = async (
-      message: string,
-      buttons?: Array<{ text: string; data: string }>,
-    ) => {
-      if (callback) {
-        await send.call?.('answerCallbackQuery', {
-          callback_query_id: callback.id,
-          text: message.slice(0, 180),
-        })
-      }
-      if (buttons?.length) {
-        await send.call?.('sendMessage', {
-          chat_id: String(activeChat.id),
-          text: message,
-          reply_markup: {
-            inline_keyboard: [
-              buttons.map((b) => ({ text: b.text, callback_data: b.data })),
-            ],
-          },
-        })
-      } else {
-        await send.send(String(activeChat.id), message)
-      }
+    const sendText = async (message: string, keyboard?: Keyboard) => {
+      if (!send.call)
+        return void (await send.send(String(activeChat.id), stripTags(message)))
+      // Button taps edit the message in place so the chat doesn't fill with menus.
+      const messageId = callback?.message?.message_id
+      await sendRich(String(activeChat.id), message, keyboard, messageId)
     }
     if (callback?.data)
       await handleTelegramCallback(callback.data, actor, {
