@@ -102,3 +102,35 @@ it('still answers with 200 and edits the message when acknowledging the tap fail
   expect(status).toBe(200)
   expect(calls.map((c) => c.method)).toContain('editMessageText')
 })
+
+it('re-registers a webhook that Telegram holds without callback_query, and leaves healthy or foreign ones alone', async () => {
+  process.env.BETTER_AUTH_URL = 'https://panel.test'
+  const { repairBotWebhooks } = await import('./telegram')
+  await linkedBot()
+  const setCalls: any[] = []
+  const api = (hook: Record<string, unknown>) => () => ({
+    call: async (method: string, body: unknown) => {
+      if (method === 'setWebhook') setCalls.push(body)
+      return { ok: true, result: hook }
+    },
+  })
+  const url = 'https://panel.test/api/telegram/webhook'
+
+  expect(
+    (await repairBotWebhooks(db, api({ url, allowed_updates: ['message'] })))
+      .repaired,
+  ).toBeGreaterThan(0)
+  expect(setCalls[0]).toMatchObject({
+    url,
+    allowed_updates: ['message', 'callback_query'],
+  })
+
+  setCalls.length = 0
+  for (const hook of [
+    { url, allowed_updates: ['message', 'callback_query'] },
+    { url },
+    { url: 'https://elsewhere.test/hook', allowed_updates: ['message'] },
+  ])
+    expect((await repairBotWebhooks(db, api(hook))).repaired).toBe(0)
+  expect(setCalls).toHaveLength(0)
+})

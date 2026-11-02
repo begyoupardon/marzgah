@@ -11,6 +11,7 @@ import {
   user,
 } from '#/db/schema'
 import type { Db } from '#/db/types'
+import { getEnv } from '#/lib/env'
 import { createRateLimiter } from '#/lib/rate-limit'
 import { mainMenu, type Keyboard } from './telegram-ui'
 import { decryptJson, encryptJson, getSetting } from '#/lib/settings'
@@ -144,6 +145,54 @@ export async function getTelegramBotByWebhookSecret(
     )
     .limit(1)
   return decryptBot(row)
+}
+
+/**
+ * Telegram only delivers button taps when the webhook allows callback_query.
+ * If it holds a list without it (an older or foreign registration), every
+ * button spins forever while plain messages keep working. Re-register just
+ * that case, and only for a webhook that already points at this panel.
+ */
+export async function repairBotWebhooks(
+  db: Db = defaultDb,
+  makeApi: (
+    token: string,
+  ) => Pick<
+    ReturnType<typeof createTelegramNotifier>,
+    'call'
+  > = createTelegramNotifier,
+) {
+  const base = getEnv().BETTER_AUTH_URL?.replace(/\/$/, '')
+  if (!base?.startsWith('https://')) return { repaired: 0 }
+  const url = `${base}/api/telegram/webhook`
+  await ensureLegacyBot(db)
+  const rows = await db
+    .select()
+    .from(telegramBots)
+    .where(eq(telegramBots.enabled, true))
+  let repaired = 0
+  for (const row of rows) {
+    const bot = await decryptBot(row)
+    if (!bot) continue
+    const api = makeApi(bot.botToken)
+    const info = await api.call('getWebhookInfo', {})
+    const hook = info.result as
+      | { url?: string; allowed_updates?: string[] }
+      | undefined
+    if (!info.ok || hook?.url !== url) continue
+    if (
+      !hook.allowed_updates ||
+      hook.allowed_updates.includes('callback_query')
+    )
+      continue
+    const set = await api.call('setWebhook', {
+      url,
+      secret_token: bot.webhookSecret,
+      allowed_updates: ['message', 'callback_query'],
+    })
+    if (set.ok) repaired++
+  }
+  return { repaired }
 }
 
 export async function listTelegramBots(db: Db = defaultDb) {

@@ -16,6 +16,7 @@ import { drainOutbox } from '#/lib/notifications/outbox'
 import {
   createTelegramNotifier,
   getTelegramConfig,
+  repairBotWebhooks,
 } from '#/lib/notifications/telegram'
 import { createScheduler } from '#/lib/scheduler'
 
@@ -98,6 +99,12 @@ export function buildScheduler(opts: { backups: boolean }) {
     intervalMs: HOUR,
     run: scanNotifications,
     initialDelayMs: 90_000,
+  })
+  scheduler.register({
+    name: 'repair-bot-webhooks',
+    intervalMs: HOUR,
+    run: () => repairBotWebhooks(),
+    initialDelayMs: 20_000,
   })
   scheduler.register({
     name: 'prune-old-rows',
