@@ -296,6 +296,8 @@ export function createTelegramNotifier(
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
+        // A slow or filtered route to Telegram must not hang the webhook.
+        signal: AbortSignal.timeout(15_000),
       })
       const json = (await res.json().catch(() => ({}))) as {
         ok?: boolean
@@ -637,10 +639,12 @@ export async function handleTelegramUpdate(
 
   const send = notifier ?? createTelegramNotifier(bot.botToken)
   if (!telegramRequestLimit.hit(String(senderId), now.getTime()).allowed) {
-    await send.send(
-      String(activeChat.id),
-      'درخواست‌ها زیاد است. یک دقیقه دیگر دوباره تلاش کنید.',
-    )
+    await send
+      .send(
+        String(activeChat.id),
+        'درخواست‌ها زیاد است. یک دقیقه دیگر دوباره تلاش کنید.',
+      )
+      .catch(() => {})
     return Response.json({ ok: true })
   }
   const sendRich = async (
@@ -687,11 +691,13 @@ export async function handleTelegramUpdate(
         parse_mode: undefined,
       })
   }
-  // Always stop the button's loading spinner, even if the action later fails.
-  if (callback)
-    await send.call?.('answerCallbackQuery', {
-      callback_query_id: callback.id,
-    })
+  // Stop the button's loading spinner at once, in parallel with the work, and
+  // never let a failed acknowledgement turn into a 500 (the retry would be deduped away).
+  const ack = callback
+    ? Promise.resolve(
+        send.call?.('answerCallbackQuery', { callback_query_id: callback.id }),
+      ).catch(() => {})
+    : undefined
   try {
     const match = /^\/start(?:@\w+)?\s+([A-Za-z0-9]{6,16})$/.exec(text ?? '')
     if (match) {
@@ -794,10 +800,13 @@ export async function handleTelegramUpdate(
       })
     }
   } catch {
-    await send.send(
-      String(activeChat.id),
-      'انجام درخواست ممکن نشد. کمی بعد دوباره تلاش کنید.',
-    )
+    await send
+      .send(
+        String(activeChat.id),
+        'انجام درخواست ممکن نشد. کمی بعد دوباره تلاش کنید.',
+      )
+      .catch(() => {})
   }
+  await ack
   return Response.json({ ok: true })
 }

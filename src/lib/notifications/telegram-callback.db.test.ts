@@ -14,7 +14,7 @@ async function tap(
   respond: (method: string, body: any) => { ok: boolean; description?: string },
 ) {
   const calls: Array<{ method: string; body: any }> = []
-  await handleTelegramUpdate(
+  const response = await handleTelegramUpdate(
     new Request('https://panel.test/api/telegram/webhook', {
       method: 'POST',
       headers: { 'x-telegram-bot-api-secret-token': botSecret },
@@ -39,7 +39,7 @@ async function tap(
       },
     },
   )
-  return calls
+  return { calls, status: response.status }
 }
 
 async function linkedBot() {
@@ -61,7 +61,9 @@ async function linkedBot() {
 
 it('answers a button tap, then edits the tapped message in place', async () => {
   const bot = await linkedBot()
-  const calls = await tap(bot.webhookSecret, 'm:wallet', () => ({ ok: true }))
+  const { calls } = await tap(bot.webhookSecret, 'm:wallet', () => ({
+    ok: true,
+  }))
   expect(calls.map((c) => c.method)).toEqual([
     'answerCallbackQuery',
     'editMessageText',
@@ -71,7 +73,7 @@ it('answers a button tap, then edits the tapped message in place', async () => {
 
 it('sends a new message when the edit is refused, and plain text when HTML fails to parse', async () => {
   const bot = await linkedBot()
-  const calls = await tap(bot.webhookSecret, 'm:wallet', (method, body) => {
+  const { calls } = await tap(bot.webhookSecret, 'm:wallet', (method, body) => {
     if (method === 'editMessageText')
       return {
         ok: false,
@@ -85,4 +87,18 @@ it('sends a new message when the edit is refused, and plain text when HTML fails
   expect(last.method).toBe('sendMessage')
   expect(last.body.parse_mode).toBeUndefined()
   expect(last.body.text).not.toContain('<b>')
+})
+
+it('still answers with 200 and edits the message when acknowledging the tap fails', async () => {
+  const bot = await linkedBot()
+  const { calls, status } = await tap(
+    bot.webhookSecret,
+    'm:wallet',
+    (method) => {
+      if (method === 'answerCallbackQuery') throw new Error('network down')
+      return { ok: true }
+    },
+  )
+  expect(status).toBe(200)
+  expect(calls.map((c) => c.method)).toContain('editMessageText')
 })
