@@ -13,12 +13,9 @@ import {
   amountToman,
 } from '#/lib/billing'
 import { insertBillingEvent, writeAuditLog } from '#/lib/ledger'
+import { withKeyedLock } from '#/lib/keyed-lock'
 import { labelCondition, parseLabels, viewCondition } from '#/lib/user-filters'
-import {
-  assertCanSpend,
-  InsufficientFundsError,
-  settleEventFromWallet,
-} from '#/lib/wallet'
+import { assertCanSpend, InsufficientFundsError } from '#/lib/wallet'
 import { getBackend } from '#/lib/backends/registry'
 import { BackendError } from '#/lib/backends/types'
 import {
@@ -224,151 +221,169 @@ export const createVpnUser = authed
     const resellerId = resolveResellerId(context.user, input.resellerId)
     const dataLimitBytes = input.dataLimitBytes
 
-    let profile
-    try {
-      profile = await assertCanCreateVpnUser(resellerId, dataLimitBytes)
-    } catch (error) {
-      if (error instanceof QuotaExceededError) {
-        throw new ORPCError('BAD_REQUEST', { message: error.message })
+    // Quota and credit are check-then-write, so one reseller's creates run in turn.
+    return withKeyedLock(resellerId, async () => {
+      let profile
+      try {
+        profile = await assertCanCreateVpnUser(resellerId, dataLimitBytes)
+      } catch (error) {
+        if (error instanceof QuotaExceededError) {
+          throw new ORPCError('BAD_REQUEST', { message: error.message })
+        }
+        throw error
       }
-      throw error
-    }
 
-    const legacyMonths =
-      input.durationDays === undefined ? input.durationMonths : undefined
-    const durationChoice = input.durationDays ?? legacyMonths
-    if (durationChoice === undefined) {
-      throw new ORPCError('BAD_REQUEST', { message: 'مدت اشتراک الزامی است' })
-    }
-    if (isUnlimitedDuration(durationChoice) && !profile.allowUnlimitedExpire) {
-      throw new ORPCError('FORBIDDEN', {
-        message: 'این نماینده مجاز به ساخت حساب نامحدود نیست',
-      })
-    }
-
-    const expireAt =
-      input.durationDays !== undefined
-        ? expireAtFromDuration(input.durationDays)
-        : legacyMonths === 0
-          ? null
-          : legacyMonths
-            ? (() => {
-                const d = new Date()
-                d.setMonth(d.getMonth() + legacyMonths)
-                return d
-              })()
-            : null
-
-    if (!profile.usernameSuffix) {
-      throw new ORPCError('BAD_REQUEST', {
-        message: 'پسوند نام کاربری نماینده تنظیم نشده است',
-      })
-    }
-
-    const fullUsername = buildVpnUsername(
-      profile.usernameSuffix,
-      input.username,
-    )
-
-    try {
-      assertValidFullVpnUsername(fullUsername)
-    } catch (error) {
-      throw new ORPCError('BAD_REQUEST', {
-        message:
-          error instanceof Error ? error.message : 'نام کاربری نامعتبر است',
-      })
-    }
-
-    const [existingLocal] = await db
-      .select({ id: vpnUsers.id })
-      .from(vpnUsers)
-      .where(eq(vpnUsers.marzbanUsername, fullUsername))
-      .limit(1)
-
-    if (existingLocal) {
-      throw new ORPCError('CONFLICT', {
-        message: DUPLICATE_USERNAME_MESSAGE,
-      })
-    }
-
-    await guardSpend(
-      resellerId,
-      billingGbFromBytes(dataLimitBytes),
-      profile.pricePerGbToman,
-    )
-
-    let created
-    try {
-      created = await getBackend().createUser({
-        username: fullUsername,
-        protocols: input.proxies,
-        dataLimitBytes,
-        expireAt,
-        note: input.note ?? null,
-      })
-    } catch (error) {
+      const legacyMonths =
+        input.durationDays === undefined ? input.durationMonths : undefined
+      const durationChoice = input.durationDays ?? legacyMonths
+      if (durationChoice === undefined) {
+        throw new ORPCError('BAD_REQUEST', { message: 'مدت اشتراک الزامی است' })
+      }
       if (
-        error instanceof BackendError &&
-        (error.code === 'CONFLICT' || isDuplicateUsernameMessage(error.message))
+        isUnlimitedDuration(durationChoice) &&
+        !profile.allowUnlimitedExpire
       ) {
+        throw new ORPCError('FORBIDDEN', {
+          message: 'این نماینده مجاز به ساخت حساب نامحدود نیست',
+        })
+      }
+
+      const expireAt =
+        input.durationDays !== undefined
+          ? expireAtFromDuration(input.durationDays)
+          : legacyMonths === 0
+            ? null
+            : legacyMonths
+              ? (() => {
+                  const d = new Date()
+                  d.setMonth(d.getMonth() + legacyMonths)
+                  return d
+                })()
+              : null
+
+      if (!profile.usernameSuffix) {
+        throw new ORPCError('BAD_REQUEST', {
+          message: 'پسوند نام کاربری نماینده تنظیم نشده است',
+        })
+      }
+
+      const fullUsername = buildVpnUsername(
+        profile.usernameSuffix,
+        input.username,
+      )
+
+      try {
+        assertValidFullVpnUsername(fullUsername)
+      } catch (error) {
+        throw new ORPCError('BAD_REQUEST', {
+          message:
+            error instanceof Error ? error.message : 'نام کاربری نامعتبر است',
+        })
+      }
+
+      const [existingLocal] = await db
+        .select({ id: vpnUsers.id })
+        .from(vpnUsers)
+        .where(eq(vpnUsers.marzbanUsername, fullUsername))
+        .limit(1)
+
+      if (existingLocal) {
         throw new ORPCError('CONFLICT', {
           message: DUPLICATE_USERNAME_MESSAGE,
         })
       }
-      throw error
-    }
 
-    const mirrored = await syncVpnUserFromMarzban(created.username, {
-      resellerId,
-      createIfMissing: true,
-    })
+      await guardSpend(
+        resellerId,
+        billingGbFromBytes(dataLimitBytes),
+        profile.pricePerGbToman,
+      )
 
-    if (!mirrored) {
-      throw new ORPCError('INTERNAL_SERVER_ERROR', {
-        message: 'کاربر ساخته شد اما همگام‌سازی محلی شکست خورد',
+      let created
+      try {
+        created = await getBackend().createUser({
+          username: fullUsername,
+          protocols: input.proxies,
+          dataLimitBytes,
+          expireAt,
+          note: input.note ?? null,
+        })
+      } catch (error) {
+        if (
+          error instanceof BackendError &&
+          (error.code === 'CONFLICT' ||
+            isDuplicateUsernameMessage(error.message))
+        ) {
+          throw new ORPCError('CONFLICT', {
+            message: DUPLICATE_USERNAME_MESSAGE,
+          })
+        }
+        throw error
+      }
+
+      // The account now exists upstream; without a local row and a charge it would be free.
+      let mirrored
+      let billing
+      const dataLimitGb = billingGbFromBytes(dataLimitBytes)
+      try {
+        mirrored = await syncVpnUserFromMarzban(created.username, {
+          resellerId,
+          createIfMissing: true,
+        })
+        if (!mirrored) throw new Error('mirror missing')
+        billing = await insertBillingEvent({
+          resellerId,
+          vpnUserId: mirrored.id,
+          marzbanUsername: fullUsername,
+          type: 'create',
+          dataLimitGb,
+          durationMonths:
+            legacyMonths && legacyMonths > 0 ? legacyMonths : null,
+          durationDays:
+            input.durationDays && input.durationDays > 0
+              ? input.durationDays
+              : null,
+          pricePerGbToman: profile.pricePerGbToman,
+          actorUserId: context.user.id,
+        })
+      } catch (error) {
+        await getBackend()
+          .deleteUser(created.username)
+          .catch(() => {})
+        await softRemoveMirroredVpnUser(created.username, {
+          actorUserId: context.user.id,
+          reason: 'create_failed',
+        }).catch(() => {})
+        throw new ORPCError('INTERNAL_SERVER_ERROR', {
+          message: 'کاربر ساخته نشد؛ دوباره تلاش کنید',
+          cause: error,
+        })
+      }
+
+      await writeAuditLog({
+        actorUserId: context.user.id,
+        actorRole: actorRole(context.user.role),
+        action: 'vpn_user.create',
+        entityType: 'vpn_user',
+        entityId: mirrored.id,
+        vpnUsername: fullUsername,
+        resellerId,
+        payload: {
+          dataLimitGb,
+          durationMonths:
+            legacyMonths && legacyMonths > 0 ? legacyMonths : null,
+          durationDays:
+            input.durationDays && input.durationDays > 0
+              ? input.durationDays
+              : null,
+          amountToman: billing.amountToman,
+          pricePerGbToman: profile.pricePerGbToman,
+          billingEventId: billing.id,
+        },
       })
-    }
 
-    const dataLimitGb = billingGbFromBytes(dataLimitBytes)
-    const billing = await insertBillingEvent({
-      resellerId,
-      vpnUserId: mirrored.id,
-      marzbanUsername: fullUsername,
-      type: 'create',
-      dataLimitGb,
-      durationMonths: legacyMonths && legacyMonths > 0 ? legacyMonths : null,
-      durationDays:
-        input.durationDays && input.durationDays > 0
-          ? input.durationDays
-          : null,
-      pricePerGbToman: profile.pricePerGbToman,
-      actorUserId: context.user.id,
+      return mirrored
     })
-
-    await settleEventFromWallet(billing.id)
-
-    await writeAuditLog({
-      actorUserId: context.user.id,
-      actorRole: actorRole(context.user.role),
-      action: 'vpn_user.create',
-      entityType: 'vpn_user',
-      entityId: mirrored.id,
-      vpnUsername: fullUsername,
-      resellerId,
-      payload: {
-        dataLimitGb,
-        durationMonths: legacyMonths && legacyMonths > 0 ? legacyMonths : null,
-        durationDays:
-          input.durationDays && input.durationDays > 0
-            ? input.durationDays
-            : null,
-        amountToman: billing.amountToman,
-        pricePerGbToman: profile.pricePerGbToman,
-        billingEventId: billing.id,
-      },
-    })
-
-    return mirrored
   })
 
 export const updateVpnUser = authed
@@ -483,7 +498,6 @@ export const updateVpnUser = authed
         pricePerGbToman: profile.pricePerGbToman,
         actorUserId: context.user.id,
       })
-      await settleEventFromWallet(billing.id)
       await writeAuditLog({
         actorUserId: context.user.id,
         actorRole: actorRole(context.user.role),
@@ -685,8 +699,6 @@ export const renewVpnUser = authed
       pricePerGbToman: profile.pricePerGbToman,
       actorUserId: context.user.id,
     })
-
-    await settleEventFromWallet(billing.id)
 
     await writeAuditLog({
       actorUserId: context.user.id,
