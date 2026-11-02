@@ -336,6 +336,27 @@ export const telegramConfirmations = sqliteTable(
   ],
 )
 
+/** One in-progress multi-step bot conversation per chat (create user, renew, ...). */
+export const telegramFlows = sqliteTable(
+  'telegram_flows',
+  {
+    /** `${botId}:${chatId}`, so starting a flow replaces the previous one. */
+    id: text('id').primaryKey(),
+    botId: text('bot_id')
+      .notNull()
+      .references(() => telegramBots.id, { onDelete: 'cascade' }),
+    actorUserId: text('actor_user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    chatId: text('chat_id').notNull(),
+    flow: text('flow').notNull(),
+    stepIndex: integer('step_index').notNull(),
+    dataJson: text('data_json').notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [index('telegram_flows_due_idx').on(t.expiresAt)],
+)
+
 /** Telegram retries updates; a per-bot receipt prevents duplicate mutations. */
 export const telegramUpdates = sqliteTable(
   'telegram_updates',

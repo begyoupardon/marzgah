@@ -19,6 +19,7 @@ it('applies every migration on a fresh database', async () => {
     'webhook_events',
     'telegram_bots',
     'telegram_confirmations',
+    'telegram_flows',
     'telegram_updates',
   ]) {
     expect(names).toContain(t)
