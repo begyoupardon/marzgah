@@ -662,14 +662,30 @@ export async function handleTelegramUpdate(
           }
         : undefined,
     }
+    const attempt = async (
+      method: string,
+      payload: Record<string, unknown>,
+    ) => {
+      const result = await send.call!(method, payload)
+      if (!result.ok && !/not modified/i.test(result.description ?? ''))
+        console.error(`Telegram ${method} failed: ${result.description}`)
+      return result
+    }
     if (editMessageId) {
-      const edited = await send.call!('editMessageText', {
+      const edited = await attempt('editMessageText', {
         ...body,
         message_id: editMessageId,
       })
       if (edited.ok || /not modified/i.test(edited.description ?? '')) return
     }
-    await send.call!('sendMessage', body)
+    const sent = await attempt('sendMessage', body)
+    // A formatting error must never leave the user with a dead button.
+    if (!sent.ok && /parse entities/i.test(sent.description ?? ''))
+      await attempt('sendMessage', {
+        ...body,
+        text: stripTags(text),
+        parse_mode: undefined,
+      })
   }
   // Always stop the button's loading spinner, even if the action later fails.
   if (callback)
