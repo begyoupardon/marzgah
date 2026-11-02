@@ -3,6 +3,7 @@ import { and, isNotNull, isNull, lt } from 'drizzle-orm'
 import { db } from '#/db'
 import {
   telegramConfirmations,
+  telegramFlows,
   telegramUpdates,
   vpnUsers,
   webhookEvents,
@@ -58,6 +59,7 @@ export async function pruneOldRows(now = new Date()) {
       ),
     )
   await db.delete(telegramUpdates).where(lt(telegramUpdates.receivedAt, cutoff))
+  await db.delete(telegramFlows).where(lt(telegramFlows.expiresAt, now))
   await db
     .delete(telegramConfirmations)
     .where(lt(telegramConfirmations.expiresAt, now))

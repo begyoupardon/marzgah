@@ -6,8 +6,11 @@ import { user } from '#/db/schema'
 import type { AppContext } from '#/orpc/middleware'
 import {
   cancelTelegramConfirmation,
+  clearFlow,
   consumeTelegramConfirmation,
   createTelegramConfirmation,
+  loadFlow,
+  saveFlow,
   unlinkTelegram,
   createTelegramNotifier,
   getLastTelegramCallback,
@@ -18,6 +21,8 @@ import type { Db } from '#/db/types'
 import { getEnv } from '#/lib/env'
 import {
   USER_ACTIONS,
+  LIST_VIEWS,
+  askScreen,
   backHome,
   billingScreen,
   confirmScreen,
@@ -25,13 +30,22 @@ import {
   esc,
   mainMenu,
   renewalsScreen,
+  resellerCardScreen,
   resellersScreen,
+  subscriptionScreen,
   userCardScreen,
   userListScreen,
   walletScreen,
   type Keyboard,
   type Screen,
 } from './telegram-ui'
+import {
+  advanceFlow,
+  beginFlow,
+  currentAsk,
+  type Advance,
+  type FlowCtx,
+} from './telegram-flows'
 
 const GB = 1024 ** 3
 const commandProcedures: Record<string, any> = {
@@ -56,6 +70,9 @@ const commandProcedures: Record<string, any> = {
   adjust: router.wallet.adjust,
   balance: router.wallet.setBalance,
   limits: router.tools.setResellerLimits,
+  contact: router.tools.updateContact,
+  claimPaid: router.billing.claimPaid,
+  createLink: router.customers.createLink,
 }
 
 type Actor = NonNullable<AppContext['telegramActor']>
@@ -111,7 +128,7 @@ function parseAction(text: string, role: string) {
       return {
         read: {
           command: 'billing',
-          input: { status: args[0] ?? 'outstanding' },
+          input: { status: args[0] ?? 'all' },
         } as CommandAction,
       }
     case '/renewals':
@@ -333,6 +350,7 @@ export const telegramMenu = (role: string, ownBot: boolean) =>
       : []),
     '/approve|/reject شناسه‌درخواست — تصمیم تمدید',
     '/diag — تشخیص مشکل دکمه‌ها و وب‌هوک',
+    '/cancel — انصراف از عملیات جاری',
     '/unlink — قطع اتصال تلگرام',
     ownBot ? 'این ربات به حساب شما متصل است.' : '',
   ]
@@ -349,32 +367,39 @@ async function invoke(action: CommandAction, actor: Actor) {
 
 type Reply = (text: string, keyboard?: Keyboard) => Promise<void>
 type Ctx = { db: Db; send: Reply; now?: Date }
+type ReadOptions = {
+  username?: string
+  view?: string
+  query?: string
+  page?: number
+}
 
 function renderRead(
   command: string,
   result: any,
   role: string,
-  { username, paged = false }: { username?: string; paged?: boolean } = {},
+  o: ReadOptions = {},
 ): Screen {
   switch (command) {
     case 'dashboard':
       return dashboardScreen(result)
     case 'users': {
-      if (!username) return userListScreen(result, paged)
+      if (!o.username)
+        return userListScreen(result, { view: o.view, query: o.query })
       const row = (result?.items ?? []).find(
-        (r: any) => r.marzbanUsername === username,
+        (r: any) => r.marzbanUsername === o.username,
       )
-      return row ? userCardScreen(row, role) : backHome('کاربر پیدا نشد.', [])
+      return row ? userCardScreen(row, role) : backHome('کاربر پیدا نشد.')
     }
     case 'wallet':
     case 'resellerWallet':
       return walletScreen(result)
     case 'billing':
-      return billingScreen(result)
+      return billingScreen(Array.isArray(result) ? result : [], role)
     case 'renewals':
-      return renewalsScreen(result)
+      return renewalsScreen(result ?? [])
     case 'resellers':
-      return resellersScreen(result)
+      return resellersScreen(result ?? [], o.page)
     default:
       return backHome('انجام شد.')
   }
@@ -393,6 +418,11 @@ const scope = (actor: Actor) => ({
   botId: actor.botId,
   actorUserId: actor.userId,
   chatId: actor.chatId,
+})
+
+const flowCtx = (actor: Actor, role: string): FlowCtx => ({
+  role,
+  invoke: (command, input) => invoke({ command, input }, actor),
 })
 
 async function showScreen(send: Reply, screen: Screen) {
@@ -416,6 +446,40 @@ async function askConfirmation(
   return showScreen(send, confirmScreen(summary, confirmation.token))
 }
 
+/** What the user sees once a confirmed action has run. */
+function renderResult(
+  command: string,
+  input: any,
+  result: any,
+  summary: string | undefined,
+  role: string,
+): Screen {
+  if (command === 'create' && result?.marzbanUsername) {
+    const card = userCardScreen(result, role)
+    const link = result.subscriptionUrl
+      ? `\n\n📋 لینک اشتراک:\n<code>${esc(result.subscriptionUrl)}</code>`
+      : ''
+    return { ...card, text: `✅ <b>کاربر ساخته شد</b>\n\n${card.text}${link}` }
+  }
+  const username = input?.username as string | undefined
+  if (command === 'createLink' && result?.url)
+    return backHome(
+      `🌐 <b>صفحه مشتری ${esc(username)}</b>\n<code>${esc(result.url)}</code>\n\nلینک قبلی باطل شد. این لینک را برای مشتری بفرستید.`,
+      [
+        username ? { text: '👤 مشاهده کاربر', data: `u:${username}` } : null,
+      ].filter(Boolean) as any,
+    )
+  const target = username
+    ? { text: '👤 مشاهده کاربر', data: `u:${username}` }
+    : input?.resellerId
+      ? { text: '🏪 مشاهده نماینده', data: `r:${input.resellerId}` }
+      : null
+  return backHome(
+    `✅ <b>انجام شد</b>${summary ? `\n${esc(summary)}` : ''}`,
+    target ? [target] : [],
+  )
+}
+
 async function runConfirmation(
   token: string,
   actor: Actor,
@@ -432,10 +496,105 @@ async function runConfirmation(
     input?: unknown
     summary?: string
   }
-  await invoke({ command, input } as CommandAction, actor)
-  return showScreen(
-    send,
-    backHome(`✅ <b>انجام شد</b>${summary ? `\n${esc(summary)}` : ''}`),
+  const result = await invoke({ command, input } as CommandAction, actor)
+  const role = await roleOf(actor, db)
+  return showScreen(send, renderResult(command, input, result, summary, role))
+}
+
+/** Persist the flow's position and show the next question, retry, or confirmation. */
+async function applyAdvance(
+  name: string,
+  advance: Advance | null,
+  actor: Actor,
+  role: string,
+  ctx: Ctx,
+) {
+  const { db, send, now = new Date() } = ctx
+  if (!advance) return showScreen(send, backHome('درخواست نامعتبر است.'))
+  if (advance.kind === 'retry')
+    return showScreen(
+      send,
+      askScreen(
+        `⚠️ ${esc(advance.message)}\n\n${advance.ask.text}`,
+        advance.ask.choices,
+      ),
+    )
+  if (advance.kind === 'ask') {
+    await saveFlow(
+      scope(actor),
+      { flow: name, stepIndex: advance.stepIndex, data: advance.data },
+      { db, now },
+    )
+    return showScreen(send, askScreen(advance.ask.text, advance.ask.choices))
+  }
+  await clearFlow(scope(actor), db)
+  const done = advance.done
+  if (done.kind === 'read') {
+    const result = await invoke(
+      { command: done.command, input: done.input },
+      actor,
+    )
+    return showScreen(
+      send,
+      renderRead(done.command, result, role, { query: done.query }),
+    )
+  }
+  return askConfirmation(
+    { command: done.command, input: done.input },
+    done.summary,
+    actor,
+    ctx,
+  )
+}
+
+async function startFlow(
+  name: string,
+  arg: string | undefined,
+  actor: Actor,
+  role: string,
+  ctx: Ctx,
+) {
+  const adminOnly = ['adjust', 'balance', 'limits']
+  if (adminOnly.includes(name) && role !== 'admin')
+    return showScreen(ctx.send, backHome('این بخش فقط برای مدیر است.'))
+  return applyAdvance(
+    name,
+    await beginFlow(name, arg, flowCtx(actor, role)),
+    actor,
+    role,
+    ctx,
+  )
+}
+
+/** A typed answer or a button tap inside a running flow. */
+async function continueFlow(
+  raw: string | { index: number },
+  actor: Actor,
+  role: string,
+  ctx: Ctx,
+) {
+  const state = await loadFlow(scope(actor), { db: ctx.db, now: ctx.now })
+  if (!state)
+    return showScreen(
+      ctx.send,
+      backHome('⌛️ این مرحله منقضی شده است. دوباره از منو شروع کنید.'),
+    )
+  const fc = flowCtx(actor, role)
+  let answer: string
+  if (typeof raw === 'string') answer = raw
+  else {
+    const ask = await currentAsk(state.flow, state.stepIndex, state.data, fc)
+    const choice = ask?.choices?.[raw.index]
+    if (!choice)
+      return showScreen(ctx.send, backHome('این گزینه دیگر معتبر نیست.'))
+    answer = choice.value
+  }
+  return applyAdvance(
+    state.flow,
+    await advanceFlow(state.flow, state.stepIndex, state.data, answer, fc),
+    actor,
+    role,
+    ctx,
   )
 }
 
@@ -486,20 +645,29 @@ export async function routeTelegramCommand(
   { db, send, now = new Date() }: Ctx,
 ) {
   const [word, token] = words(text)
+  const ctx = { db, send, now }
   if (word === '/unlink') {
     await auditBotAction(actor.userId, 'unlink', db)
+    await clearFlow(scope(actor), db)
     await unlinkTelegram(actor.userId, db)
     return send('اتصال تلگرام قطع شد.')
   }
   if (word === '/diag') return diagnose(bot, send, now)
-  if (word === '/confirm' && token)
-    return runConfirmation(token, actor, { db, send, now })
-  if (word === '/cancel' && token) {
-    await cancelTelegramConfirmation(token, scope(actor), db)
-    return showScreen(send, backHome('درخواست لغو شد.'))
+  if (word === '/confirm' && token) return runConfirmation(token, actor, ctx)
+  if (word === '/cancel') {
+    if (token) await cancelTelegramConfirmation(token, scope(actor), db)
+    await clearFlow(scope(actor), db)
+    return showScreen(send, backHome('✖️ عملیات لغو شد.'))
   }
 
   const role = await roleOf(actor, db)
+  // Plain text mid-flow is the answer to the current question; a command abandons the flow.
+  if (word && !word.startsWith('/')) {
+    if (await loadFlow(scope(actor), { db, now }))
+      return continueFlow(text, actor, role, ctx)
+  } else if (word) {
+    await clearFlow(scope(actor), db)
+  }
   const parsed = parseAction(text, role)
   if (!parsed) return showScreen(send, mainMenu(role))
   if ('help' in parsed)
@@ -509,22 +677,20 @@ export async function routeTelegramCommand(
     )
   if ('read' in parsed && parsed.read) {
     const result = await invoke(parsed.read, actor)
+    const input = parsed.read.input as { q?: string } | undefined
     return showScreen(
       send,
       renderRead(String(parsed.read.command), result, role, {
         username: parsed.findUsername,
+        query: parsed.findUsername ? undefined : input?.q,
       }),
     )
   }
   if ('action' in parsed)
-    return askConfirmation(parsed.action, parsed.summary, actor, {
-      db,
-      send,
-      now,
-    })
+    return askConfirmation(parsed.action, parsed.summary, actor, ctx)
 }
 
-/** Button taps: navigation (m:/u:), user actions (a:), renewals (ra:/rr:), confirmations. */
+/** Button taps. Prefixes: m menu · l lists · u card · s link · n flow · f answer · a/x/ra/rr/bs/bc actions. */
 export async function handleTelegramCallback(
   data: string,
   actor: Actor,
@@ -541,16 +707,38 @@ export async function handleTelegramCallback(
   }
 
   const role = await roleOf(actor, db)
-  const read = async (
-    command: string,
-    input?: unknown,
-    opts?: { username?: string; paged?: boolean },
-  ) =>
+  const read = async (command: string, input?: unknown, opts?: ReadOptions) =>
     showScreen(
       send,
       renderRead(command, await invoke({ command, input }, actor), role, opts),
     )
+  const owned = async (username: string) => {
+    const result = (await invoke(
+      { command: 'users', input: { q: username, pageSize: 10 } },
+      actor,
+    )) as any
+    return (result?.items ?? []).find(
+      (r: any) => r.marzbanUsername === username,
+    )
+  }
 
+  if (verb === 'f') {
+    if (arg === 'x') {
+      await clearFlow(scope(actor), db)
+      return showScreen(send, backHome('✖️ عملیات لغو شد.'))
+    }
+    return continueFlow({ index: Number(arg) }, actor, role, ctx)
+  }
+  if (verb === 'n') {
+    const [name, ...argParts] = arg.split(':')
+    return startFlow(
+      name ?? '',
+      argParts.join(':') || undefined,
+      actor,
+      role,
+      ctx,
+    )
+  }
   if (verb === 'm') {
     const [target, page] = arg.split(':')
     switch (target) {
@@ -563,31 +751,45 @@ export async function handleTelegramCallback(
         )
       case 'dash':
         return read('dashboard', {})
-      case 'users':
-        return read(
-          'users',
-          { page: Math.max(1, Number(page) || 1), pageSize: 10 },
-          { paged: true },
-        )
       case 'wallet':
         return role === 'admin'
-          ? showScreen(
-              send,
-              backHome(
-                'برای کیف پول نماینده از /wallet شناسه‌نماینده استفاده کنید.',
-              ),
-            )
+          ? read('resellers', undefined, { page: 1 })
           : read('wallet')
       case 'billing':
-        return read('billing', { status: 'outstanding' })
+        return read('billing', { status: 'all' })
       case 'renewals':
         return read('renewals')
       case 'resellers':
-        return read('resellers')
+        return read('resellers', undefined, { page: Number(page) || 1 })
     }
   }
-  if (verb === 'u' && arg)
-    return read('users', { q: arg, pageSize: 10 }, { username: arg })
+  if (verb === 'l') {
+    const [view = 'a', page] = arg.split(':')
+    const def = LIST_VIEWS[view] ?? LIST_VIEWS.a!
+    return read(
+      'users',
+      {
+        page: Math.max(1, Number(page) || 1),
+        pageSize: 10,
+        ...(def.view ? { view: def.view } : {}),
+      },
+      { view: LIST_VIEWS[view] ? view : 'a' },
+    )
+  }
+  if (verb === 'u' && arg) {
+    const row = await owned(arg)
+    return showScreen(
+      send,
+      row ? userCardScreen(row, role) : backHome('کاربر پیدا نشد.'),
+    )
+  }
+  if (verb === 's' && arg) {
+    const row = await owned(arg)
+    return showScreen(
+      send,
+      row ? subscriptionScreen(row) : backHome('کاربر پیدا نشد.'),
+    )
+  }
   if (verb === 'a') {
     const [code, ...nameParts] = arg.split(':')
     const username = nameParts.join(':')
@@ -608,5 +810,44 @@ export async function handleTelegramCallback(
       actor,
       ctx,
     )
+  if ((verb === 'bs' || verb === 'bc') && arg) {
+    if (verb === 'bs' && role !== 'admin')
+      return showScreen(send, backHome('این بخش فقط برای مدیر است.'))
+    return askConfirmation(
+      {
+        command: verb === 'bs' ? 'settle' : 'claimPaid',
+        input: { eventId: arg },
+      },
+      verb === 'bs' ? 'تسویه این ردیف مالی' : 'اعلام پرداخت این ردیف مالی',
+      actor,
+      ctx,
+    )
+  }
+  if ((verb === 'r' || verb === 'x') && role !== 'admin')
+    return showScreen(send, backHome('این بخش فقط برای مدیر است.'))
+  if (verb === 'r' && arg) {
+    const list = (await invoke({ command: 'resellers' }, actor)) as any[]
+    const reseller = list.find((r) => r.id === arg)
+    if (!reseller) return showScreen(send, backHome('نماینده پیدا نشد.'))
+    const snap = await invoke(
+      { command: 'resellerWallet', input: { resellerId: arg } },
+      actor,
+    )
+    return showScreen(send, resellerCardScreen(reseller, snap))
+  }
+  if (verb === 'x') {
+    const [code, id] = [arg.split(':')[0], arg.split(':').slice(1).join(':')]
+    if ((code !== 'sus' && code !== 'res') || !id)
+      return showScreen(send, backHome('درخواست نامعتبر است.'))
+    return askConfirmation(
+      {
+        command: code === 'sus' ? 'suspend' : 'resume',
+        input: { resellerId: id },
+      },
+      code === 'sus' ? 'تعلیق این نماینده' : 'فعال‌سازی مجدد این نماینده',
+      actor,
+      ctx,
+    )
+  }
   return showScreen(send, backHome('درخواست نامعتبر است.'))
 }

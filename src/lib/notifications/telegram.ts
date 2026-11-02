@@ -5,6 +5,7 @@ import {
   auditLogs,
   telegramBots,
   telegramConfirmations,
+  telegramFlows,
   telegramLinkCodes,
   telegramLinks,
   telegramUpdates,
@@ -151,6 +152,19 @@ export async function getTelegramBotByWebhookSecret(
   return decryptBot(row)
 }
 
+/** The "/" command list Telegram shows in the bot's menu. */
+export const BOT_COMMANDS = [
+  { command: 'menu', description: 'منوی اصلی' },
+  { command: 'users', description: 'فهرست کاربران' },
+  { command: 'dashboard', description: 'خلاصه پنل' },
+  { command: 'wallet', description: 'کیف پول' },
+  { command: 'billing', description: 'گزارش مالی' },
+  { command: 'renewals', description: 'درخواست‌های تمدید' },
+  { command: 'cancel', description: 'انصراف از عملیات جاری' },
+  { command: 'help', description: 'راهنمای دستورها' },
+  { command: 'diag', description: 'تشخیص مشکل ربات' },
+]
+
 /**
  * Telegram only delivers button taps when the webhook allows callback_query.
  * If it holds a list without it (an older or foreign registration), every
@@ -184,6 +198,7 @@ export async function repairBotWebhooks(
       | { url?: string; allowed_updates?: string[] }
       | undefined
     if (!info.ok || hook?.url !== url) continue
+    await api.call('setMyCommands', { commands: BOT_COMMANDS })
     if (
       !hook.allowed_updates ||
       hook.allowed_updates.includes('callback_query')
@@ -571,6 +586,65 @@ export async function cancelTelegramConfirmation(
         isNull(telegramConfirmations.consumedAt),
       ),
     )
+}
+
+export type FlowScope = { botId: string; actorUserId: string; chatId: string }
+export type FlowState = {
+  flow: string
+  stepIndex: number
+  data: Record<string, unknown>
+}
+const FLOW_TTL_MS = 15 * 60_000
+
+/** Start or replace the chat's flow. */
+export async function saveFlow(
+  scope: FlowScope,
+  state: FlowState,
+  { db = defaultDb, now = new Date() }: { db?: Db; now?: Date } = {},
+) {
+  const values = {
+    botId: scope.botId,
+    actorUserId: scope.actorUserId,
+    chatId: scope.chatId,
+    flow: state.flow,
+    stepIndex: state.stepIndex,
+    dataJson: JSON.stringify(state.data),
+    expiresAt: new Date(now.getTime() + FLOW_TTL_MS),
+  }
+  await db
+    .insert(telegramFlows)
+    .values({ id: `${scope.botId}:${scope.chatId}`, ...values })
+    .onConflictDoUpdate({ target: telegramFlows.id, set: values })
+}
+
+/** The chat's live flow, only for the user who started it. */
+export async function loadFlow(
+  scope: FlowScope,
+  { db = defaultDb, now = new Date() }: { db?: Db; now?: Date } = {},
+): Promise<FlowState | null> {
+  const [row] = await db
+    .select()
+    .from(telegramFlows)
+    .where(
+      and(
+        eq(telegramFlows.id, `${scope.botId}:${scope.chatId}`),
+        eq(telegramFlows.actorUserId, scope.actorUserId),
+        gt(telegramFlows.expiresAt, now),
+      ),
+    )
+    .limit(1)
+  if (!row) return null
+  return {
+    flow: row.flow,
+    stepIndex: row.stepIndex,
+    data: JSON.parse(row.dataJson) as Record<string, unknown>,
+  }
+}
+
+export async function clearFlow(scope: FlowScope, db: Db = defaultDb) {
+  await db
+    .delete(telegramFlows)
+    .where(eq(telegramFlows.id, `${scope.botId}:${scope.chatId}`))
 }
 
 export async function claimTelegramUpdate(

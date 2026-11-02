@@ -9,6 +9,7 @@ import { writeAuditLog } from '#/lib/ledger'
 import {
   createLinkCode,
   createTelegramNotifier,
+  BOT_COMMANDS,
   getTelegramConfig,
   getPlatformTelegramBot,
   getResellerTelegramBot,
@@ -266,6 +267,9 @@ export const saveTelegramReseller = authed
     )
     if (!set.ok)
       throw new ORPCError('BAD_GATEWAY', { message: 'ثبت وب‌هوک ناموفق بود' })
+    await createTelegramNotifier(saved.botToken)
+      .call('setMyCommands', { commands: BOT_COMMANDS })
+      .catch(() => {})
     await writeAuditLog({
       actorUserId: context.user.id,
       actorRole: 'reseller',
@@ -380,6 +384,7 @@ export const registerTelegramWebhook = adminOnly.handler(
     })
     if (!set.ok)
       throw new ORPCError('BAD_GATEWAY', { message: 'ثبت وب‌هوک ناموفق بود' })
+    await bot.call('setMyCommands', { commands: BOT_COMMANDS }).catch(() => {})
     await writeAuditLog({
       actorUserId: context.user.id,
       actorRole: 'admin',

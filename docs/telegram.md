@@ -37,9 +37,21 @@ Every update loads the linked account's current role from the database. The plat
 
 ## Commands and permissions
 
-`/start` and `/menu` open a button menu (dashboard, users, wallet, billing, renewals, and resellers for admins). Users are browsed page by page; tapping a user opens a card with usage, expiry, and buttons to renew (30/60/90 days), enable or disable, reset usage, revoke the link, and, for admins, archive. Navigation edits the current message instead of posting a new one. Every button action goes through the same confirmation step as the typed commands.
+`/start` and `/menu` open a button menu, and the bot gives you everything the panel's day-to-day screens do:
 
-Use `/help` to see the typed command list available to the current role. The typed commands remain available as shortcuts and are the only way to create users or adjust wallets for now. Common commands include:
+- **Dashboard**, **users** (paged, with filters for expiring, high usage and unpaid, plus search), and **wallet** or **resellers** (admins).
+- **A user card** with usage, expiry, note, contact details and labels, and buttons to renew (one tap for 30/60/90 days, or **renew + extra data**), change the data limit, enable or disable, reset usage, copy the subscription link, issue the customer page link, revoke the link, edit the note and contact details, and archive (admins).
+- **Create a user** step by step: username, data, duration, then a summary with the price before you confirm.
+- **Billing**: resellers announce payment, admins settle. **Renewal requests**: approve or reject.
+- **Reseller management** (admins): open a reseller card, suspend or resume, add or remove credit, set an exact balance, and set user and data limits.
+
+Multi-step actions are conversations: the bot asks one question at a time, with buttons where the answer is a choice, and you can type a custom value. Send `/cancel` or tap **انصراف** to abandon one; a conversation also expires after 15 minutes. Every change shows a summary with **تأیید / لغو** before anything is written.
+
+Navigation edits the current message instead of posting a new one.
+
+Still panel-only: creating resellers, changing a reseller's price, CSV import and export, bulk actions, announcements, backups, audit log, and bot or payment settings.
+
+Typed commands remain available as shortcuts (`/help` lists those for your role, `/cancel` abandons a running conversation, and `/diag` checks the webhook and repairs a missing button setting). Common commands include:
 
 | Command                                   | Purpose                                              |
 | ----------------------------------------- | ---------------------------------------------------- |
