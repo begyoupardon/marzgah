@@ -1,4 +1,4 @@
-import { mkdirSync, readdirSync, rmSync } from 'node:fs'
+import { chmodSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 const BACKUP_PATTERN = /^panel-.*\.db$/
@@ -18,6 +18,8 @@ export async function backupDatabase(sourcePath: string, outPath: string) {
   } finally {
     db.close()
   }
+  // A backup holds password hashes and sessions; keep it owner-only.
+  chmodSync(outPath, 0o600)
   return outPath
 }
 

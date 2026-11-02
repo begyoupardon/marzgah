@@ -1,7 +1,12 @@
-import { isNull } from 'drizzle-orm'
+import { and, isNotNull, isNull, lt } from 'drizzle-orm'
 
 import { db } from '#/db'
-import { vpnUsers } from '#/db/schema'
+import {
+  telegramConfirmations,
+  telegramUpdates,
+  vpnUsers,
+  webhookEvents,
+} from '#/db/schema'
 import { backupDatabase, backupFileName, rotateBackups } from '#/lib/backup'
 import { getEnv } from '#/lib/env'
 import { writeAuditLog } from '#/lib/ledger'
@@ -34,10 +39,27 @@ export async function scanNotifications() {
 export async function drainNotifications() {
   const config = await getTelegramConfig()
   return drainOutbox({
-    ...(config?.enabled
-      ? { notifier: createTelegramNotifier(config.botToken) }
-      : {}),
+    notifier: config?.enabled
+      ? createTelegramNotifier(config.botToken)
+      : undefined,
   })
+}
+
+/** Drop bookkeeping rows nobody reads after 30 days (idempotency keys only matter for minutes). */
+export async function pruneOldRows(now = new Date()) {
+  const cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+  await db
+    .delete(webhookEvents)
+    .where(
+      and(
+        isNotNull(webhookEvents.processedAt),
+        lt(webhookEvents.createdAt, cutoff),
+      ),
+    )
+  await db.delete(telegramUpdates).where(lt(telegramUpdates.receivedAt, cutoff))
+  await db
+    .delete(telegramConfirmations)
+    .where(lt(telegramConfirmations.expiresAt, now))
 }
 
 export async function autoBackup() {
@@ -76,6 +98,12 @@ export function buildScheduler(opts: { backups: boolean }) {
     intervalMs: HOUR,
     run: scanNotifications,
     initialDelayMs: 90_000,
+  })
+  scheduler.register({
+    name: 'prune-old-rows',
+    intervalMs: HOUR,
+    run: pruneOldRows,
+    initialDelayMs: 120_000,
   })
   scheduler.register({
     name: 'drain-notifications',

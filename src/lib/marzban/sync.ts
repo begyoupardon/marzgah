@@ -189,10 +189,12 @@ export async function refreshVpnUserMirrors<
 >(rows: T[]) {
   const refreshed = [...rows]
   let failed = false
+  let consecutiveFailures = 0
   let next = 0
   await Promise.all(
     Array.from({ length: Math.min(5, rows.length) }, async () => {
-      while (!failed && next < rows.length) {
+      // One bad user must not starve the rest; a real outage fails five in a row.
+      while (consecutiveFailures < 5 && next < rows.length) {
         const index = next++
         if (rows[index].removedAt) continue
         const lastSyncedAt = rows[index].lastSyncedAt
@@ -206,8 +208,10 @@ export async function refreshVpnUserMirrors<
             },
           )
           if (mirror) refreshed[index] = { ...rows[index], ...mirror }
+          consecutiveFailures = 0
         } catch {
           failed = true
+          consecutiveFailures++
         }
       }
     }),

@@ -135,7 +135,18 @@ it('stops scheduling more upstream reads after an outage', async () => {
   mocks.getUser.mockRejectedValue(new Error('upstream down'))
   const rows = Array.from({ length: 50 }, () => ({ ...existing }))
   expect((await refreshVpnUserMirrors(rows)).failed).toBe(true)
-  expect(mocks.getUser.mock.calls.length).toBeLessThanOrEqual(5)
+  expect(mocks.getUser.mock.calls.length).toBeLessThanOrEqual(10)
+})
+it('keeps refreshing the rest when a single user fails', async () => {
+  let calls = 0
+  mocks.getUser.mockImplementation(async () => {
+    if (calls++ === 0) throw new Error('bad row')
+    return remote
+  })
+  const rows = Array.from({ length: 20 }, () => ({ ...existing }))
+  const result = await refreshVpnUserMirrors(rows)
+  expect(result.failed).toBe(true)
+  expect(mocks.getUser.mock.calls.length).toBe(20)
 })
 it('reuses recently synchronized mirrors until the next refresh interval', async () => {
   const row = { ...existing, lastSyncedAt: new Date() }

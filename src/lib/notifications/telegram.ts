@@ -461,9 +461,6 @@ export async function createTelegramConfirmation(
   { db = defaultDb, now = new Date() }: { db?: Db; now?: Date } = {},
 ) {
   const token = randomToken(12)
-  await db
-    .delete(telegramConfirmations)
-    .where(lt(telegramConfirmations.expiresAt, now))
   await db.insert(telegramConfirmations).values({
     id: await hashText(token),
     botId: input.botId,
@@ -526,11 +523,6 @@ export async function claimTelegramUpdate(
   updateId: string | number,
   { db = defaultDb, now = new Date() }: { db?: Db; now?: Date } = {},
 ) {
-  await db
-    .delete(telegramUpdates)
-    .where(
-      lt(telegramUpdates.receivedAt, new Date(now.getTime() - 30 * 86_400_000)),
-    )
   const [inserted] = await db
     .insert(telegramUpdates)
     .values({ botId, updateId: String(updateId), receivedAt: now })
