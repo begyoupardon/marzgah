@@ -260,7 +260,7 @@ it('customer asks, seller approves: renewal is billed exactly once', async () =>
   upstream.length = 0
   await callAs(api.approveRenewalRequest, { id: pending[0].id }, alice.id)
   expect(upstream).toContain('modify:al_cust')
-  expect(upstream).not.toContain('reset:al_cust')
+  expect(upstream).toContain('reset:al_cust')
   const bills = await db
     .select()
     .from(billingEvents)

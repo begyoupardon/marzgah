@@ -86,7 +86,7 @@ beforeEach(() => {
   mocks.reset.mockResolvedValue(remote)
   mocks.revoke.mockResolvedValue(remote)
 })
-it('starts renewal from today, adds quota, and preserves usage', async () => {
+it('starts renewal from today, resets usage, and sets the new quota', async () => {
   await call(renewVpnUser, { username, durationDays: 30 }, { context })
   const expiry = mocks.modify.mock.calls[0][1].expire
   expect(expiry).toBeGreaterThan(Date.now() / 1000 + 29 * 86_400)
@@ -94,7 +94,7 @@ it('starts renewal from today, adds quota, and preserves usage', async () => {
   expect(mocks.bill).toHaveBeenCalledWith(
     expect.objectContaining({ type: 'renew', dataLimitGb: 10 }),
   )
-  expect(mocks.reset).not.toHaveBeenCalled()
+  expect(mocks.reset).toHaveBeenCalledOnce()
   expect(mocks.bill).toHaveBeenCalledOnce()
 })
 it('rejects renewal for unlimited quota before backend mutation or billing', async () => {

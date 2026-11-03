@@ -679,7 +679,8 @@ export const renewVpnUser = authed
     }
 
     const addedBytes = input.additionalDataLimitBytes ?? current.dataLimitBytes
-    const nextDataLimitBytes = current.dataLimitBytes + addedBytes
+    // Renewal starts a fresh period: leftover volume is not carried over.
+    const nextDataLimitBytes = addedBytes
     if (
       !Number.isSafeInteger(nextDataLimitBytes) ||
       !isValidDataLimitBytes(addedBytes)
@@ -710,6 +711,7 @@ export const renewVpnUser = authed
     )
 
     const backend = getBackend(owned.backend)
+    await backend.resetUsage(input.username)
     await backend.updateUser(input.username, {
       expireAt,
       dataLimitBytes: nextDataLimitBytes,
@@ -747,7 +749,7 @@ export const renewVpnUser = authed
         durationMonths,
         durationDays,
         additionalDataLimitGb: billingGbFromBytes(addedBytes),
-        resetUsage: false,
+        resetUsage: true,
         amountToman: billing.amountToman,
         billingEventId: billing.id,
       },

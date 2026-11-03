@@ -78,7 +78,7 @@ it('maps a duplicate on the backend to a conflict', async () => {
   ).rejects.toMatchObject({ code: 'CONFLICT' })
 })
 
-it('renews from now, adds quota, and preserves usage', async () => {
+it('renews from now, resets usage, and sets the new quota', async () => {
   fake.addUsage('fk_ali', 4 * GB)
   await fake.updateUser('fk_ali', {
     expireAt: new Date('2030-01-01T00:00:00.000Z'),
@@ -89,7 +89,7 @@ it('renews from now, adds quota, and preserves usage', async () => {
     { username: 'fk_ali', durationDays: 60, additionalDataLimitBytes: 10 * GB },
     seller.id,
   )
-  expect(fake.callsTo('resetUsage')).toHaveLength(0)
+  expect(fake.callsTo('resetUsage')).toHaveLength(1)
   const update = fake.callsTo('updateUser')[0].args[1] as {
     expireAt: Date
     status?: string
@@ -104,10 +104,10 @@ it('renews from now, adds quota, and preserves usage', async () => {
   expect(
     (fake.callsTo('updateUser')[0].args[1] as { dataLimitBytes: number })
       .dataLimitBytes,
-  ).toBe(20 * GB)
+  ).toBe(10 * GB)
   expect(update.status).toBe('active')
   const row = await mirror('fk_ali')
-  expect(row?.usedTrafficBytes).toBe(4 * GB)
+  expect(row?.usedTrafficBytes).toBe(0)
   expect(row?.expireAt?.getTime()).toBe(update.expireAt.getTime())
 })
 
@@ -299,5 +299,5 @@ it('accepts and bills a 0.1 GB plan while rejecting smaller byte limits', async 
     },
     seller.id,
   )
-  expect((await mirror('fk_small'))?.dataLimitBytes).toBe(minimum * 2)
+  expect((await mirror('fk_small'))?.dataLimitBytes).toBe(minimum)
 })
