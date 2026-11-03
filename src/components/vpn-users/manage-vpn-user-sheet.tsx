@@ -405,12 +405,12 @@ export function ManageVpnUserSheet({
                     Number.isFinite(renewGb) ? (
                       <p>
                         {t('سقف جدید:')}{' '}
-                        {bytesToGb(user.dataLimitBytes)! + renewGb} GB
+                        {renewGb} GB
                       </p>
                     ) : null}
                     <p className="text-muted-foreground">
                       {t(
-                        'مصرف فعلی حفظ می‌شود و حجم انتخابی به سقف فعلی اضافه می‌شود.',
+                        'مصرف صفر می‌شود و حجم انتخابی جایگزین سقف فعلی می‌شود؛ حجم باقی‌مانده منتقل نمی‌شود.',
                       )}
                     </p>
                   </div>
@@ -430,7 +430,7 @@ export function ManageVpnUserSheet({
                     name="additionalDataLimitGb"
                     id={`${RENEW_FORM_ID}-data-limit`}
                     label="حجم اضافه‌شونده (گیگابایت)"
-                    description="این مقدار به سقف فعلی اضافه و فقط همین مقدار صورتحساب می‌شود. حداقل ۰٫۱ گیگابایت."
+                    description="این مقدار سقف جدید می‌شود و فقط همین مقدار صورتحساب می‌شود. حداقل ۰٫۱ گیگابایت."
                   />
 
                   <Controller
