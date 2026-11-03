@@ -44,6 +44,26 @@ export const session = sqliteTable('session', {
     .references(() => user.id, { onDelete: 'cascade' }),
 })
 
+export const apiKeys = sqliteTable(
+  'api_keys',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    tokenHash: text('token_hash').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' }),
+    revokedAt: integer('revoked_at', { mode: 'timestamp_ms' }),
+  },
+  (t) => [
+    uniqueIndex('api_keys_token_hash_idx').on(t.tokenHash),
+    index('api_keys_user_idx').on(t.userId),
+  ],
+)
+
 export const account = sqliteTable('account', {
   id: text('id').primaryKey(),
   accountId: text('account_id').notNull(),
@@ -516,12 +536,17 @@ export const webhookEvents = sqliteTable(
 
 export const userRelations = relations(user, ({ many, one }) => ({
   sessions: many(session),
+  apiKeys: many(apiKeys),
   accounts: many(account),
   resellerProfile: one(resellerProfiles, {
     fields: [user.id],
     references: [resellerProfiles.userId],
   }),
   vpnUsers: many(vpnUsers),
+}))
+
+export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
+  user: one(user, { fields: [apiKeys.userId], references: [user.id] }),
 }))
 
 export const sessionRelations = relations(session, ({ one }) => ({

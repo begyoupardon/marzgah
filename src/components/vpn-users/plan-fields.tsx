@@ -85,7 +85,7 @@ export function DataLimitField<T extends FieldValues>({
             id={id}
             type="number"
             min={MIN_DATA_LIMIT_GB}
-            step="1"
+            step="any"
             inputMode="decimal"
             dir="ltr"
             aria-invalid={fieldState.invalid}

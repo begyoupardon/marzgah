@@ -6,6 +6,7 @@ import {
   ChartColumnIcon,
   ClipboardListIcon,
   LayoutDashboardIcon,
+  KeyRoundIcon,
   PanelRightCloseIcon,
   PanelRightOpenIcon,
   ReceiptIcon,
@@ -117,6 +118,10 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
                 ? [item(t('کیف پول'), '/wallet', <WalletIcon />)]
                 : []),
             ]}
+          />
+          <NavMain
+            label={t('حساب و دسترسی')}
+            items={[item(t('کلیدهای API'), '/api-keys', <KeyRoundIcon />)]}
           />
           {user.role === 'admin' ? (
             <NavMain

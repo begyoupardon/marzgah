@@ -19,6 +19,7 @@ import {
   requestRenewal,
 } from '#/lib/renewals'
 import { authed, base } from '../middleware'
+import { outputSpec } from '../openapi-response'
 import { renewVpnUser } from './vpn-users'
 
 const viewLimiter = createRateLimiter({ windowMs: 60_000, max: 60 })
@@ -41,6 +42,13 @@ const tokenInput = z.object({ token: z.string().min(1).max(64) })
 // ── public (no login) ────────────────────────────────────────────────────
 
 export const publicView = base
+  .route({
+    summary: 'View customer page',
+    description:
+      'Use this operation to view customer page under the caller’s current role and ownership rules.',
+    tags: ['Customers'],
+    spec: outputSpec('customer.publicView', true),
+  })
   .input(tokenInput)
   .handler(async ({ input, context }) => {
     const limit = viewLimiter.hit(clientIp(context.headers))
@@ -70,6 +78,13 @@ export const publicView = base
   })
 
 export const publicRequestRenewal = base
+  .route({
+    summary: 'Request customer renewal',
+    description:
+      'Use this operation to request customer renewal under the caller’s current role and ownership rules.',
+    tags: ['Customers'],
+    spec: outputSpec('customer.publicRequestRenewal', true),
+  })
   .input(
     tokenInput
       .extend({
@@ -120,6 +135,13 @@ export const publicRequestRenewal = base
 const actorRole = (role: string) => (role === 'admin' ? 'admin' : 'reseller')
 
 export const createCustomerLink = authed
+  .route({
+    summary: 'Create customer link',
+    description:
+      'Use this operation to create customer link under the caller’s current role and ownership rules.',
+    tags: ['Customers'],
+    spec: outputSpec('customer.createCustomerLink'),
+  })
   .input(
     z.object({
       username: z.string().min(1),
@@ -155,6 +177,13 @@ export const createCustomerLink = authed
   })
 
 export const revokeCustomerLink = authed
+  .route({
+    summary: 'Revoke customer link',
+    description:
+      'Use this operation to revoke customer link under the caller’s current role and ownership rules.',
+    tags: ['Customers'],
+    spec: outputSpec('customer.revokeCustomerLink'),
+  })
   .input(z.object({ username: z.string().min(1) }))
   .handler(async ({ input, context }) => {
     const owned = await getOwnedVpnUser(
@@ -177,12 +206,20 @@ export const revokeCustomerLink = authed
     return { revoked }
   })
 
-export const listRenewalRequests = authed.handler(async ({ context }) => {
-  const rows = await listPendingRenewals(
-    context.user.role === 'admin' ? null : context.user.id,
-  )
-  return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }))
-})
+export const listRenewalRequests = authed
+  .route({
+    summary: 'List renewal requests',
+    description:
+      'Use this operation to list renewal requests under the caller’s current role and ownership rules.',
+    tags: ['Customers'],
+    spec: outputSpec('customer.listRenewalRequests'),
+  })
+  .handler(async ({ context }) => {
+    const rows = await listPendingRenewals(
+      context.user.role === 'admin' ? null : context.user.id,
+    )
+    return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }))
+  })
 
 async function loadForDecision(id: string, user: { id: string; role: string }) {
   const found = await getRenewal(id)
@@ -198,6 +235,13 @@ async function loadForDecision(id: string, user: { id: string; role: string }) {
 
 /** Claim first (so a double click can't renew twice), renew, undo the claim on failure. */
 export const approveRenewalRequest = authed
+  .route({
+    summary: 'Approve renewal request',
+    description:
+      'Use this operation to approve renewal request under the caller’s current role and ownership rules.',
+    tags: ['Customers'],
+    spec: outputSpec('customer.approveRenewalRequest'),
+  })
   .input(z.object({ id: z.string() }))
   .handler(async ({ input, context }) => {
     const { request, username } = await loadForDecision(input.id, context.user)
@@ -244,6 +288,13 @@ export const approveRenewalRequest = authed
   })
 
 export const rejectRenewalRequest = authed
+  .route({
+    summary: 'Reject renewal request',
+    description:
+      'Use this operation to reject renewal request under the caller’s current role and ownership rules.',
+    tags: ['Customers'],
+    spec: outputSpec('customer.rejectRenewalRequest'),
+  })
   .input(z.object({ id: z.string() }))
   .handler(async ({ input, context }) => {
     const { request, username } = await loadForDecision(input.id, context.user)
@@ -269,21 +320,36 @@ const brandingInput = z.object({
   supportContact: z.string().trim().max(120).nullable(),
 })
 
-export const getBranding = authed.handler(async ({ context }) => {
-  const [row] = await db
-    .select({
-      publicName: resellerProfiles.publicName,
-      supportContact: resellerProfiles.supportContact,
-    })
-    .from(resellerProfiles)
-    .where(eq(resellerProfiles.userId, context.user.id))
-    .limit(1)
-  if (!row)
-    throw new ORPCError('NOT_FOUND', { message: 'پروفایل نماینده یافت نشد' })
-  return row
-})
+export const getBranding = authed
+  .route({
+    summary: 'Get customer page branding',
+    description:
+      'Use this operation to get customer page branding under the caller’s current role and ownership rules.',
+    tags: ['Customers'],
+    spec: outputSpec('customer.getBranding'),
+  })
+  .handler(async ({ context }) => {
+    const [row] = await db
+      .select({
+        publicName: resellerProfiles.publicName,
+        supportContact: resellerProfiles.supportContact,
+      })
+      .from(resellerProfiles)
+      .where(eq(resellerProfiles.userId, context.user.id))
+      .limit(1)
+    if (!row)
+      throw new ORPCError('NOT_FOUND', { message: 'پروفایل نماینده یافت نشد' })
+    return row
+  })
 
 export const setBranding = authed
+  .route({
+    summary: 'Set customer page branding',
+    description:
+      'Use this operation to set customer page branding under the caller’s current role and ownership rules.',
+    tags: ['Customers'],
+    spec: outputSpec('customer.setBranding'),
+  })
   .input(brandingInput)
   .handler(async ({ input, context }) => {
     const updated = await db

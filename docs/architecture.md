@@ -5,6 +5,7 @@
 ```
 browser ──► TanStack Start (SSR + routes)
               ├─ /api/rpc/*   oRPC router  (src/orpc/router)   ← all UI data
+              ├─ /api/*       OpenAPI endpoints, spec.json, reference
               ├─ /api/auth/*  better-auth
               ├─ /api/webhooks/marzban, /api/telegram/webhook
               └─ /s/:token    public customer page
@@ -19,7 +20,8 @@ browser ──► TanStack Start (SSR + routes)
   (wallet, outbox, tokens, filters, suspension) live in `src/lib` and take the database as a parameter, so
   tests run them against an in-memory SQLite with the real migrations.
 - **Authorization** is in `src/orpc/middleware.ts`: `base` (public), `authed`, `adminOnly`. Roles are re-read from the
-  database on every call. Sellers are scoped by `resellerId` in every query; other sellers' rows answer "not found".
+  database on every call. A browser session or a hashed per-user bearer key supplies the account; explicit bearer headers
+  never fall back to cookies. Sellers are scoped by `resellerId` in every query; other sellers' rows answer "not found".
 - **One process** serves the app and runs the background jobs (`server/plugins/boot.ts` → `src/lib/jobs.ts`).
 
 ## Database
@@ -34,6 +36,7 @@ migrations disagree. Migrations only move forward.
 | Area          | Tables                                                                                                                      |
 | ------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | Auth          | `user` (with `role`), `session`, `account`, `verification`                                                                  |
+| API access    | `api_keys` (owner, SHA-256 token hash, required expiry, last use, revocation)                                               |
 | Sellers       | `reseller_profiles` (suffix, price/GB, caps, credit limit, branding)                                                        |
 | VPN users     | `vpn_users` (local mirror of the server's state, plus contact fields, labels, `backend`, `suspended_at`, soft `removed_at`) |
 | Money         | `billing_events` (what was sold), `wallet_entries` (append-only ledger)                                                     |
@@ -92,6 +95,8 @@ the interface is missing something, add it there.
 - **Secrets at rest** (`settings.encrypted = true`): AES-GCM with a key derived (HKDF) from `BETTER_AUTH_SECRET`.
 - **CSV** output neutralizes spreadsheet formulas; messages to Telegram are plain text.
 - **Rate limits:** sign-in (better-auth, per IP), customer page and renewal requests (in memory, `src/lib/rate-limit.ts`).
+- **API keys:** 256-bit random bearer credentials are shown once, stored only as hashes, and cannot manage key lifecycles.
+  The OpenAPI response schemas are generated from router handler return types with `bun run api:schemas` and checked in CI.
 - **Audit:** most state-changing admin and seller actions write `audit_logs` (user changes include before/after values). Plan edits and some read-adjacent actions are not audited yet.
 
 ## Known trade-offs

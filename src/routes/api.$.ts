@@ -40,9 +40,16 @@ const handler = new OpenAPIHandler(router, {
           VpnUserStatus: { schema: VpnUserStatusSchema },
           UndefinedError: { error: 'UndefinedError' },
         },
-        security: [{ cookieAuth: [] }],
+        filter: ({ path }) => path[0] !== 'apiKeys',
+        security: [{ bearerAuth: [] }, { cookieAuth: [] }],
         components: {
           securitySchemes: {
+            bearerAuth: {
+              type: 'http',
+              scheme: 'bearer',
+              description:
+                'Use a named API key created in the signed-in panel.',
+            },
             cookieAuth: {
               type: 'apiKey',
               in: 'cookie',

@@ -9,6 +9,8 @@
   "scripts": {
     "dev": "bun --bun vite dev --port 3000",
     "generate-routes": "node ./node_modules/@tanstack/router-cli/dist/esm/index.js generate",
+    "api:schemas": "bun scripts/generate-api-output-schemas.ts && oxfmt --write src/orpc/output-schemas.generated.json",
+    "api:schemas:check": "bun scripts/generate-api-output-schemas.ts --check",
     "build": "vite build",
     "preview": "bun run build && bun run start",
     "lint": "oxlint",

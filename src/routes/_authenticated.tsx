@@ -34,6 +34,7 @@ export const Route = createFileRoute('/_authenticated')({
 })
 
 const pageTitles: Array<[string, string]> = [
+  ['/api-keys', 'کلیدهای API'],
   ['/wallet', 'کیف پول'],
   ['/notifications', 'اعلان‌ها'],
   ['/admin/resellers', 'نمایندگان'],

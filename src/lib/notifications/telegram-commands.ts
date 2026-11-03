@@ -19,6 +19,7 @@ import {
 } from './telegram'
 import type { Db } from '#/db/types'
 import { getEnv } from '#/lib/env'
+import { gbToBytes, MIN_DATA_LIMIT_GB } from '#/lib/vpn-plans'
 import {
   USER_ACTIONS,
   LIST_VIEWS,
@@ -47,7 +48,6 @@ import {
   type FlowCtx,
 } from './telegram-flows'
 
-const GB = 1024 ** 3
 const commandProcedures: Record<string, any> = {
   dashboard: router.dashboard,
   users: router.vpnUsers.list,
@@ -89,6 +89,18 @@ function numberArg(value: string | undefined, label: string) {
   const n = Number(value)
   if (!Number.isSafeInteger(n)) throw new Error(`${label} باید عدد صحیح باشد.`)
   return n
+}
+
+function gbArg(value: string | undefined, label: string, allowZero = false) {
+  const gb = Number(value)
+  if (
+    !value?.trim() ||
+    !Number.isFinite(gb) ||
+    gb > 10_000 ||
+    (gb < MIN_DATA_LIMIT_GB && !(allowZero && gb === 0))
+  )
+    throw new Error(`${label} باید ۰٫۱ تا ۱۰٬۰۰۰ گیگابایت باشد.`)
+  return gb
 }
 
 function parseAction(text: string, role: string) {
@@ -148,9 +160,9 @@ function parseAction(text: string, role: string) {
       const admin = role === 'admin'
       const resellerId = admin ? args[0] : undefined
       const name = admin ? args[1] : args[0]
-      const gb = numberArg(admin ? args[2] : args[1], 'حجم گیگابایت')
+      const gb = gbArg(admin ? args[2] : args[1], 'حجم گیگابایت')
       const duration = numberArg(admin ? args[3] : args[2], 'مدت')
-      if (!name || gb < 10 || ![30, 60, 90].includes(duration))
+      if (!name || ![30, 60, 90].includes(duration))
         throw new Error(
           admin
             ? 'روش استفاده: /create شناسه‌نماینده نام‌کاربری گیگابایت روز'
@@ -162,7 +174,7 @@ function parseAction(text: string, role: string) {
           input: {
             ...(resellerId ? { resellerId } : {}),
             username: name,
-            dataLimitBytes: gb * GB,
+            dataLimitBytes: gbToBytes(gb),
             durationDays: duration,
           },
         } as CommandAction,
@@ -173,20 +185,20 @@ function parseAction(text: string, role: string) {
       if (!username)
         throw new Error('روش استفاده: /renew نام‌کاربری روز حجم‌افزوده-Gb')
       const durationDays = days()
-      const additionalGb = numberArg(args[2], 'حجم افزوده')
-      if (additionalGb < 10)
-        throw new Error('حجم افزوده باید حداقل ۱۰ گیگابایت باشد.')
+      const additionalGb = gbArg(args[2], 'حجم افزوده', true)
       return {
         action: {
           command: 'renew',
           input: {
             username,
             durationDays,
-            additionalDataLimitBytes: additionalGb * GB,
+            ...(additionalGb > 0
+              ? { additionalDataLimitBytes: gbToBytes(additionalGb) }
+              : {}),
             reactivate: true,
           },
         } as CommandAction,
-        summary: `تمدید ${username} برای ${durationDays} روز و افزودن ${additionalGb} گیگابایت`,
+        summary: `تمدید ${username} برای ${durationDays} روز${additionalGb > 0 ? ` و افزودن ${additionalGb} گیگابایت` : ' بدون افزودن حجم'}`,
       }
     }
     case '/disable':

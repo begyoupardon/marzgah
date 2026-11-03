@@ -8,6 +8,7 @@ private link. Admins see all data; sellers only ever see their own, enforced on 
 **Selling.** A seller creates a customer (name is prefixed with the seller's suffix: `<suffix>_<name>`), renews it,
 adds traffic, or disables it. Each paid action writes a **billing event**: `GB × the seller's price per GB`. Only admins
 can remove a user (a soft removal; billing history is never deleted).
+The minimum allowance for a new plan, edited limit, or added renewal traffic is **0.1 GB**.
 
 **Two ways a seller pays the admin**
 

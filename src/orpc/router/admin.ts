@@ -20,50 +20,66 @@ import {
 import { usernameSuffixSchema } from '#/lib/reseller-naming'
 import { getBackend } from '#/lib/backends/registry'
 import { adminOnly } from '../middleware'
+import { outputSpec } from '../openapi-response'
 
-export const listResellers = adminOnly.handler(async () => {
-  const [rows, balances] = await Promise.all([
-    db
-      .select({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        profileId: resellerProfiles.id,
-        status: resellerProfiles.status,
-        usernameSuffix: resellerProfiles.usernameSuffix,
-        pricePerGbToman: resellerProfiles.pricePerGbToman,
-        allowUnlimitedExpire: resellerProfiles.allowUnlimitedExpire,
-        creditLimitToman: resellerProfiles.creditLimitToman,
-        notes: resellerProfiles.notes,
-        maxUsers: resellerProfiles.maxUsers,
-        maxTotalGb: resellerProfiles.maxTotalGb,
-        createdAt: resellerProfiles.createdAt,
-      })
-      .from(user)
-      .leftJoin(resellerProfiles, eq(resellerProfiles.userId, user.id))
-      .where(eq(user.role, 'reseller'))
-      .orderBy(desc(user.createdAt)),
-    db
-      .select({
-        resellerId: walletEntries.resellerId,
-        total: sql<number>`coalesce(sum(case ${walletEntries.type} when 'credit' then ${walletEntries.amountToman} else -${walletEntries.amountToman} end), 0)`,
-      })
-      .from(walletEntries)
-      .groupBy(walletEntries.resellerId),
-  ])
+export const listResellers = adminOnly
+  .route({
+    summary: 'List resellers',
+    description:
+      'Use this operation to list resellers under the caller’s current role and ownership rules.',
+    tags: ['Resellers'],
+    spec: outputSpec('admin.listResellers'),
+  })
+  .handler(async () => {
+    const [rows, balances] = await Promise.all([
+      db
+        .select({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          profileId: resellerProfiles.id,
+          status: resellerProfiles.status,
+          usernameSuffix: resellerProfiles.usernameSuffix,
+          pricePerGbToman: resellerProfiles.pricePerGbToman,
+          allowUnlimitedExpire: resellerProfiles.allowUnlimitedExpire,
+          creditLimitToman: resellerProfiles.creditLimitToman,
+          notes: resellerProfiles.notes,
+          maxUsers: resellerProfiles.maxUsers,
+          maxTotalGb: resellerProfiles.maxTotalGb,
+          createdAt: resellerProfiles.createdAt,
+        })
+        .from(user)
+        .leftJoin(resellerProfiles, eq(resellerProfiles.userId, user.id))
+        .where(eq(user.role, 'reseller'))
+        .orderBy(desc(user.createdAt)),
+      db
+        .select({
+          resellerId: walletEntries.resellerId,
+          total: sql<number>`coalesce(sum(case ${walletEntries.type} when 'credit' then ${walletEntries.amountToman} else -${walletEntries.amountToman} end), 0)`,
+        })
+        .from(walletEntries)
+        .groupBy(walletEntries.resellerId),
+    ])
 
-  const balanceMap = new Map(
-    balances.map((b) => [b.resellerId, Number(b.total ?? 0)]),
-  )
+    const balanceMap = new Map(
+      balances.map((b) => [b.resellerId, Number(b.total ?? 0)]),
+    )
 
-  return rows.map((r) => ({
-    ...r,
-    balanceToman: balanceMap.get(r.id) ?? 0,
-  }))
-})
+    return rows.map((r) => ({
+      ...r,
+      balanceToman: balanceMap.get(r.id) ?? 0,
+    }))
+  })
 
 export const createReseller = adminOnly
+  .route({
+    summary: 'Create reseller',
+    description:
+      'Use this operation to create reseller under the caller’s current role and ownership rules.',
+    tags: ['Resellers'],
+    spec: outputSpec('admin.createReseller'),
+  })
   .input(
     z.object({
       email: z.email(),
@@ -152,6 +168,13 @@ export const createReseller = adminOnly
   })
 
 export const updateReseller = adminOnly
+  .route({
+    summary: 'Update reseller',
+    description:
+      'Use this operation to update reseller under the caller’s current role and ownership rules.',
+    tags: ['Resellers'],
+    spec: outputSpec('admin.updateReseller'),
+  })
   .input(
     z.object({
       userId: z.string().min(1),
@@ -293,52 +316,60 @@ export const updateReseller = adminOnly
     return { ok: true }
   })
 
-export const marzbanHealth = adminOnly.handler(async () => {
-  const backend = getBackend()
-  const { baseUrl, configured, label } = backend.info()
+export const marzbanHealth = adminOnly
+  .route({
+    summary: 'Check VPN server health',
+    description:
+      'Use this operation to check VPN server health under the caller’s current role and ownership rules.',
+    tags: ['Resellers'],
+    spec: outputSpec('admin.marzbanHealth'),
+  })
+  .handler(async () => {
+    const backend = getBackend()
+    const { baseUrl, configured, label } = backend.info()
 
-  if (!configured) {
-    return {
-      ok: false as const,
-      configured: false,
-      baseUrl,
-      latencyMs: null,
-      checkedAt: new Date().toISOString(),
-      error: `${label} is not configured (check its environment variables)`,
-      stats: null,
+    if (!configured) {
+      return {
+        ok: false as const,
+        configured: false,
+        baseUrl,
+        latencyMs: null,
+        checkedAt: new Date().toISOString(),
+        error: `${label} is not configured (check its environment variables)`,
+        stats: null,
+      }
     }
-  }
 
-  const started = Date.now()
-  try {
-    const stats = await backend.health()
-    return {
-      ok: true as const,
-      configured: true,
-      baseUrl,
-      latencyMs: Date.now() - started,
-      checkedAt: new Date().toISOString(),
-      error: null,
-      stats: {
-        version: stats.version,
-        totalUsers: stats.totalUsers,
-        activeUsers: stats.activeUsers,
-        incomingBandwidth: stats.incomingBytes,
-        outgoingBandwidth: stats.outgoingBytes,
-      },
-    }
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : `Unknown ${label} error`
+    const started = Date.now()
+    try {
+      const stats = await backend.health()
+      return {
+        ok: true as const,
+        configured: true,
+        baseUrl,
+        latencyMs: Date.now() - started,
+        checkedAt: new Date().toISOString(),
+        error: null,
+        stats: {
+          version: stats.version,
+          totalUsers: stats.totalUsers,
+          activeUsers: stats.activeUsers,
+          incomingBandwidth: stats.incomingBytes,
+          outgoingBandwidth: stats.outgoingBytes,
+        },
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : `Unknown ${label} error`
 
-    return {
-      ok: false as const,
-      configured: true,
-      baseUrl,
-      latencyMs: Date.now() - started,
-      checkedAt: new Date().toISOString(),
-      error: message,
-      stats: null,
+      return {
+        ok: false as const,
+        configured: true,
+        baseUrl,
+        latencyMs: Date.now() - started,
+        checkedAt: new Date().toISOString(),
+        error: message,
+        stats: null,
+      }
     }
-  }
-})
+  })

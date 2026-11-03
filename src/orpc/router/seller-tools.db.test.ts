@@ -188,7 +188,7 @@ it('bulk renew reports per-user results and keeps going after a failure', async 
 it('imports users from CSV, validating each row and respecting seller caps', async () => {
   const limited = await makeReseller(db, { usernameSuffix: 'lm', maxUsers: 1 })
   const csv =
-    'username,gb,months,phone,labels\ngood1,10,1,0912,vip|x\nbad,5,1,,\ngood2,10,1,,\n'
+    'username,gb,months,phone,labels\ngood1,0.1,1,0912,vip|x\nbad,0.05,1,,\ngood2,10,1,,\n'
   const r = (await callAs(tools.importUsers, { csv }, limited.id)) as {
     results: Array<{
       row: number

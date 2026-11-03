@@ -1,0 +1,5309 @@
+{
+  "admin.listResellers": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "balanceToman": {
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "reseller"]
+        },
+        "profileId": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "const": "active"
+            },
+            {
+              "type": "string",
+              "const": "disabled"
+            }
+          ]
+        },
+        "usernameSuffix": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "pricePerGbToman": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "number"
+            }
+          ]
+        },
+        "allowUnlimitedExpire": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "boolean",
+              "const": false
+            },
+            {
+              "type": "boolean",
+              "const": true
+            }
+          ]
+        },
+        "creditLimitToman": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "number"
+            }
+          ]
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "maxUsers": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "number"
+            }
+          ]
+        },
+        "maxTotalGb": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "number"
+            }
+          ]
+        },
+        "createdAt": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "format": "date-time"
+            }
+          ]
+        }
+      },
+      "required": [
+        "balanceToman",
+        "id",
+        "name",
+        "email",
+        "role",
+        "profileId",
+        "status",
+        "usernameSuffix",
+        "pricePerGbToman",
+        "allowUnlimitedExpire",
+        "creditLimitToman",
+        "notes",
+        "maxUsers",
+        "maxTotalGb",
+        "createdAt"
+      ]
+    }
+  },
+  "admin.createReseller": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "email": {
+        "type": "string"
+      }
+    },
+    "required": ["id", "email"]
+  },
+  "admin.updateReseller": {
+    "type": "object",
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      }
+    },
+    "required": ["ok"]
+  },
+  "admin.marzbanHealth": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": false
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "baseUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "latencyMs": {
+            "type": "null"
+          },
+          "checkedAt": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "stats": {
+            "type": "null"
+          }
+        },
+        "required": [
+          "ok",
+          "configured",
+          "baseUrl",
+          "latencyMs",
+          "checkedAt",
+          "error",
+          "stats"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "baseUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "latencyMs": {
+            "type": "number"
+          },
+          "checkedAt": {
+            "type": "string"
+          },
+          "error": {
+            "type": "null"
+          },
+          "stats": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "totalUsers": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "activeUsers": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "incomingBandwidth": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "outgoingBandwidth": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "version",
+              "totalUsers",
+              "activeUsers",
+              "incomingBandwidth",
+              "outgoingBandwidth"
+            ]
+          }
+        },
+        "required": [
+          "ok",
+          "configured",
+          "baseUrl",
+          "latencyMs",
+          "checkedAt",
+          "error",
+          "stats"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": false
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "baseUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "latencyMs": {
+            "type": "number"
+          },
+          "checkedAt": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "stats": {
+            "type": "null"
+          }
+        },
+        "required": [
+          "ok",
+          "configured",
+          "baseUrl",
+          "latencyMs",
+          "checkedAt",
+          "error",
+          "stats"
+        ]
+      }
+    ]
+  },
+  "audit.listAuditLogs": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "type": "string"
+        },
+        "payload": {}
+      },
+      "required": ["createdAt", "payload"]
+    }
+  },
+  "billing.myBillingSummary": {
+    "type": "object",
+    "properties": {
+      "summary": {
+        "type": "object",
+        "properties": {
+          "soldGb": {
+            "type": "number"
+          },
+          "totalToman": {
+            "type": "number"
+          },
+          "settledToman": {
+            "type": "number"
+          },
+          "claimedToman": {
+            "type": "number"
+          },
+          "outstandingToman": {
+            "type": "number"
+          },
+          "eventCount": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "soldGb",
+          "totalToman",
+          "settledToman",
+          "claimedToman",
+          "outstandingToman",
+          "eventCount"
+        ]
+      },
+      "events": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "resellerId": {
+              "type": "string"
+            },
+            "vpnUserId": {
+              "type": "string"
+            },
+            "marzbanUsername": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": ["create", "renew", "extra_gb"]
+            },
+            "dataLimitGb": {
+              "type": "number"
+            },
+            "durationMonths": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "durationDays": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "pricePerGbToman": {
+              "type": "number"
+            },
+            "amountToman": {
+              "type": "number"
+            },
+            "actorUserId": {
+              "type": "string"
+            },
+            "claimedPaidAt": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "claimedByUserId": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "settledAt": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "settledByUserId": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "createdAt": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "resellerId",
+            "vpnUserId",
+            "marzbanUsername",
+            "type",
+            "dataLimitGb",
+            "durationMonths",
+            "durationDays",
+            "pricePerGbToman",
+            "amountToman",
+            "actorUserId",
+            "claimedPaidAt",
+            "claimedByUserId",
+            "settledAt",
+            "settledByUserId",
+            "createdAt"
+          ]
+        }
+      }
+    },
+    "required": ["summary", "events"]
+  },
+  "billing.adminBillingSummary": {
+    "type": "object",
+    "properties": {
+      "summary": {
+        "type": "object",
+        "properties": {
+          "soldGb": {
+            "type": "number"
+          },
+          "totalToman": {
+            "type": "number"
+          },
+          "settledToman": {
+            "type": "number"
+          },
+          "claimedToman": {
+            "type": "number"
+          },
+          "outstandingToman": {
+            "type": "number"
+          },
+          "eventCount": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "soldGb",
+          "totalToman",
+          "settledToman",
+          "claimedToman",
+          "outstandingToman",
+          "eventCount"
+        ]
+      },
+      "byReseller": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "reseller": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "usernameSuffix": {
+                      "type": "string"
+                    },
+                    "pricePerGbToman": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["active", "disabled"]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "email",
+                    "usernameSuffix",
+                    "pricePerGbToman",
+                    "status"
+                  ]
+                }
+              ]
+            },
+            "soldGb": {
+              "type": "number"
+            },
+            "totalToman": {
+              "type": "number"
+            },
+            "settledToman": {
+              "type": "number"
+            },
+            "claimedToman": {
+              "type": "number"
+            },
+            "outstandingToman": {
+              "type": "number"
+            },
+            "eventCount": {
+              "type": "number"
+            },
+            "resellerId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "reseller",
+            "soldGb",
+            "totalToman",
+            "settledToman",
+            "claimedToman",
+            "outstandingToman",
+            "eventCount",
+            "resellerId"
+          ]
+        }
+      },
+      "events": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "resellerId": {
+              "type": "string"
+            },
+            "vpnUserId": {
+              "type": "string"
+            },
+            "marzbanUsername": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": ["create", "renew", "extra_gb"]
+            },
+            "dataLimitGb": {
+              "type": "number"
+            },
+            "durationMonths": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "durationDays": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "pricePerGbToman": {
+              "type": "number"
+            },
+            "amountToman": {
+              "type": "number"
+            },
+            "actorUserId": {
+              "type": "string"
+            },
+            "claimedPaidAt": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "claimedByUserId": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "settledAt": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "settledByUserId": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "createdAt": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "resellerId",
+            "vpnUserId",
+            "marzbanUsername",
+            "type",
+            "dataLimitGb",
+            "durationMonths",
+            "durationDays",
+            "pricePerGbToman",
+            "amountToman",
+            "actorUserId",
+            "claimedPaidAt",
+            "claimedByUserId",
+            "settledAt",
+            "settledByUserId",
+            "createdAt"
+          ]
+        }
+      },
+      "resellers": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "usernameSuffix": {
+              "type": "string"
+            },
+            "pricePerGbToman": {
+              "type": "number"
+            },
+            "status": {
+              "type": "string",
+              "enum": ["active", "disabled"]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "email",
+            "usernameSuffix",
+            "pricePerGbToman",
+            "status"
+          ]
+        }
+      }
+    },
+    "required": ["summary", "byReseller", "events", "resellers"]
+  },
+  "billing.claimBillingPaid": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "resellerId": {
+        "type": "string"
+      },
+      "vpnUserId": {
+        "type": "string"
+      },
+      "marzbanUsername": {
+        "type": "string"
+      },
+      "type": {
+        "type": "string",
+        "enum": ["create", "renew", "extra_gb"]
+      },
+      "dataLimitGb": {
+        "type": "number"
+      },
+      "durationMonths": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "number"
+          }
+        ]
+      },
+      "durationDays": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "number"
+          }
+        ]
+      },
+      "pricePerGbToman": {
+        "type": "number"
+      },
+      "amountToman": {
+        "type": "number"
+      },
+      "actorUserId": {
+        "type": "string"
+      },
+      "claimedPaidAt": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "claimedByUserId": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "settledAt": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "settledByUserId": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "createdAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "resellerId",
+      "vpnUserId",
+      "marzbanUsername",
+      "type",
+      "dataLimitGb",
+      "durationMonths",
+      "durationDays",
+      "pricePerGbToman",
+      "amountToman",
+      "actorUserId",
+      "claimedPaidAt",
+      "claimedByUserId",
+      "settledAt",
+      "settledByUserId",
+      "createdAt"
+    ]
+  },
+  "billing.settleBillingEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "resellerId": {
+        "type": "string"
+      },
+      "vpnUserId": {
+        "type": "string"
+      },
+      "marzbanUsername": {
+        "type": "string"
+      },
+      "type": {
+        "type": "string",
+        "enum": ["create", "renew", "extra_gb"]
+      },
+      "dataLimitGb": {
+        "type": "number"
+      },
+      "durationMonths": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "number"
+          }
+        ]
+      },
+      "durationDays": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "number"
+          }
+        ]
+      },
+      "pricePerGbToman": {
+        "type": "number"
+      },
+      "amountToman": {
+        "type": "number"
+      },
+      "actorUserId": {
+        "type": "string"
+      },
+      "claimedPaidAt": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "claimedByUserId": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "settledAt": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "settledByUserId": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "createdAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "resellerId",
+      "vpnUserId",
+      "marzbanUsername",
+      "type",
+      "dataLimitGb",
+      "durationMonths",
+      "durationDays",
+      "pricePerGbToman",
+      "amountToman",
+      "actorUserId",
+      "claimedPaidAt",
+      "claimedByUserId",
+      "settledAt",
+      "settledByUserId",
+      "createdAt"
+    ]
+  },
+  "billing.unsettleBillingEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "resellerId": {
+        "type": "string"
+      },
+      "vpnUserId": {
+        "type": "string"
+      },
+      "marzbanUsername": {
+        "type": "string"
+      },
+      "type": {
+        "type": "string",
+        "enum": ["create", "renew", "extra_gb"]
+      },
+      "dataLimitGb": {
+        "type": "number"
+      },
+      "durationMonths": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "number"
+          }
+        ]
+      },
+      "durationDays": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "number"
+          }
+        ]
+      },
+      "pricePerGbToman": {
+        "type": "number"
+      },
+      "amountToman": {
+        "type": "number"
+      },
+      "actorUserId": {
+        "type": "string"
+      },
+      "claimedPaidAt": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "claimedByUserId": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "settledAt": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "settledByUserId": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "createdAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "resellerId",
+      "vpnUserId",
+      "marzbanUsername",
+      "type",
+      "dataLimitGb",
+      "durationMonths",
+      "durationDays",
+      "pricePerGbToman",
+      "amountToman",
+      "actorUserId",
+      "claimedPaidAt",
+      "claimedByUserId",
+      "settledAt",
+      "settledByUserId",
+      "createdAt"
+    ]
+  },
+  "billing.listOutstandingBilling": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "resellerId": {
+          "type": "string"
+        },
+        "vpnUserId": {
+          "type": "string"
+        },
+        "marzbanUsername": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["create", "renew", "extra_gb"]
+        },
+        "dataLimitGb": {
+          "type": "number"
+        },
+        "durationMonths": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "number"
+            }
+          ]
+        },
+        "durationDays": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "number"
+            }
+          ]
+        },
+        "pricePerGbToman": {
+          "type": "number"
+        },
+        "amountToman": {
+          "type": "number"
+        },
+        "actorUserId": {
+          "type": "string"
+        },
+        "claimedPaidAt": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "claimedByUserId": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "settledAt": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "settledByUserId": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "resellerId",
+        "vpnUserId",
+        "marzbanUsername",
+        "type",
+        "dataLimitGb",
+        "durationMonths",
+        "durationDays",
+        "pricePerGbToman",
+        "amountToman",
+        "actorUserId",
+        "claimedPaidAt",
+        "claimedByUserId",
+        "settledAt",
+        "settledByUserId",
+        "createdAt"
+      ]
+    }
+  },
+  "customer.publicView": {
+    "type": "object",
+    "properties": {
+      "username": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string",
+        "enum": ["active", "disabled", "limited", "expired", "on_hold"]
+      },
+      "usedBytes": {
+        "type": "number"
+      },
+      "limitBytes": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "number"
+          }
+        ]
+      },
+      "expireAt": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "subscriptionUrl": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "updatedAt": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "seller": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "support": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "required": ["name", "support"]
+      },
+      "hasPendingRenewal": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "username",
+      "status",
+      "usedBytes",
+      "limitBytes",
+      "expireAt",
+      "subscriptionUrl",
+      "updatedAt",
+      "seller",
+      "hasPendingRenewal"
+    ]
+  },
+  "customer.publicRequestRenewal": {
+    "type": "object",
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      }
+    },
+    "required": ["ok"]
+  },
+  "customer.createCustomerLink": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string"
+      },
+      "expiresAt": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      }
+    },
+    "required": ["url", "expiresAt"]
+  },
+  "customer.revokeCustomerLink": {
+    "type": "object",
+    "properties": {
+      "revoked": {
+        "type": "number"
+      }
+    },
+    "required": ["revoked"]
+  },
+  "customer.listRenewalRequests": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "months": {
+          "type": "number"
+        },
+        "durationDays": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "number"
+            }
+          ]
+        },
+        "message": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "username": {
+          "type": "string"
+        },
+        "resellerId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "createdAt",
+        "id",
+        "months",
+        "durationDays",
+        "message",
+        "username",
+        "resellerId"
+      ]
+    }
+  },
+  "customer.approveRenewalRequest": {
+    "type": "object",
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      }
+    },
+    "required": ["ok"]
+  },
+  "customer.rejectRenewalRequest": {
+    "type": "object",
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      }
+    },
+    "required": ["ok"]
+  },
+  "customer.getBranding": {
+    "type": "object",
+    "properties": {
+      "publicName": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "supportContact": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      }
+    },
+    "required": ["publicName", "supportContact"]
+  },
+  "customer.setBranding": {
+    "type": "object",
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      }
+    },
+    "required": ["ok"]
+  },
+  "dashboard.getDashboard": {
+    "type": "object",
+    "properties": {
+      "user": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "name", "email", "role"]
+      },
+      "stats": {
+        "type": "object",
+        "properties": {
+          "totalUsers": {
+            "type": "number"
+          },
+          "activeUsers": {
+            "type": "number"
+          },
+          "limitedUsers": {
+            "type": "number"
+          },
+          "expiredUsers": {
+            "type": "number"
+          },
+          "disabledUsers": {
+            "type": "number"
+          },
+          "usedTrafficBytes": {
+            "type": "number"
+          },
+          "dataLimitBytes": {
+            "type": "number"
+          },
+          "resellerCount": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "totalUsers",
+          "activeUsers",
+          "limitedUsers",
+          "expiredUsers",
+          "disabledUsers",
+          "usedTrafficBytes",
+          "dataLimitBytes",
+          "resellerCount"
+        ]
+      },
+      "atRisk": {
+        "type": "object",
+        "properties": {
+          "expiring": {
+            "type": "number"
+          },
+          "highUsage": {
+            "type": "number"
+          },
+          "unpaid": {
+            "type": "number"
+          },
+          "expiringSoon": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "expireAt": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                },
+                "username": {
+                  "type": "string"
+                },
+                "phone": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                },
+                "telegram": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "required": ["expireAt", "username", "phone", "telegram"]
+            }
+          }
+        },
+        "required": ["expiring", "highUsage", "unpaid", "expiringSoon"]
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "userId": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": ["active", "disabled"]
+              },
+              "usernameSuffix": {
+                "type": "string"
+              },
+              "pricePerGbToman": {
+                "type": "number"
+              },
+              "allowUnlimitedExpire": {
+                "type": "boolean"
+              },
+              "creditLimitToman": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "publicName": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "supportContact": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "maxUsers": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "maxTotalGb": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "notes": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "id",
+              "userId",
+              "status",
+              "usernameSuffix",
+              "pricePerGbToman",
+              "allowUnlimitedExpire",
+              "creditLimitToman",
+              "publicName",
+              "supportContact",
+              "maxUsers",
+              "maxTotalGb",
+              "notes",
+              "createdAt",
+              "updatedAt"
+            ]
+          }
+        ]
+      },
+      "recentEvents": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "processedAt": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "createdAt": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "username": {
+              "type": "string"
+            },
+            "action": {
+              "type": "string"
+            },
+            "enqueuedAt": {
+              "type": "number"
+            },
+            "tries": {
+              "type": "number"
+            },
+            "error": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "lockedUntil": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              ]
+            }
+          },
+          "required": [
+            "processedAt",
+            "createdAt",
+            "id",
+            "username",
+            "action",
+            "enqueuedAt",
+            "tries",
+            "error",
+            "lockedUntil"
+          ]
+        }
+      }
+    },
+    "required": ["user", "stats", "atRisk", "profile", "recentEvents"]
+  },
+  "dashboard.getMe": {
+    "type": "object",
+    "properties": {
+      "user": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "name", "email", "role"]
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "userId": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": ["active", "disabled"]
+              },
+              "usernameSuffix": {
+                "type": "string"
+              },
+              "pricePerGbToman": {
+                "type": "number"
+              },
+              "allowUnlimitedExpire": {
+                "type": "boolean"
+              },
+              "creditLimitToman": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "publicName": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "supportContact": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "maxUsers": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "maxTotalGb": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "notes": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "id",
+              "userId",
+              "status",
+              "usernameSuffix",
+              "pricePerGbToman",
+              "allowUnlimitedExpire",
+              "creditLimitToman",
+              "publicName",
+              "supportContact",
+              "maxUsers",
+              "maxTotalGb",
+              "notes",
+              "createdAt",
+              "updatedAt"
+            ]
+          }
+        ]
+      }
+    },
+    "required": ["user", "profile"]
+  },
+  "notifications.telegramStatus": {
+    "type": "object",
+    "properties": {
+      "available": {
+        "type": "boolean"
+      },
+      "botUsername": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "linked": {
+        "type": "boolean"
+      },
+      "role": {
+        "type": "string"
+      },
+      "botKind": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string",
+            "const": "reseller"
+          },
+          {
+            "type": "string",
+            "const": "platform"
+          }
+        ]
+      },
+      "configuredOwnBot": {
+        "type": "boolean"
+      },
+      "linkedBotId": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      }
+    },
+    "required": [
+      "available",
+      "botUsername",
+      "linked",
+      "role",
+      "botKind",
+      "configuredOwnBot",
+      "linkedBotId"
+    ]
+  },
+  "notifications.startTelegramLink": {
+    "type": "object",
+    "properties": {
+      "code": {
+        "type": "string"
+      },
+      "expiresAt": {
+        "type": "string"
+      },
+      "deepLink": {
+        "type": "string"
+      }
+    },
+    "required": ["code", "expiresAt", "deepLink"]
+  },
+  "notifications.unlinkMyTelegram": {
+    "type": "object",
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      }
+    },
+    "required": ["ok"]
+  },
+  "notifications.sendTestMessage": {
+    "type": "object",
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      }
+    },
+    "required": ["ok"]
+  },
+  "notifications.getTelegramAdmin": {
+    "type": "object",
+    "properties": {
+      "configured": {
+        "type": "boolean"
+      },
+      "enabled": {
+        "type": "boolean"
+      },
+      "botUsername": {
+        "type": "string"
+      },
+      "webhookUrl": {
+        "type": "string"
+      },
+      "webhook": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "unconfigured",
+              "unreachable",
+              "matching",
+              "missing",
+              "mismatch"
+            ]
+          },
+          "urlMatches": {
+            "type": "boolean"
+          },
+          "pendingUpdateCount": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "lastErrorDate": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "lastErrorMessage": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "required": [
+          "state",
+          "urlMatches",
+          "pendingUpdateCount",
+          "lastErrorDate",
+          "lastErrorMessage"
+        ]
+      },
+      "bots": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "enum": ["reseller", "platform"]
+            },
+            "ownerUserId": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "botUsername": {
+              "type": "string"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "legacyShared": {
+              "type": "boolean"
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "ownerUserId",
+            "botUsername",
+            "enabled",
+            "legacyShared",
+            "createdAt"
+          ]
+        }
+      }
+    },
+    "required": [
+      "configured",
+      "enabled",
+      "botUsername",
+      "webhookUrl",
+      "webhook",
+      "bots"
+    ]
+  },
+  "notifications.saveTelegramAdmin": {
+    "type": "object",
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      }
+    },
+    "required": ["ok"]
+  },
+  "notifications.saveTelegramReseller": {
+    "type": "object",
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "botUsername": {
+        "type": "string"
+      },
+      "enabled": {
+        "type": "boolean"
+      }
+    },
+    "required": ["ok", "botUsername", "enabled"]
+  },
+  "notifications.resellerTelegramBotStatus": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "botUsername": {
+            "type": "null"
+          },
+          "webhook": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "type": "string",
+                "const": "unconfigured"
+              },
+              "urlMatches": {
+                "type": "boolean"
+              },
+              "pendingUpdateCount": {
+                "type": "null"
+              },
+              "lastErrorDate": {
+                "type": "null"
+              },
+              "lastErrorMessage": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "state",
+              "urlMatches",
+              "pendingUpdateCount",
+              "lastErrorDate",
+              "lastErrorMessage"
+            ]
+          }
+        },
+        "required": ["configured", "enabled", "botUsername", "webhook"]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "botUsername": {
+            "type": "string"
+          },
+          "webhook": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": ["unreachable", "matching", "missing", "mismatch"]
+              },
+              "urlMatches": {
+                "type": "boolean"
+              },
+              "pendingUpdateCount": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "lastErrorDate": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "lastErrorMessage": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "state",
+              "urlMatches",
+              "pendingUpdateCount",
+              "lastErrorDate",
+              "lastErrorMessage"
+            ]
+          }
+        },
+        "required": ["configured", "enabled", "botUsername", "webhook"]
+      }
+    ]
+  },
+  "notifications.registerTelegramWebhook": {
+    "type": "object",
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "username": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      }
+    },
+    "required": ["ok", "username"]
+  },
+  "notifications.outboxStats": {
+    "type": "object",
+    "properties": {
+      "counts": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "number"
+        }
+      },
+      "failures": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "event": {
+              "type": "string"
+            },
+            "lastError": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "attempts": {
+              "type": "number"
+            },
+            "status": {
+              "type": "string",
+              "enum": ["queued", "sent", "dead", "skipped"]
+            }
+          },
+          "required": ["id", "event", "lastError", "attempts", "status"]
+        }
+      }
+    },
+    "required": ["counts", "failures"]
+  },
+  "notifications.telegramLinkedAccounts": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "linkedAt": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "reseller"]
+        }
+      },
+      "required": ["linkedAt", "userId", "name", "email", "role"]
+    }
+  },
+  "notifications.adminUnlinkTelegram": {
+    "type": "object",
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      }
+    },
+    "required": ["ok"]
+  },
+  "seller-tools.updateUserContact": {
+    "type": "object",
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      }
+    },
+    "required": ["ok"]
+  },
+  "seller-tools.bulkLabel": {
+    "type": "object",
+    "properties": {
+      "updated": {
+        "type": "number"
+      },
+      "skipped": {
+        "type": "number"
+      }
+    },
+    "required": ["updated", "skipped"]
+  },
+  "seller-tools.exportUsers": {
+    "type": "object",
+    "properties": {
+      "filename": {
+        "type": "string"
+      },
+      "csv": {
+        "type": "string"
+      },
+      "truncated": {
+        "type": "boolean"
+      }
+    },
+    "required": ["filename", "csv", "truncated"]
+  },
+  "seller-tools.exportBilling": {
+    "type": "object",
+    "properties": {
+      "filename": {
+        "type": "string"
+      },
+      "csv": {
+        "type": "string"
+      },
+      "truncated": {
+        "type": "boolean"
+      }
+    },
+    "required": ["filename", "csv", "truncated"]
+  },
+  "seller-tools.bulkRenew": {
+    "type": "object",
+    "properties": {
+      "results": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "username": {
+              "type": "string"
+            },
+            "ok": {
+              "type": "boolean"
+            },
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": ["username", "ok"]
+        }
+      },
+      "succeeded": {
+        "type": "number"
+      }
+    },
+    "required": ["results", "succeeded"]
+  },
+  "seller-tools.importUsers": {
+    "type": "object",
+    "properties": {
+      "results": {
+        "type": "array",
+        "items": {
+          "allOf": [
+            {
+              "type": "object",
+              "properties": {
+                "username": {
+                  "type": "string"
+                },
+                "ok": {
+                  "type": "boolean"
+                },
+                "error": {
+                  "type": "string"
+                }
+              },
+              "required": ["username", "ok"]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "row": {
+                  "type": "number"
+                }
+              },
+              "required": ["row"]
+            }
+          ]
+        }
+      },
+      "succeeded": {
+        "type": "number"
+      }
+    },
+    "required": ["results", "succeeded"]
+  },
+  "seller-tools.setResellerLimits": {
+    "type": "object",
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      }
+    },
+    "required": ["ok"]
+  },
+  "seller-tools.suspendResellerAccount": {
+    "type": "object",
+    "properties": {
+      "changed": {
+        "type": "number"
+      },
+      "failed": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "username": {
+              "type": "string"
+            },
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": ["username", "error"]
+        }
+      }
+    },
+    "required": ["changed", "failed"]
+  },
+  "seller-tools.resumeResellerAccount": {
+    "type": "object",
+    "properties": {
+      "changed": {
+        "type": "number"
+      },
+      "failed": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "username": {
+              "type": "string"
+            },
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": ["username", "error"]
+        }
+      }
+    },
+    "required": ["changed", "failed"]
+  },
+  "seller-tools.getAnnouncement": {
+    "anyOf": [
+      {
+        "type": "null"
+      },
+      {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string",
+            "enum": ["info", "warning"]
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": ["text", "level", "active"]
+      }
+    ]
+  },
+  "seller-tools.getAnnouncementAdmin": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string"
+      },
+      "level": {
+        "type": "string",
+        "enum": ["info", "warning"]
+      },
+      "active": {
+        "type": "boolean"
+      }
+    },
+    "required": ["text", "level", "active"]
+  },
+  "seller-tools.setAnnouncement": {
+    "type": "object",
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      }
+    },
+    "required": ["ok"]
+  },
+  "vpn-users.listVpnUsers": {
+    "type": "object",
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "subscriptionUrl": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "expireAt": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "lastSyncedAt": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "removedAt": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "createdAt": {
+              "type": "string"
+            },
+            "updatedAt": {
+              "type": "string"
+            },
+            "billingStatus": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "const": "outstanding"
+                },
+                {
+                  "type": "string",
+                  "const": "claimed"
+                },
+                {
+                  "type": "string",
+                  "const": "settled"
+                }
+              ]
+            },
+            "labels": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "id": {
+              "type": "string"
+            },
+            "resellerId": {
+              "type": "string"
+            },
+            "marzbanUsername": {
+              "type": "string"
+            },
+            "backend": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": ["active", "disabled", "limited", "expired", "on_hold"]
+            },
+            "dataLimitBytes": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "usedTrafficBytes": {
+              "type": "number"
+            },
+            "note": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "contactPhone": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "contactTelegram": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "suspendedAt": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              ]
+            }
+          },
+          "required": [
+            "subscriptionUrl",
+            "expireAt",
+            "lastSyncedAt",
+            "removedAt",
+            "createdAt",
+            "updatedAt",
+            "billingStatus",
+            "labels",
+            "id",
+            "resellerId",
+            "marzbanUsername",
+            "backend",
+            "status",
+            "dataLimitBytes",
+            "usedTrafficBytes",
+            "note",
+            "contactPhone",
+            "contactTelegram",
+            "suspendedAt"
+          ]
+        }
+      },
+      "syncFailed": {
+        "type": "boolean"
+      },
+      "total": {
+        "type": "number"
+      },
+      "page": {
+        "type": "number"
+      },
+      "pageSize": {
+        "anyOf": [
+          {
+            "type": "number",
+            "const": 20
+          },
+          {
+            "type": "number",
+            "const": 10
+          },
+          {
+            "type": "number",
+            "const": 50
+          }
+        ]
+      },
+      "pageCount": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "items",
+      "syncFailed",
+      "total",
+      "page",
+      "pageSize",
+      "pageCount"
+    ]
+  },
+  "vpn-users.createVpnUser": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "disabled"
+          },
+          "removedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string"
+          },
+          "resellerId": {
+            "type": "string"
+          },
+          "marzbanUsername": {
+            "type": "string"
+          },
+          "backend": {
+            "type": "string"
+          },
+          "dataLimitBytes": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "usedTrafficBytes": {
+            "type": "number"
+          },
+          "expireAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "contactPhone": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "contactTelegram": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "labels": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "suspendedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "lastSyncedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "status",
+          "removedAt",
+          "id",
+          "resellerId",
+          "marzbanUsername",
+          "backend",
+          "dataLimitBytes",
+          "usedTrafficBytes",
+          "expireAt",
+          "subscriptionUrl",
+          "note",
+          "contactPhone",
+          "contactTelegram",
+          "labels",
+          "suspendedAt",
+          "lastSyncedAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "resellerId": {
+            "type": "string"
+          },
+          "removedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "marzbanUsername": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "disabled", "limited", "expired", "on_hold"]
+          },
+          "dataLimitBytes": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "usedTrafficBytes": {
+            "type": "number"
+          },
+          "expireAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "lastSyncedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "backend": {
+            "type": "string"
+          },
+          "contactPhone": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "contactTelegram": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "labels": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "suspendedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "resellerId",
+          "removedAt",
+          "id",
+          "marzbanUsername",
+          "status",
+          "dataLimitBytes",
+          "usedTrafficBytes",
+          "expireAt",
+          "subscriptionUrl",
+          "note",
+          "lastSyncedAt",
+          "backend",
+          "contactPhone",
+          "contactTelegram",
+          "labels",
+          "suspendedAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "backend": {
+            "type": "string"
+          },
+          "removedAt": {
+            "type": "null"
+          },
+          "id": {
+            "type": "string"
+          },
+          "resellerId": {
+            "type": "string"
+          },
+          "marzbanUsername": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "disabled", "limited", "expired", "on_hold"]
+          },
+          "dataLimitBytes": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "usedTrafficBytes": {
+            "type": "number"
+          },
+          "expireAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "lastSyncedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "backend",
+          "removedAt",
+          "id",
+          "resellerId",
+          "marzbanUsername",
+          "status",
+          "dataLimitBytes",
+          "usedTrafficBytes",
+          "expireAt",
+          "subscriptionUrl",
+          "note",
+          "lastSyncedAt"
+        ]
+      }
+    ]
+  },
+  "vpn-users.updateVpnUser": {
+    "anyOf": [
+      {
+        "type": "null"
+      },
+      {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "disabled"
+          },
+          "removedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string"
+          },
+          "resellerId": {
+            "type": "string"
+          },
+          "marzbanUsername": {
+            "type": "string"
+          },
+          "backend": {
+            "type": "string"
+          },
+          "dataLimitBytes": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "usedTrafficBytes": {
+            "type": "number"
+          },
+          "expireAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "contactPhone": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "contactTelegram": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "labels": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "suspendedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "lastSyncedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "status",
+          "removedAt",
+          "id",
+          "resellerId",
+          "marzbanUsername",
+          "backend",
+          "dataLimitBytes",
+          "usedTrafficBytes",
+          "expireAt",
+          "subscriptionUrl",
+          "note",
+          "contactPhone",
+          "contactTelegram",
+          "labels",
+          "suspendedAt",
+          "lastSyncedAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "resellerId": {
+            "type": "string"
+          },
+          "removedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "marzbanUsername": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "disabled", "limited", "expired", "on_hold"]
+          },
+          "dataLimitBytes": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "usedTrafficBytes": {
+            "type": "number"
+          },
+          "expireAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "lastSyncedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "backend": {
+            "type": "string"
+          },
+          "contactPhone": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "contactTelegram": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "labels": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "suspendedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "resellerId",
+          "removedAt",
+          "id",
+          "marzbanUsername",
+          "status",
+          "dataLimitBytes",
+          "usedTrafficBytes",
+          "expireAt",
+          "subscriptionUrl",
+          "note",
+          "lastSyncedAt",
+          "backend",
+          "contactPhone",
+          "contactTelegram",
+          "labels",
+          "suspendedAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "backend": {
+            "type": "string"
+          },
+          "removedAt": {
+            "type": "null"
+          },
+          "id": {
+            "type": "string"
+          },
+          "resellerId": {
+            "type": "string"
+          },
+          "marzbanUsername": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "disabled", "limited", "expired", "on_hold"]
+          },
+          "dataLimitBytes": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "usedTrafficBytes": {
+            "type": "number"
+          },
+          "expireAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "lastSyncedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "backend",
+          "removedAt",
+          "id",
+          "resellerId",
+          "marzbanUsername",
+          "status",
+          "dataLimitBytes",
+          "usedTrafficBytes",
+          "expireAt",
+          "subscriptionUrl",
+          "note",
+          "lastSyncedAt"
+        ]
+      }
+    ]
+  },
+  "vpn-users.renewVpnUser": {
+    "anyOf": [
+      {
+        "type": "null"
+      },
+      {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "disabled"
+          },
+          "removedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string"
+          },
+          "resellerId": {
+            "type": "string"
+          },
+          "marzbanUsername": {
+            "type": "string"
+          },
+          "backend": {
+            "type": "string"
+          },
+          "dataLimitBytes": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "usedTrafficBytes": {
+            "type": "number"
+          },
+          "expireAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "contactPhone": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "contactTelegram": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "labels": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "suspendedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "lastSyncedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "status",
+          "removedAt",
+          "id",
+          "resellerId",
+          "marzbanUsername",
+          "backend",
+          "dataLimitBytes",
+          "usedTrafficBytes",
+          "expireAt",
+          "subscriptionUrl",
+          "note",
+          "contactPhone",
+          "contactTelegram",
+          "labels",
+          "suspendedAt",
+          "lastSyncedAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "resellerId": {
+            "type": "string"
+          },
+          "removedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "marzbanUsername": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "disabled", "limited", "expired", "on_hold"]
+          },
+          "dataLimitBytes": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "usedTrafficBytes": {
+            "type": "number"
+          },
+          "expireAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "lastSyncedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "backend": {
+            "type": "string"
+          },
+          "contactPhone": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "contactTelegram": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "labels": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "suspendedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "resellerId",
+          "removedAt",
+          "id",
+          "marzbanUsername",
+          "status",
+          "dataLimitBytes",
+          "usedTrafficBytes",
+          "expireAt",
+          "subscriptionUrl",
+          "note",
+          "lastSyncedAt",
+          "backend",
+          "contactPhone",
+          "contactTelegram",
+          "labels",
+          "suspendedAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "backend": {
+            "type": "string"
+          },
+          "removedAt": {
+            "type": "null"
+          },
+          "id": {
+            "type": "string"
+          },
+          "resellerId": {
+            "type": "string"
+          },
+          "marzbanUsername": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "disabled", "limited", "expired", "on_hold"]
+          },
+          "dataLimitBytes": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "usedTrafficBytes": {
+            "type": "number"
+          },
+          "expireAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "lastSyncedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "backend",
+          "removedAt",
+          "id",
+          "resellerId",
+          "marzbanUsername",
+          "status",
+          "dataLimitBytes",
+          "usedTrafficBytes",
+          "expireAt",
+          "subscriptionUrl",
+          "note",
+          "lastSyncedAt"
+        ]
+      }
+    ]
+  },
+  "vpn-users.deleteVpnUser": {
+    "type": "object",
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      }
+    },
+    "required": ["ok"]
+  },
+  "vpn-users.resetVpnUserUsage": {
+    "anyOf": [
+      {
+        "type": "null"
+      },
+      {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "disabled"
+          },
+          "removedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string"
+          },
+          "resellerId": {
+            "type": "string"
+          },
+          "marzbanUsername": {
+            "type": "string"
+          },
+          "backend": {
+            "type": "string"
+          },
+          "dataLimitBytes": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "usedTrafficBytes": {
+            "type": "number"
+          },
+          "expireAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "contactPhone": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "contactTelegram": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "labels": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "suspendedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "lastSyncedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "status",
+          "removedAt",
+          "id",
+          "resellerId",
+          "marzbanUsername",
+          "backend",
+          "dataLimitBytes",
+          "usedTrafficBytes",
+          "expireAt",
+          "subscriptionUrl",
+          "note",
+          "contactPhone",
+          "contactTelegram",
+          "labels",
+          "suspendedAt",
+          "lastSyncedAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "resellerId": {
+            "type": "string"
+          },
+          "removedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "marzbanUsername": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "disabled", "limited", "expired", "on_hold"]
+          },
+          "dataLimitBytes": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "usedTrafficBytes": {
+            "type": "number"
+          },
+          "expireAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "lastSyncedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "backend": {
+            "type": "string"
+          },
+          "contactPhone": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "contactTelegram": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "labels": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "suspendedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "resellerId",
+          "removedAt",
+          "id",
+          "marzbanUsername",
+          "status",
+          "dataLimitBytes",
+          "usedTrafficBytes",
+          "expireAt",
+          "subscriptionUrl",
+          "note",
+          "lastSyncedAt",
+          "backend",
+          "contactPhone",
+          "contactTelegram",
+          "labels",
+          "suspendedAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "backend": {
+            "type": "string"
+          },
+          "removedAt": {
+            "type": "null"
+          },
+          "id": {
+            "type": "string"
+          },
+          "resellerId": {
+            "type": "string"
+          },
+          "marzbanUsername": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "disabled", "limited", "expired", "on_hold"]
+          },
+          "dataLimitBytes": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "usedTrafficBytes": {
+            "type": "number"
+          },
+          "expireAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "lastSyncedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "backend",
+          "removedAt",
+          "id",
+          "resellerId",
+          "marzbanUsername",
+          "status",
+          "dataLimitBytes",
+          "usedTrafficBytes",
+          "expireAt",
+          "subscriptionUrl",
+          "note",
+          "lastSyncedAt"
+        ]
+      }
+    ]
+  },
+  "vpn-users.revokeVpnUserSub": {
+    "anyOf": [
+      {
+        "type": "null"
+      },
+      {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "disabled"
+          },
+          "removedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string"
+          },
+          "resellerId": {
+            "type": "string"
+          },
+          "marzbanUsername": {
+            "type": "string"
+          },
+          "backend": {
+            "type": "string"
+          },
+          "dataLimitBytes": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "usedTrafficBytes": {
+            "type": "number"
+          },
+          "expireAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "contactPhone": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "contactTelegram": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "labels": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "suspendedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "lastSyncedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "status",
+          "removedAt",
+          "id",
+          "resellerId",
+          "marzbanUsername",
+          "backend",
+          "dataLimitBytes",
+          "usedTrafficBytes",
+          "expireAt",
+          "subscriptionUrl",
+          "note",
+          "contactPhone",
+          "contactTelegram",
+          "labels",
+          "suspendedAt",
+          "lastSyncedAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "resellerId": {
+            "type": "string"
+          },
+          "removedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "marzbanUsername": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "disabled", "limited", "expired", "on_hold"]
+          },
+          "dataLimitBytes": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "usedTrafficBytes": {
+            "type": "number"
+          },
+          "expireAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "lastSyncedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "backend": {
+            "type": "string"
+          },
+          "contactPhone": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "contactTelegram": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "labels": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "suspendedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "resellerId",
+          "removedAt",
+          "id",
+          "marzbanUsername",
+          "status",
+          "dataLimitBytes",
+          "usedTrafficBytes",
+          "expireAt",
+          "subscriptionUrl",
+          "note",
+          "lastSyncedAt",
+          "backend",
+          "contactPhone",
+          "contactTelegram",
+          "labels",
+          "suspendedAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "backend": {
+            "type": "string"
+          },
+          "removedAt": {
+            "type": "null"
+          },
+          "id": {
+            "type": "string"
+          },
+          "resellerId": {
+            "type": "string"
+          },
+          "marzbanUsername": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "disabled", "limited", "expired", "on_hold"]
+          },
+          "dataLimitBytes": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "usedTrafficBytes": {
+            "type": "number"
+          },
+          "expireAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "lastSyncedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "backend",
+          "removedAt",
+          "id",
+          "resellerId",
+          "marzbanUsername",
+          "status",
+          "dataLimitBytes",
+          "usedTrafficBytes",
+          "expireAt",
+          "subscriptionUrl",
+          "note",
+          "lastSyncedAt"
+        ]
+      }
+    ]
+  },
+  "vpn-users.syncVpnUser": {
+    "anyOf": [
+      {
+        "type": "null"
+      },
+      {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "disabled"
+          },
+          "removedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string"
+          },
+          "resellerId": {
+            "type": "string"
+          },
+          "marzbanUsername": {
+            "type": "string"
+          },
+          "backend": {
+            "type": "string"
+          },
+          "dataLimitBytes": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "usedTrafficBytes": {
+            "type": "number"
+          },
+          "expireAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "contactPhone": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "contactTelegram": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "labels": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "suspendedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "lastSyncedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "status",
+          "removedAt",
+          "id",
+          "resellerId",
+          "marzbanUsername",
+          "backend",
+          "dataLimitBytes",
+          "usedTrafficBytes",
+          "expireAt",
+          "subscriptionUrl",
+          "note",
+          "contactPhone",
+          "contactTelegram",
+          "labels",
+          "suspendedAt",
+          "lastSyncedAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "resellerId": {
+            "type": "string"
+          },
+          "removedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "marzbanUsername": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "disabled", "limited", "expired", "on_hold"]
+          },
+          "dataLimitBytes": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "usedTrafficBytes": {
+            "type": "number"
+          },
+          "expireAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "lastSyncedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "backend": {
+            "type": "string"
+          },
+          "contactPhone": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "contactTelegram": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "labels": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "suspendedAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "resellerId",
+          "removedAt",
+          "id",
+          "marzbanUsername",
+          "status",
+          "dataLimitBytes",
+          "usedTrafficBytes",
+          "expireAt",
+          "subscriptionUrl",
+          "note",
+          "lastSyncedAt",
+          "backend",
+          "contactPhone",
+          "contactTelegram",
+          "labels",
+          "suspendedAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "backend": {
+            "type": "string"
+          },
+          "removedAt": {
+            "type": "null"
+          },
+          "id": {
+            "type": "string"
+          },
+          "resellerId": {
+            "type": "string"
+          },
+          "marzbanUsername": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "disabled", "limited", "expired", "on_hold"]
+          },
+          "dataLimitBytes": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "usedTrafficBytes": {
+            "type": "number"
+          },
+          "expireAt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "lastSyncedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "backend",
+          "removedAt",
+          "id",
+          "resellerId",
+          "marzbanUsername",
+          "status",
+          "dataLimitBytes",
+          "usedTrafficBytes",
+          "expireAt",
+          "subscriptionUrl",
+          "note",
+          "lastSyncedAt"
+        ]
+      }
+    ]
+  },
+  "wallet.myWallet": {
+    "type": "object",
+    "properties": {
+      "balanceToman": {
+        "type": "number"
+      },
+      "outstandingToman": {
+        "type": "number"
+      },
+      "creditLimitToman": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "number"
+          }
+        ]
+      },
+      "entries": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": ["credit", "debit"]
+            },
+            "amountToman": {
+              "type": "number"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "createdAt": {
+              "type": "string"
+            }
+          },
+          "required": ["id", "type", "amountToman", "reason", "createdAt"]
+        }
+      }
+    },
+    "required": [
+      "balanceToman",
+      "outstandingToman",
+      "creditLimitToman",
+      "entries"
+    ]
+  },
+  "wallet.resellerWallet": {
+    "type": "object",
+    "properties": {
+      "balanceToman": {
+        "type": "number"
+      },
+      "outstandingToman": {
+        "type": "number"
+      },
+      "creditLimitToman": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "number"
+          }
+        ]
+      },
+      "entries": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": ["credit", "debit"]
+            },
+            "amountToman": {
+              "type": "number"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "createdAt": {
+              "type": "string"
+            }
+          },
+          "required": ["id", "type", "amountToman", "reason", "createdAt"]
+        }
+      }
+    },
+    "required": [
+      "balanceToman",
+      "outstandingToman",
+      "creditLimitToman",
+      "entries"
+    ]
+  },
+  "wallet.adjustWallet": {
+    "type": "object",
+    "properties": {
+      "balanceToman": {
+        "type": "number"
+      }
+    },
+    "required": ["balanceToman"]
+  },
+  "wallet.setBalance": {
+    "type": "object",
+    "properties": {
+      "balanceToman": {
+        "type": "number"
+      }
+    },
+    "required": ["balanceToman"]
+  },
+  "wallet.setCreditLimit": {
+    "type": "object",
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      }
+    },
+    "required": ["ok"]
+  }
+}

@@ -4,6 +4,7 @@ import {
   marzbanHealth,
   updateReseller,
 } from './admin'
+import * as apiKeys from './api-keys'
 import { listAuditLogs } from './audit'
 import {
   adminBillingSummary,
@@ -72,6 +73,7 @@ import {
 } from './vpn-users'
 
 export const router = {
+  apiKeys,
   me: getMe,
   dashboard: getDashboard,
   admin: {

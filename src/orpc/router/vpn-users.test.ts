@@ -2,6 +2,7 @@ import { beforeEach, expect, it } from 'bun:test'
 import { hoisted, vi } from '../../../test/helpers/hoisted'
 import { call } from '@orpc/server'
 import { SQLiteSyncDialect } from 'drizzle-orm/sqlite-core'
+import { MIN_DATA_LIMIT_BYTES } from '#/lib/vpn-plans'
 
 const mocks = hoisted(() => ({
   owned: vi.fn(),
@@ -121,7 +122,7 @@ it('rejects sub-minimum added quota before ownership, backend, or billing work',
       {
         username,
         durationDays: 30,
-        additionalDataLimitBytes: 1024 ** 3,
+        additionalDataLimitBytes: MIN_DATA_LIMIT_BYTES - 1,
       },
       { context },
     ),

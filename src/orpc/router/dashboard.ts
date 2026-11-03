@@ -6,8 +6,16 @@ import { resellerProfiles, vpnUsers, webhookEvents } from '#/db/schema'
 import { getResellerProfile } from '#/lib/marzban/quotas'
 import { viewCondition } from '#/lib/user-filters'
 import { authed } from '../middleware'
+import { outputSpec } from '../openapi-response'
 
 export const getDashboard = authed
+  .route({
+    summary: 'Get dashboard',
+    description:
+      'Use this operation to get dashboard under the caller’s current role and ownership rules.',
+    tags: ['Dashboard'],
+    spec: outputSpec('dashboard.getDashboard'),
+  })
   .input(
     z.object({
       resellerId: z.string().optional(),
@@ -145,14 +153,22 @@ export const getDashboard = authed
     }
   })
 
-export const getMe = authed.handler(async ({ context }) => {
-  const profile =
-    context.user.role === 'reseller'
-      ? await getResellerProfile(context.user.id)
-      : null
+export const getMe = authed
+  .route({
+    summary: 'Get current account',
+    description:
+      'Return the authenticated account and reseller profile, if present.',
+    tags: ['Dashboard'],
+    spec: outputSpec('dashboard.getMe'),
+  })
+  .handler(async ({ context }) => {
+    const profile =
+      context.user.role === 'reseller'
+        ? await getResellerProfile(context.user.id)
+        : null
 
-  return {
-    user: context.user,
-    profile,
-  }
-})
+    return {
+      user: context.user,
+      profile,
+    }
+  })

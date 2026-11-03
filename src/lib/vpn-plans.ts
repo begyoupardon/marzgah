@@ -4,9 +4,9 @@ import { localUsernameSchema } from '#/lib/reseller-naming'
 
 export const BYTES_PER_GB = 1024 ** 3
 
-/** Data limit must be at least 10 GB. */
-export const MIN_DATA_LIMIT_GB = 10
-export const MIN_DATA_LIMIT_BYTES = MIN_DATA_LIMIT_GB * BYTES_PER_GB
+/** Data limit must be at least 0.1 GB; bytes are rounded to the nearest integer. */
+export const MIN_DATA_LIMIT_GB = 0.1
+export const MIN_DATA_LIMIT_BYTES = Math.round(MIN_DATA_LIMIT_GB * BYTES_PER_GB)
 
 export const DATA_PRESETS_GB = [25, 50, 100] as const
 

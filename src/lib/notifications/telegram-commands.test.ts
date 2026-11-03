@@ -3,6 +3,8 @@ import { afterAll, expect, it } from 'bun:test'
 import { setupRouterTest } from '../../../test/helpers/orpc'
 import { FakeBackend } from '../../../test/fakes/backend'
 import { resetBackends, setBackend } from '#/lib/backends/registry'
+import { telegramConfirmations } from '#/db/schema'
+import { gbToBytes } from '#/lib/vpn-plans'
 import {
   makeReseller,
   makeUser,
@@ -136,4 +138,35 @@ it('walks card → action → confirm through buttons, and guards admin-only act
   // single use
   await handleTelegramCallback(confirm!.data, actor, { db, send })
   expect(last.text).toContain('منقضی')
+})
+
+it('accepts 0.1 GB in direct Telegram create and renew commands', async () => {
+  const owner = await makeReseller(db)
+  const bot = await saveTelegramBot(
+    {
+      kind: 'reseller',
+      ownerUserId: owner.id,
+      botToken: '123456:DECIMAL-COMMAND',
+      botUsername: 'decimal_bot',
+    },
+    db,
+  )
+  const actor = {
+    userId: owner.id,
+    botId: bot.id,
+    botOwnerId: owner.id,
+    chatId: '8130',
+  }
+  const send = async () => {}
+  await routeTelegramCommand('/create small 0.1 30', actor, bot, { db, send })
+  await routeTelegramCommand('/renew small 30 0.1', actor, bot, { db, send })
+  const rows = await db.select().from(telegramConfirmations)
+  const own = rows.filter((row) => row.actorUserId === owner.id)
+  expect(own).toHaveLength(2)
+  expect(JSON.parse(own[0].payloadJson).input.dataLimitBytes).toBe(
+    gbToBytes(0.1),
+  )
+  expect(JSON.parse(own[1].payloadJson).input.additionalDataLimitBytes).toBe(
+    gbToBytes(0.1),
+  )
 })

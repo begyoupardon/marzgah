@@ -4,6 +4,8 @@ import { buildVpnUsername, usernameSuffixSchema } from '#/lib/reseller-naming'
 import {
   bytesToGb,
   gbToBytes,
+  isValidDataLimitBytes,
+  MIN_DATA_LIMIT_BYTES,
   renewExpireAt,
   renewVpnUserFormSchema,
   editVpnUserFormSchema,
@@ -32,6 +34,9 @@ describe('gb helpers', () => {
     expect(gbToBytes(25)).toBe(25 * 1024 ** 3)
     expect(bytesToGb(gbToBytes(50))).toBe(50)
     expect(bytesToGb(null)).toBeNull()
+    expect(gbToBytes(0.1)).toBe(MIN_DATA_LIMIT_BYTES)
+    expect(isValidDataLimitBytes(gbToBytes(0.1))).toBe(true)
+    expect(isValidDataLimitBytes(gbToBytes(0.1) - 1)).toBe(false)
   })
 })
 
@@ -68,7 +73,10 @@ describe('edit/renew form schemas', () => {
     expect(
       editVpnUserFormSchema.parse({ dataLimitGb: 25, note: 'ok' }),
     ).toEqual({ dataLimitGb: 25, note: 'ok' })
-    expect(() => editVpnUserFormSchema.parse({ dataLimitGb: 5 })).toThrow()
+    expect(editVpnUserFormSchema.parse({ dataLimitGb: 0.1 })).toMatchObject({
+      dataLimitGb: 0.1,
+    })
+    expect(() => editVpnUserFormSchema.parse({ dataLimitGb: 0.05 })).toThrow()
   })
 
   it('validates renew payload', () => {
@@ -93,5 +101,12 @@ describe('edit/renew form schemas', () => {
         reactivate: false,
       }),
     ).toThrow()
+    expect(
+      renewVpnUserFormSchema.parse({
+        durationDays: 30,
+        additionalDataLimitGb: 0.1,
+        reactivate: true,
+      }).additionalDataLimitGb,
+    ).toBe(0.1)
   })
 })

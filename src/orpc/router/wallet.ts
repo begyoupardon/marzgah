@@ -14,6 +14,7 @@ import {
   settleOutstandingFromWallet,
 } from '#/lib/wallet'
 import { adminOnly, authed } from '../middleware'
+import { outputSpec } from '../openapi-response'
 
 async function snapshot(resellerId: string) {
   const [profile] = await db
@@ -41,19 +42,58 @@ async function snapshot(resellerId: string) {
   }
 }
 
-export const myWallet = authed.handler(async ({ context }) => {
-  if (context.user.role === 'admin') {
-    throw new ORPCError('FORBIDDEN', { message: 'Admins have no wallet' })
-  }
-  return snapshot(context.user.id)
+const walletOutput = z.object({
+  balanceToman: z.number(),
+  outstandingToman: z.number(),
+  creditLimitToman: z.number().nullable(),
+  entries: z.array(
+    z.object({
+      id: z.string(),
+      type: z.enum(['credit', 'debit']),
+      amountToman: z.number(),
+      reason: z.string(),
+      createdAt: z.string(),
+    }),
+  ),
 })
 
+export const myWallet = authed
+  .route({
+    summary: 'Get my wallet',
+    description:
+      'Return the reseller wallet balance, debt, credit limit, and recent entries.',
+    tags: ['Wallet'],
+    spec: outputSpec('wallet.myWallet'),
+  })
+  .output(walletOutput)
+  .handler(async ({ context }) => {
+    if (context.user.role === 'admin') {
+      throw new ORPCError('FORBIDDEN', { message: 'Admins have no wallet' })
+    }
+    return snapshot(context.user.id)
+  })
+
 export const resellerWallet = adminOnly
+  .route({
+    summary: 'Get reseller wallet',
+    description:
+      'Use this operation to get reseller wallet under the caller’s current role and ownership rules.',
+    tags: ['Wallet'],
+    spec: outputSpec('wallet.resellerWallet'),
+  })
   .input(z.object({ resellerId: z.string() }))
+  .output(walletOutput)
   .handler(({ input }) => snapshot(input.resellerId))
 
 /** Manual correction by an admin. Always audited, always idempotent per call. */
 export const adjustWallet = adminOnly
+  .route({
+    summary: 'Adjust wallet',
+    description:
+      'Use this operation to adjust wallet under the caller’s current role and ownership rules.',
+    tags: ['Wallet'],
+    spec: outputSpec('wallet.adjustWallet'),
+  })
   .input(
     z.object({
       resellerId: z.string(),
@@ -107,6 +147,13 @@ export const adjustWallet = adminOnly
 
 /** Set the exact target balance for a reseller, automatically calculating credit or debit. */
 export const setBalance = adminOnly
+  .route({
+    summary: 'Set wallet balance',
+    description:
+      'Use this operation to set wallet balance under the caller’s current role and ownership rules.',
+    tags: ['Wallet'],
+    spec: outputSpec('wallet.setBalance'),
+  })
   .input(
     z.object({
       resellerId: z.string(),
@@ -170,6 +217,13 @@ export const setBalance = adminOnly
 
 /** `null` restores the legacy unlimited post-paid behaviour. */
 export const setCreditLimit = adminOnly
+  .route({
+    summary: 'Set credit limit',
+    description:
+      'Use this operation to set credit limit under the caller’s current role and ownership rules.',
+    tags: ['Wallet'],
+    spec: outputSpec('wallet.setCreditLimit'),
+  })
   .input(
     z.object({
       resellerId: z.string(),

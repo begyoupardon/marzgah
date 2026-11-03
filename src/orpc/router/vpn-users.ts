@@ -39,10 +39,13 @@ import {
   expireAtFromDuration,
   isUnlimitedDuration,
   isValidDataLimitBytes,
+  MIN_DATA_LIMIT_BYTES,
+  MIN_DATA_LIMIT_GB,
   renewExpireAt,
   renewExpireAtFromMonths,
 } from '#/lib/vpn-plans'
 import { authed } from '../middleware'
+import { outputSpec } from '../openapi-response'
 
 function resolveResellerId(
   user: { id: string; role: string },
@@ -89,6 +92,13 @@ async function guardSpend(resellerId: string, gb: number, pricePerGb: number) {
 }
 
 export const listVpnUsers = authed
+  .route({
+    summary: 'List VPN users',
+    description:
+      'Use this operation to list VPN users under the caller’s current role and ownership rules.',
+    tags: ['VPN users'],
+    spec: outputSpec('vpn-users.listVpnUsers'),
+  })
   .input(
     z.object({
       resellerId: z.string().optional(),
@@ -196,6 +206,13 @@ export const listVpnUsers = authed
   })
 
 export const createVpnUser = authed
+  .route({
+    summary: 'Create VPN user',
+    description:
+      'Use this operation to create VPN user under the caller’s current role and ownership rules.',
+    tags: ['VPN users'],
+    spec: outputSpec('vpn-users.createVpnUser'),
+  })
   .input(
     z.object({
       resellerId: z.string().optional(),
@@ -204,9 +221,10 @@ export const createVpnUser = authed
         .number()
         .int()
         .positive()
-        .refine(isValidDataLimitBytes, {
-          message: 'Data limit must be at least 10 GB',
-        }),
+        .min(
+          MIN_DATA_LIMIT_BYTES,
+          `Data limit must be at least ${MIN_DATA_LIMIT_GB} GB`,
+        ),
       durationDays: z
         .union([z.literal(0), z.literal(30), z.literal(60), z.literal(90)])
         .optional(),
@@ -387,6 +405,13 @@ export const createVpnUser = authed
   })
 
 export const updateVpnUser = authed
+  .route({
+    summary: 'Update VPN user',
+    description:
+      'Use this operation to update VPN user under the caller’s current role and ownership rules.',
+    tags: ['VPN users'],
+    spec: outputSpec('vpn-users.updateVpnUser'),
+  })
   .input(
     z.object({
       username: z.string().min(1),
@@ -394,9 +419,10 @@ export const updateVpnUser = authed
         .number()
         .int()
         .positive()
-        .refine(isValidDataLimitBytes, {
-          message: 'Data limit must be at least 10 GB',
-        })
+        .min(
+          MIN_DATA_LIMIT_BYTES,
+          `Data limit must be at least ${MIN_DATA_LIMIT_GB} GB`,
+        )
         .optional(),
       expireAt: z.string().datetime().nullable().optional(),
       note: z.string().max(500).nullable().optional(),
@@ -552,6 +578,13 @@ export const updateVpnUser = authed
   })
 
 export const renewVpnUser = authed
+  .route({
+    summary: 'Renew VPN user',
+    description:
+      'Use this operation to renew VPN user under the caller’s current role and ownership rules.',
+    tags: ['VPN users'],
+    spec: outputSpec('vpn-users.renewVpnUser'),
+  })
   .input(
     z.object({
       username: z.string().min(1),
@@ -569,9 +602,10 @@ export const renewVpnUser = authed
           message: 'Data limit must be a safe integer',
         })
         .positive()
-        .refine(isValidDataLimitBytes, {
-          message: 'Data limit must be at least 10 GB',
-        })
+        .min(
+          MIN_DATA_LIMIT_BYTES,
+          `Data limit must be at least ${MIN_DATA_LIMIT_GB} GB`,
+        )
         .optional(),
       resetUsage: z.boolean().optional(),
       reactivate: z.boolean().default(true),
@@ -726,6 +760,13 @@ export const renewVpnUser = authed
  * Soft-remove only (admin). Resellers must use disable — never erase ledger.
  */
 export const deleteVpnUser = authed
+  .route({
+    summary: 'Archive VPN user',
+    description:
+      'Use this operation to archive VPN user under the caller’s current role and ownership rules.',
+    tags: ['VPN users'],
+    spec: outputSpec('vpn-users.deleteVpnUser'),
+  })
   .input(z.object({ username: z.string().min(1) }))
   .handler(async ({ input, context }) => {
     if (context.user.role !== 'admin') {
@@ -757,6 +798,13 @@ export const deleteVpnUser = authed
   })
 
 export const resetVpnUserUsage = authed
+  .route({
+    summary: 'Reset VPN user usage',
+    description:
+      'Use this operation to reset VPN user usage under the caller’s current role and ownership rules.',
+    tags: ['VPN users'],
+    spec: outputSpec('vpn-users.resetVpnUserUsage'),
+  })
   .input(z.object({ username: z.string().min(1) }))
   .handler(async ({ input, context }) => {
     const owned = await getOwnedVpnUser(
@@ -788,6 +836,13 @@ export const resetVpnUserUsage = authed
   })
 
 export const revokeVpnUserSub = authed
+  .route({
+    summary: 'Revoke VPN subscription',
+    description:
+      'Use this operation to revoke VPN subscription under the caller’s current role and ownership rules.',
+    tags: ['VPN users'],
+    spec: outputSpec('vpn-users.revokeVpnUserSub'),
+  })
   .input(z.object({ username: z.string().min(1) }))
   .handler(async ({ input, context }) => {
     const owned = await getOwnedVpnUser(
@@ -819,6 +874,13 @@ export const revokeVpnUserSub = authed
   })
 
 export const syncVpnUser = authed
+  .route({
+    summary: 'Sync VPN user',
+    description:
+      'Use this operation to sync VPN user under the caller’s current role and ownership rules.',
+    tags: ['VPN users'],
+    spec: outputSpec('vpn-users.syncVpnUser'),
+  })
   .input(z.object({ username: z.string().min(1) }))
   .handler(async ({ input, context }) => {
     const owned = await getOwnedVpnUser(

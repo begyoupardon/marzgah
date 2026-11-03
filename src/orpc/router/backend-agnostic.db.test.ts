@@ -7,6 +7,7 @@ import { makeReseller, makeUser } from '../../../test/helpers/factories'
 import { BackendError } from '#/lib/backends/types'
 import { resetBackends, setBackend } from '#/lib/backends/registry'
 import { auditLogs, billingEvents, vpnUsers } from '#/db/schema'
+import { gbToBytes } from '#/lib/vpn-plans'
 
 const db = await setupRouterTest()
 const fake = new FakeBackend()
@@ -266,4 +267,37 @@ it('allows admins to archive by soft-removal while preserving ledger and invalid
   expect(fake.callsTo('updateUser').at(-1)?.args[1]).toMatchObject({
     status: 'disabled',
   })
+})
+
+it('accepts and bills a 0.1 GB plan while rejecting smaller byte limits', async () => {
+  const minimum = gbToBytes(0.1)
+  await expect(
+    callAs(
+      vpn.createVpnUser,
+      { username: 'too_small', dataLimitBytes: minimum - 1, durationDays: 30 },
+      seller.id,
+    ),
+  ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+  await callAs(
+    vpn.createVpnUser,
+    { username: 'small', dataLimitBytes: minimum, durationDays: 30 },
+    seller.id,
+  )
+  expect((await mirror('fk_small'))?.dataLimitBytes).toBe(minimum)
+  const [event] = await db
+    .select()
+    .from(billingEvents)
+    .where(eq(billingEvents.marzbanUsername, 'fk_small'))
+  expect(event?.dataLimitGb).toBe(0.1)
+  expect(event?.amountToman).toBe(100)
+  await callAs(
+    vpn.renewVpnUser,
+    {
+      username: 'fk_small',
+      durationDays: 30,
+      additionalDataLimitBytes: minimum,
+    },
+    seller.id,
+  )
+  expect((await mirror('fk_small'))?.dataLimitBytes).toBe(minimum * 2)
 })

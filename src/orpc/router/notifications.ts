@@ -20,168 +20,223 @@ import {
   unlinkTelegram,
 } from '#/lib/notifications/telegram'
 import { adminOnly, authed } from '../middleware'
+import { outputSpec } from '../openapi-response'
 
-export const telegramStatus = authed.handler(async ({ context }) => {
-  const ownBot =
-    context.user.role === 'reseller'
-      ? await getResellerTelegramBot(context.user.id)
-      : await getPlatformTelegramBot()
-  const legacy =
-    context.user.role === 'reseller' && !ownBot
-      ? await getPlatformTelegramBot()
-      : null
-  const config = ownBot?.enabled
-    ? ownBot
-    : legacy?.enabled && legacy.legacyShared
-      ? legacy
-      : null
-  const [link] = await db
-    .select({ botId: telegramLinks.botId })
-    .from(telegramLinks)
-    .where(eq(telegramLinks.userId, context.user.id))
-    .limit(1)
-  return {
-    available: Boolean(config),
-    botUsername: config?.enabled ? config.botUsername : null,
-    linked: await isLinked(context.user.id),
-    role: context.user.role,
-    botKind: config?.kind ?? null,
-    configuredOwnBot: Boolean(ownBot),
-    linkedBotId: link?.botId ?? null,
-  }
-})
-
-export const startTelegramLink = authed.handler(async ({ context }) => {
-  const ownBot =
-    context.user.role === 'reseller'
-      ? await getResellerTelegramBot(context.user.id)
-      : await getPlatformTelegramBot()
-  const legacy =
-    context.user.role === 'reseller' && !ownBot
-      ? await getPlatformTelegramBot()
-      : null
-  const config = ownBot?.enabled
-    ? ownBot
-    : legacy?.enabled && legacy.legacyShared
-      ? legacy
-      : null
-  if (!config?.enabled)
-    throw new ORPCError('BAD_REQUEST', { message: 'اتصال تلگرام فعال نیست' })
-  const { code, expiresAt } = await createLinkCode(context.user.id, {
-    botId: config.id,
+export const telegramStatus = authed
+  .route({
+    summary: 'Get Telegram status',
+    description:
+      'Use this operation to get Telegram status under the caller’s current role and ownership rules.',
+    tags: ['Notifications'],
+    spec: outputSpec('notifications.telegramStatus'),
   })
-  return {
-    code,
-    expiresAt: expiresAt.toISOString(),
-    deepLink: `https://t.me/${config.botUsername}?start=${code}`,
-  }
-})
-
-export const unlinkMyTelegram = authed.handler(async ({ context }) => {
-  await unlinkTelegram(context.user.id)
-  await writeAuditLog({
-    actorUserId: context.user.id,
-    actorRole: context.user.role === 'admin' ? 'admin' : 'reseller',
-    action: 'telegram.unlink',
-    entityType: 'telegram',
-    entityId: context.user.id,
-    resellerId: context.user.role === 'reseller' ? context.user.id : null,
-    payload: { channel: 'panel' },
+  .handler(async ({ context }) => {
+    const ownBot =
+      context.user.role === 'reseller'
+        ? await getResellerTelegramBot(context.user.id)
+        : await getPlatformTelegramBot()
+    const legacy =
+      context.user.role === 'reseller' && !ownBot
+        ? await getPlatformTelegramBot()
+        : null
+    const config = ownBot?.enabled
+      ? ownBot
+      : legacy?.enabled && legacy.legacyShared
+        ? legacy
+        : null
+    const [link] = await db
+      .select({ botId: telegramLinks.botId })
+      .from(telegramLinks)
+      .where(eq(telegramLinks.userId, context.user.id))
+      .limit(1)
+    return {
+      available: Boolean(config),
+      botUsername: config?.enabled ? config.botUsername : null,
+      linked: await isLinked(context.user.id),
+      role: context.user.role,
+      botKind: config?.kind ?? null,
+      configuredOwnBot: Boolean(ownBot),
+      linkedBotId: link?.botId ?? null,
+    }
   })
-  return { ok: true }
-})
 
-export const sendTestMessage = authed.handler(async ({ context }) => {
-  const { telegramLinks } = await import('#/db/schema')
-  const [link] = await db
-    .select()
-    .from(telegramLinks)
-    .where(eq(telegramLinks.userId, context.user.id))
-    .limit(1)
-  if (!link)
-    throw new ORPCError('BAD_REQUEST', { message: 'ابتدا تلگرام را متصل کنید' })
-  const config = link.botId
-    ? await (
-        await import('#/lib/notifications/telegram')
-      ).getBotById(link.botId)
-    : await getTelegramConfig()
-  if (!config?.enabled)
-    throw new ORPCError('BAD_REQUEST', { message: 'اتصال تلگرام فعال نیست' })
-  const result = await createTelegramNotifier(config.botToken).send(
-    link.chatId,
-    '🔔 پیام آزمایشی از پنل',
-  )
-  if (!result.ok)
-    throw new ORPCError('BAD_GATEWAY', { message: 'ارسال پیام ناموفق بود' })
-  return { ok: true }
-})
+export const startTelegramLink = authed
+  .route({
+    summary: 'Start Telegram account link',
+    description:
+      'Use this operation to start Telegram account link under the caller’s current role and ownership rules.',
+    tags: ['Notifications'],
+    spec: outputSpec('notifications.startTelegramLink'),
+  })
+  .handler(async ({ context }) => {
+    const ownBot =
+      context.user.role === 'reseller'
+        ? await getResellerTelegramBot(context.user.id)
+        : await getPlatformTelegramBot()
+    const legacy =
+      context.user.role === 'reseller' && !ownBot
+        ? await getPlatformTelegramBot()
+        : null
+    const config = ownBot?.enabled
+      ? ownBot
+      : legacy?.enabled && legacy.legacyShared
+        ? legacy
+        : null
+    if (!config?.enabled)
+      throw new ORPCError('BAD_REQUEST', { message: 'اتصال تلگرام فعال نیست' })
+    const { code, expiresAt } = await createLinkCode(context.user.id, {
+      botId: config.id,
+    })
+    return {
+      code,
+      expiresAt: expiresAt.toISOString(),
+      deepLink: `https://t.me/${config.botUsername}?start=${code}`,
+    }
+  })
+
+export const unlinkMyTelegram = authed
+  .route({
+    summary: 'Unlink my Telegram account',
+    description:
+      'Use this operation to unlink my Telegram account under the caller’s current role and ownership rules.',
+    tags: ['Notifications'],
+    spec: outputSpec('notifications.unlinkMyTelegram'),
+  })
+  .handler(async ({ context }) => {
+    await unlinkTelegram(context.user.id)
+    await writeAuditLog({
+      actorUserId: context.user.id,
+      actorRole: context.user.role === 'admin' ? 'admin' : 'reseller',
+      action: 'telegram.unlink',
+      entityType: 'telegram',
+      entityId: context.user.id,
+      resellerId: context.user.role === 'reseller' ? context.user.id : null,
+      payload: { channel: 'panel' },
+    })
+    return { ok: true }
+  })
+
+export const sendTestMessage = authed
+  .route({
+    summary: 'Send Telegram test message',
+    description:
+      'Use this operation to send Telegram test message under the caller’s current role and ownership rules.',
+    tags: ['Notifications'],
+    spec: outputSpec('notifications.sendTestMessage'),
+  })
+  .handler(async ({ context }) => {
+    const { telegramLinks } = await import('#/db/schema')
+    const [link] = await db
+      .select()
+      .from(telegramLinks)
+      .where(eq(telegramLinks.userId, context.user.id))
+      .limit(1)
+    if (!link)
+      throw new ORPCError('BAD_REQUEST', {
+        message: 'ابتدا تلگرام را متصل کنید',
+      })
+    const config = link.botId
+      ? await (
+          await import('#/lib/notifications/telegram')
+        ).getBotById(link.botId)
+      : await getTelegramConfig()
+    if (!config?.enabled)
+      throw new ORPCError('BAD_REQUEST', { message: 'اتصال تلگرام فعال نیست' })
+    const result = await createTelegramNotifier(config.botToken).send(
+      link.chatId,
+      '🔔 پیام آزمایشی از پنل',
+    )
+    if (!result.ok)
+      throw new ORPCError('BAD_GATEWAY', { message: 'ارسال پیام ناموفق بود' })
+    return { ok: true }
+  })
 
 // ── admin ────────────────────────────────────────────────────────────────
 
-export const getTelegramAdmin = adminOnly.handler(async () => {
-  const config = await getTelegramConfig()
-  const webhookUrl = `${getEnv().BETTER_AUTH_URL ?? ''}/api/telegram/webhook`
-  let webhook: {
-    state: 'unconfigured' | 'unreachable' | 'matching' | 'missing' | 'mismatch'
-    urlMatches: boolean
-    pendingUpdateCount: number | null
-    lastErrorDate: number | null
-    lastErrorMessage: string | null
-  } = {
-    state: 'unconfigured',
-    urlMatches: false,
-    pendingUpdateCount: null,
-    lastErrorDate: null,
-    lastErrorMessage: null,
-  }
-  if (config) {
-    try {
-      const result = await createTelegramNotifier(config.botToken).call(
-        'getWebhookInfo',
-        {},
-      )
-      if (result.ok && result.result && typeof result.result === 'object') {
-        const info = result.result as {
-          url?: string
-          pending_update_count?: number
-          last_error_date?: number
-          last_error_message?: string
+export const getTelegramAdmin = adminOnly
+  .route({
+    summary: 'Get administrator Telegram settings',
+    description:
+      'Use this operation to get administrator Telegram settings under the caller’s current role and ownership rules.',
+    tags: ['Notifications'],
+    spec: outputSpec('notifications.getTelegramAdmin'),
+  })
+  .handler(async () => {
+    const config = await getTelegramConfig()
+    const webhookUrl = `${getEnv().BETTER_AUTH_URL ?? ''}/api/telegram/webhook`
+    let webhook: {
+      state:
+        | 'unconfigured'
+        | 'unreachable'
+        | 'matching'
+        | 'missing'
+        | 'mismatch'
+      urlMatches: boolean
+      pendingUpdateCount: number | null
+      lastErrorDate: number | null
+      lastErrorMessage: string | null
+    } = {
+      state: 'unconfigured',
+      urlMatches: false,
+      pendingUpdateCount: null,
+      lastErrorDate: null,
+      lastErrorMessage: null,
+    }
+    if (config) {
+      try {
+        const result = await createTelegramNotifier(config.botToken).call(
+          'getWebhookInfo',
+          {},
+        )
+        if (result.ok && result.result && typeof result.result === 'object') {
+          const info = result.result as {
+            url?: string
+            pending_update_count?: number
+            last_error_date?: number
+            last_error_message?: string
+          }
+          const urlMatches = info.url === webhookUrl
+          webhook = {
+            state: !info.url ? 'missing' : urlMatches ? 'matching' : 'mismatch',
+            urlMatches,
+            pendingUpdateCount: Number.isFinite(info.pending_update_count)
+              ? info.pending_update_count!
+              : 0,
+            lastErrorDate: Number.isFinite(info.last_error_date)
+              ? info.last_error_date!
+              : null,
+            lastErrorMessage:
+              info.last_error_message
+                ?.split(config.botToken)
+                .join('***')
+                .split(config.webhookSecret)
+                .join('***') ?? null,
+          }
+        } else {
+          webhook = { ...webhook, state: 'unreachable' }
         }
-        const urlMatches = info.url === webhookUrl
-        webhook = {
-          state: !info.url ? 'missing' : urlMatches ? 'matching' : 'mismatch',
-          urlMatches,
-          pendingUpdateCount: Number.isFinite(info.pending_update_count)
-            ? info.pending_update_count!
-            : 0,
-          lastErrorDate: Number.isFinite(info.last_error_date)
-            ? info.last_error_date!
-            : null,
-          lastErrorMessage:
-            info.last_error_message
-              ?.split(config.botToken)
-              .join('***')
-              .split(config.webhookSecret)
-              .join('***') ?? null,
-        }
-      } else {
+      } catch {
         webhook = { ...webhook, state: 'unreachable' }
       }
-    } catch {
-      webhook = { ...webhook, state: 'unreachable' }
     }
-  }
-  return {
-    configured: Boolean(config),
-    enabled: config?.enabled ?? false,
-    botUsername: config?.botUsername ?? '',
-    webhookUrl,
-    webhook,
-    bots: await listTelegramBots(),
-  }
-})
+    return {
+      configured: Boolean(config),
+      enabled: config?.enabled ?? false,
+      botUsername: config?.botUsername ?? '',
+      webhookUrl,
+      webhook,
+      bots: await listTelegramBots(),
+    }
+  })
 
 export const saveTelegramAdmin = adminOnly
+  .route({
+    summary: 'Save administrator Telegram settings',
+    description:
+      'Use this operation to save administrator Telegram settings under the caller’s current role and ownership rules.',
+    tags: ['Notifications'],
+    spec: outputSpec('notifications.saveTelegramAdmin'),
+  })
   .input(
     z.object({
       botToken: z.string().trim().min(10).max(200).optional(),
@@ -221,6 +276,13 @@ export const saveTelegramAdmin = adminOnly
   })
 
 export const saveTelegramReseller = authed
+  .route({
+    summary: 'Save reseller Telegram bot',
+    description:
+      'Use this operation to save reseller Telegram bot under the caller’s current role and ownership rules.',
+    tags: ['Notifications'],
+    spec: outputSpec('notifications.saveTelegramReseller'),
+  })
   .input(
     z.object({
       botToken: z.string().trim().min(10).max(200),
@@ -282,85 +344,100 @@ export const saveTelegramReseller = authed
     return { ok: true, botUsername: username, enabled: saved.enabled }
   })
 
-export const resellerTelegramBotStatus = authed.handler(async ({ context }) => {
-  if (context.user.role !== 'reseller') throw new ORPCError('FORBIDDEN')
-  const bot = await getResellerTelegramBot(context.user.id)
-  if (!bot)
-    return {
-      configured: false,
-      enabled: false,
-      botUsername: null,
-      webhook: {
-        state: 'unconfigured' as const,
-        urlMatches: false,
-        pendingUpdateCount: null,
-        lastErrorDate: null,
-        lastErrorMessage: null,
-      },
-    }
-  const base = getEnv().BETTER_AUTH_URL
-  try {
-    const result = await createTelegramNotifier(bot.botToken).call(
-      'getWebhookInfo',
-      {},
-    )
-    const info = result.result as
-      | {
-          url?: string
-          pending_update_count?: number
-          last_error_date?: number
-          last_error_message?: string
-        }
-      | undefined
-    const urlMatches = info?.url === `${base}/api/telegram/webhook`
-    return {
-      configured: true,
-      enabled: bot.enabled,
-      botUsername: bot.botUsername,
-      webhook: {
-        state: !result.ok
-          ? ('unreachable' as const)
-          : urlMatches
-            ? ('matching' as const)
-            : info?.url
-              ? ('mismatch' as const)
-              : ('missing' as const),
-        urlMatches,
-        pendingUpdateCount: Number.isFinite(info?.pending_update_count)
-          ? info!.pending_update_count!
-          : result.ok
-            ? 0
+export const resellerTelegramBotStatus = authed
+  .route({
+    summary: 'Get reseller Telegram bot status',
+    description:
+      'Use this operation to get reseller Telegram bot status under the caller’s current role and ownership rules.',
+    tags: ['Notifications'],
+    spec: outputSpec('notifications.resellerTelegramBotStatus'),
+  })
+  .handler(async ({ context }) => {
+    if (context.user.role !== 'reseller') throw new ORPCError('FORBIDDEN')
+    const bot = await getResellerTelegramBot(context.user.id)
+    if (!bot)
+      return {
+        configured: false,
+        enabled: false,
+        botUsername: null,
+        webhook: {
+          state: 'unconfigured' as const,
+          urlMatches: false,
+          pendingUpdateCount: null,
+          lastErrorDate: null,
+          lastErrorMessage: null,
+        },
+      }
+    const base = getEnv().BETTER_AUTH_URL
+    try {
+      const result = await createTelegramNotifier(bot.botToken).call(
+        'getWebhookInfo',
+        {},
+      )
+      const info = result.result as
+        | {
+            url?: string
+            pending_update_count?: number
+            last_error_date?: number
+            last_error_message?: string
+          }
+        | undefined
+      const urlMatches = info?.url === `${base}/api/telegram/webhook`
+      return {
+        configured: true,
+        enabled: bot.enabled,
+        botUsername: bot.botUsername,
+        webhook: {
+          state: !result.ok
+            ? ('unreachable' as const)
+            : urlMatches
+              ? ('matching' as const)
+              : info?.url
+                ? ('mismatch' as const)
+                : ('missing' as const),
+          urlMatches,
+          pendingUpdateCount: Number.isFinite(info?.pending_update_count)
+            ? info!.pending_update_count!
+            : result.ok
+              ? 0
+              : null,
+          lastErrorDate: Number.isFinite(info?.last_error_date)
+            ? info!.last_error_date!
             : null,
-        lastErrorDate: Number.isFinite(info?.last_error_date)
-          ? info!.last_error_date!
-          : null,
-        lastErrorMessage:
-          info?.last_error_message
-            ?.split(bot.botToken)
-            .join('***')
-            .split(bot.webhookSecret)
-            .join('***') ?? null,
-      },
+          lastErrorMessage:
+            info?.last_error_message
+              ?.split(bot.botToken)
+              .join('***')
+              .split(bot.webhookSecret)
+              .join('***') ?? null,
+        },
+      }
+    } catch {
+      return {
+        configured: true,
+        enabled: bot.enabled,
+        botUsername: bot.botUsername,
+        webhook: {
+          state: 'unreachable' as const,
+          urlMatches: false,
+          pendingUpdateCount: null,
+          lastErrorDate: null,
+          lastErrorMessage: null,
+        },
+      }
     }
-  } catch {
-    return {
-      configured: true,
-      enabled: bot.enabled,
-      botUsername: bot.botUsername,
-      webhook: {
-        state: 'unreachable' as const,
-        urlMatches: false,
-        pendingUpdateCount: null,
-        lastErrorDate: null,
-        lastErrorMessage: null,
-      },
-    }
-  }
-})
+  })
 
 /** Validate the token (getMe) and point Telegram at this panel. */
-export const registerTelegramWebhook = adminOnly.handler(
-  async ({ context }) => {
+export const registerTelegramWebhook = adminOnly
+  .route({
+    summary: 'Register Telegram webhook',
+    description:
+      'Use this operation to register Telegram webhook under the caller’s current role and ownership rules.',
+    tags: ['Notifications'],
+    spec: outputSpec('notifications.registerTelegramWebhook'),
+  })
+  .handler(async ({ context }) => {
     const config = await getTelegramConfig()
     if (!config)
       throw new ORPCError('BAD_REQUEST', {
@@ -396,51 +473,73 @@ export const registerTelegramWebhook = adminOnly.handler(
       username:
         (me.result as { username?: string } | undefined)?.username ?? null,
     }
-  },
-)
+  })
 
-export const outboxStats = adminOnly.handler(async () => {
-  const counts = await db
-    .select({ status: notifications.status, c: sql<number>`count(*)` })
-    .from(notifications)
-    .groupBy(notifications.status)
-  const failures = await db
-    .select({
-      id: notifications.id,
-      event: notifications.event,
-      lastError: notifications.lastError,
-      attempts: notifications.attempts,
-      status: notifications.status,
-    })
-    .from(notifications)
-    .where(
-      sql`${notifications.lastError} is not null and ${notifications.status} in ('queued','dead')`,
-    )
-    .orderBy(desc(notifications.createdAt))
-    .limit(10)
-  return {
-    counts: Object.fromEntries(counts.map((r) => [r.status, Number(r.c)])),
-    failures,
-  }
-})
+export const outboxStats = adminOnly
+  .route({
+    summary: 'Get notification outbox stats',
+    description:
+      'Use this operation to get notification outbox stats under the caller’s current role and ownership rules.',
+    tags: ['Notifications'],
+    spec: outputSpec('notifications.outboxStats'),
+  })
+  .handler(async () => {
+    const counts = await db
+      .select({ status: notifications.status, c: sql<number>`count(*)` })
+      .from(notifications)
+      .groupBy(notifications.status)
+    const failures = await db
+      .select({
+        id: notifications.id,
+        event: notifications.event,
+        lastError: notifications.lastError,
+        attempts: notifications.attempts,
+        status: notifications.status,
+      })
+      .from(notifications)
+      .where(
+        sql`${notifications.lastError} is not null and ${notifications.status} in ('queued','dead')`,
+      )
+      .orderBy(desc(notifications.createdAt))
+      .limit(10)
+    return {
+      counts: Object.fromEntries(counts.map((r) => [r.status, Number(r.c)])),
+      failures,
+    }
+  })
 
-export const telegramLinkedAccounts = adminOnly.handler(async () => {
-  const rows = await db
-    .select({
-      userId: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      linkedAt: telegramLinks.linkedAt,
-    })
-    .from(telegramLinks)
-    .innerJoin(user, eq(user.id, telegramLinks.userId))
-    .orderBy(desc(telegramLinks.linkedAt))
-    .limit(100)
-  return rows.map((row) => ({ ...row, linkedAt: row.linkedAt.toISOString() }))
-})
+export const telegramLinkedAccounts = adminOnly
+  .route({
+    summary: 'List linked Telegram accounts',
+    description:
+      'Use this operation to list linked Telegram accounts under the caller’s current role and ownership rules.',
+    tags: ['Notifications'],
+    spec: outputSpec('notifications.telegramLinkedAccounts'),
+  })
+  .handler(async () => {
+    const rows = await db
+      .select({
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        linkedAt: telegramLinks.linkedAt,
+      })
+      .from(telegramLinks)
+      .innerJoin(user, eq(user.id, telegramLinks.userId))
+      .orderBy(desc(telegramLinks.linkedAt))
+      .limit(100)
+    return rows.map((row) => ({ ...row, linkedAt: row.linkedAt.toISOString() }))
+  })
 
 export const adminUnlinkTelegram = adminOnly
+  .route({
+    summary: 'Unlink a Telegram account',
+    description:
+      'Use this operation to unlink a Telegram account under the caller’s current role and ownership rules.',
+    tags: ['Notifications'],
+    spec: outputSpec('notifications.adminUnlinkTelegram'),
+  })
   .input(z.object({ userId: z.string().min(1).max(128) }))
   .handler(async ({ input, context }) => {
     const [target] = await db

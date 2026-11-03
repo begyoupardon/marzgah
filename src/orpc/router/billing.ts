@@ -13,34 +13,50 @@ import {
 } from '#/lib/billing'
 import { serializeBillingRow, writeAuditLog } from '#/lib/ledger'
 import { adminOnly, authed } from '../middleware'
+import { outputSpec } from '../openapi-response'
 
 function mapEvent(row: typeof billingEvents.$inferSelect) {
   return serializeBillingRow(row)
 }
 
-export const myBillingSummary = authed.handler(async ({ context }) => {
-  const resellerId = context.user.role === 'admin' ? null : context.user.id
+export const myBillingSummary = authed
+  .route({
+    summary: 'Get my billing summary',
+    description:
+      'Use this operation to get my billing summary under the caller’s current role and ownership rules.',
+    tags: ['Billing'],
+    spec: outputSpec('billing.myBillingSummary'),
+  })
+  .handler(async ({ context }) => {
+    const resellerId = context.user.role === 'admin' ? null : context.user.id
 
-  if (!resellerId) {
-    throw new ORPCError('FORBIDDEN', {
-      message: 'ادمین از خلاصه نمایندگان استفاده کند',
-    })
-  }
+    if (!resellerId) {
+      throw new ORPCError('FORBIDDEN', {
+        message: 'ادمین از خلاصه نمایندگان استفاده کند',
+      })
+    }
 
-  const rows = await db
-    .select()
-    .from(billingEvents)
-    .where(eq(billingEvents.resellerId, resellerId))
-    .orderBy(desc(billingEvents.createdAt))
+    const rows = await db
+      .select()
+      .from(billingEvents)
+      .where(eq(billingEvents.resellerId, resellerId))
+      .orderBy(desc(billingEvents.createdAt))
 
-  const mapped = rows.map(mapEvent)
-  return {
-    summary: summarizeLedger(mapped),
-    events: mapped,
-  }
-})
+    const mapped = rows.map(mapEvent)
+    return {
+      summary: summarizeLedger(mapped),
+      events: mapped,
+    }
+  })
 
 export const adminBillingSummary = adminOnly
+  .route({
+    summary: 'Get admin billing summary',
+    description:
+      'Use this operation to get admin billing summary under the caller’s current role and ownership rules.',
+    tags: ['Billing'],
+    spec: outputSpec('billing.adminBillingSummary'),
+  })
   .input(
     z.object({
       resellerId: z.string().optional(),
@@ -92,6 +108,13 @@ export const adminBillingSummary = adminOnly
   })
 
 export const claimBillingPaid = authed
+  .route({
+    summary: 'Claim billing payment',
+    description:
+      'Use this operation to claim billing payment under the caller’s current role and ownership rules.',
+    tags: ['Billing'],
+    spec: outputSpec('billing.claimBillingPaid'),
+  })
   .input(z.object({ eventId: z.string().min(1) }))
   .handler(async ({ input, context }) => {
     if (context.user.role !== 'reseller') {
@@ -149,6 +172,13 @@ export const claimBillingPaid = authed
   })
 
 export const settleBillingEvent = adminOnly
+  .route({
+    summary: 'Settle billing event',
+    description:
+      'Use this operation to settle billing event under the caller’s current role and ownership rules.',
+    tags: ['Billing'],
+    spec: outputSpec('billing.settleBillingEvent'),
+  })
   .input(z.object({ eventId: z.string().min(1) }))
   .handler(async ({ input, context }) => {
     const [row] = await db
@@ -200,6 +230,13 @@ export const settleBillingEvent = adminOnly
   })
 
 export const unsettleBillingEvent = adminOnly
+  .route({
+    summary: 'Unsettle billing event',
+    description:
+      'Use this operation to unsettle billing event under the caller’s current role and ownership rules.',
+    tags: ['Billing'],
+    spec: outputSpec('billing.unsettleBillingEvent'),
+  })
   .input(z.object({ eventId: z.string().min(1) }))
   .handler(async ({ input, context }) => {
     const [row] = await db
@@ -251,6 +288,13 @@ export const unsettleBillingEvent = adminOnly
   })
 
 export const listOutstandingBilling = authed
+  .route({
+    summary: 'List outstanding billing',
+    description:
+      'Use this operation to list outstanding billing under the caller’s current role and ownership rules.',
+    tags: ['Billing'],
+    spec: outputSpec('billing.listOutstandingBilling'),
+  })
   .input(
     z
       .object({

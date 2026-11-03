@@ -17,6 +17,20 @@ Runs on **Bun + local SQLite** (self-hosted, the default) or **Cloudflare Worker
 
 Details: [docs/features.md](docs/features.md).
 
+## API access for agents
+
+Every admin and reseller can create multiple named keys under **API keys** in the panel. Keys expire after 30, 90, or 365 days and use the owner's current role and data permissions. The key is displayed only once. Give each agent its own key so it can be revoked independently.
+
+The live OpenAPI JSON at `/api/spec.json` and interactive API reference at `/api/` describe the oRPC HTTP endpoints. For example, set `MARZGAH_API_KEY` in your environment and call:
+
+```bash
+curl --fail-with-body -sS https://panel.example.com/api/me \
+  -H "Authorization: Bearer $MARZGAH_API_KEY" \
+  -H 'Content-Type: application/json' -d '{}'
+```
+
+See [docs/api.md](docs/api.md) for key setup, agent instructions, curl workflows, errors, and rotation.
+
 <!-- release-only-start -->
 
 ## npm CLI package
@@ -95,6 +109,7 @@ stored encrypted in the database.
 | `bun run test`                        | `bun test --isolate` (the flag matters, see [docs/testing.md](docs/testing.md)) |
 | `bun run typecheck`                   | `tsc --noEmit`                                                                  |
 | `bun run db:generate`                 | Create a migration from `src/db/schema.ts` changes                              |
+| `bun run api:schemas`                 | Refresh generated OpenAPI response schemas after changing a handler result      |
 | `bun run db:studio`                   | Drizzle Studio                                                                  |
 
 > After clearing `node_modules/.vite`, the first page load in dev can be blank while Vite re-optimizes
@@ -119,6 +134,7 @@ docs/              guides (below)
 
 ## Documentation
 
+- [docs/api.md](docs/api.md) – API keys, OpenAPI, curl examples, and agent access
 - [docs/deploy.md](docs/deploy.md) – Docker, bare Bun, Cloudflare, reverse proxy, backups, upgrades, webhooks
 - [docs/telegram.md](docs/telegram.md) – create the bot, register its webhook, link reseller accounts, commands, and troubleshooting
 - [docs/features.md](docs/features.md) – how wallet, notifications, the customer page and seller tools work

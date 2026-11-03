@@ -5,8 +5,16 @@ import { db } from '#/db'
 import { auditLogs } from '#/db/schema'
 import { serializeAuditRow } from '#/lib/ledger'
 import { adminOnly } from '../middleware'
+import { outputSpec } from '../openapi-response'
 
 export const listAuditLogs = adminOnly
+  .route({
+    summary: 'List audit logs',
+    description:
+      'Use this operation to list audit logs under the caller’s current role and ownership rules.',
+    tags: ['Audit'],
+    spec: outputSpec('audit.listAuditLogs'),
+  })
   .input(
     z
       .object({

@@ -10,6 +10,7 @@ import { writeAuditLog } from '#/lib/ledger'
 import { getOwnedVpnUser } from '#/lib/marzban/quotas'
 import { resumeReseller, suspendReseller } from '#/lib/reseller-suspension'
 import { getSetting, setSetting } from '#/lib/settings'
+import { gbToBytes, MIN_DATA_LIMIT_GB } from '#/lib/vpn-plans'
 import {
   labelCondition,
   normalizeLabels,
@@ -17,6 +18,7 @@ import {
   viewCondition,
 } from '#/lib/user-filters'
 import { adminOnly, authed } from '../middleware'
+import { outputSpec } from '../openapi-response'
 import { createVpnUser, renewVpnUser } from './vpn-users'
 
 const GB = 1024 ** 3
@@ -32,6 +34,13 @@ function scope(user: { id: string; role: string }, resellerId?: string) {
 // ── customer details ──────────────────────────────────────────────────────
 
 export const updateUserContact = authed
+  .route({
+    summary: 'Update user contact',
+    description:
+      'Use this operation to update user contact under the caller’s current role and ownership rules.',
+    tags: ['Tools'],
+    spec: outputSpec('seller-tools.updateUserContact'),
+  })
   .input(
     z.object({
       username: z.string().min(1),
@@ -85,6 +94,13 @@ export const updateUserContact = authed
   })
 
 export const bulkLabel = authed
+  .route({
+    summary: 'Add or remove labels in bulk',
+    description:
+      'Use this operation to add or remove labels in bulk under the caller’s current role and ownership rules.',
+    tags: ['Tools'],
+    spec: outputSpec('seller-tools.bulkLabel'),
+  })
   .input(
     z.object({
       usernames: z.array(z.string()).min(1).max(200),
@@ -124,6 +140,13 @@ export const bulkLabel = authed
 // ── CSV export ────────────────────────────────────────────────────────────
 
 export const exportUsers = authed
+  .route({
+    summary: 'Export users as CSV',
+    description:
+      'Use this operation to export users as CSV under the caller’s current role and ownership rules.',
+    tags: ['Tools'],
+    spec: outputSpec('seller-tools.exportUsers'),
+  })
   .input(
     z
       .object({
@@ -179,6 +202,13 @@ export const exportUsers = authed
   })
 
 export const exportBilling = authed
+  .route({
+    summary: 'Export billing as CSV',
+    description:
+      'Use this operation to export billing as CSV under the caller’s current role and ownership rules.',
+    tags: ['Tools'],
+    spec: outputSpec('seller-tools.exportBilling'),
+  })
   .input(
     z
       .object({
@@ -235,6 +265,13 @@ const messageOf = (error: unknown) =>
   error instanceof Error ? error.message : String(error)
 
 export const bulkRenew = authed
+  .route({
+    summary: 'Renew users in bulk',
+    description:
+      'Use this operation to renew users in bulk under the caller’s current role and ownership rules.',
+    tags: ['Tools'],
+    spec: outputSpec('seller-tools.bulkRenew'),
+  })
   .input(
     z.object({
       usernames: z.array(z.string()).min(1).max(50),
@@ -275,7 +312,7 @@ export const bulkRenew = authed
 
 const importRow = z.object({
   username: z.string().min(1),
-  gb: z.coerce.number().int().min(10).max(10_000),
+  gb: z.coerce.number().finite().min(MIN_DATA_LIMIT_GB).max(10_000),
   days: z.coerce
     .number()
     .int()
@@ -289,6 +326,13 @@ const importRow = z.object({
 })
 
 export const importUsers = authed
+  .route({
+    summary: 'Import users from CSV',
+    description:
+      'Use this operation to import users from CSV under the caller’s current role and ownership rules.',
+    tags: ['Tools'],
+    spec: outputSpec('seller-tools.importUsers'),
+  })
   .input(
     z.object({
       csv: z.string().max(200_000),
@@ -340,7 +384,7 @@ export const importUsers = authed
           {
             resellerId: input.resellerId,
             username: r.username,
-            dataLimitBytes: r.gb * GB,
+            dataLimitBytes: gbToBytes(r.gb),
             ...(r.days !== undefined
               ? { durationDays: r.days as 30 | 60 | 90 }
               : r.months !== undefined
@@ -383,6 +427,13 @@ export const importUsers = authed
 // ── admin: limits, suspension, announcements ─────────────────────────────
 
 export const setResellerLimits = adminOnly
+  .route({
+    summary: 'Set reseller limits',
+    description:
+      'Use this operation to set reseller limits under the caller’s current role and ownership rules.',
+    tags: ['Tools'],
+    spec: outputSpec('seller-tools.setResellerLimits'),
+  })
   .input(
     z.object({
       resellerId: z.string(),
@@ -410,6 +461,13 @@ export const setResellerLimits = adminOnly
   })
 
 export const suspendResellerAccount = adminOnly
+  .route({
+    summary: 'Suspend reseller',
+    description:
+      'Use this operation to suspend reseller under the caller’s current role and ownership rules.',
+    tags: ['Tools'],
+    spec: outputSpec('seller-tools.suspendResellerAccount'),
+  })
   .input(z.object({ resellerId: z.string() }))
   .handler(async ({ input, context }) => {
     const result = await suspendReseller(input.resellerId)
@@ -425,6 +483,13 @@ export const suspendResellerAccount = adminOnly
   })
 
 export const resumeResellerAccount = adminOnly
+  .route({
+    summary: 'Resume reseller',
+    description:
+      'Use this operation to resume reseller under the caller’s current role and ownership rules.',
+    tags: ['Tools'],
+    spec: outputSpec('seller-tools.resumeResellerAccount'),
+  })
   .input(z.object({ resellerId: z.string() }))
   .handler(async ({ input, context }) => {
     const result = await resumeReseller(input.resellerId)
@@ -445,23 +510,48 @@ const announcementSchema = z.object({
   active: z.boolean().default(false),
 })
 
-export const getAnnouncement = authed.handler(async () => {
-  const value =
-    await getSetting<z.infer<typeof announcementSchema>>('announcement')
-  return value?.active && value.text ? value : null
-})
+export const getAnnouncement = authed
+  .route({
+    summary: 'Get announcement',
+    description:
+      'Use this operation to get announcement under the caller’s current role and ownership rules.',
+    tags: ['Tools'],
+    spec: outputSpec('seller-tools.getAnnouncement'),
+  })
+  .handler(async () => {
+    const value =
+      await getSetting<z.infer<typeof announcementSchema>>('announcement')
+    return value?.active && value.text ? value : null
+  })
 
-export const getAnnouncementAdmin = adminOnly.handler(async () => {
-  return (
-    (await getSetting<z.infer<typeof announcementSchema>>('announcement')) ?? {
-      text: '',
-      level: 'info' as const,
-      active: false,
-    }
-  )
-})
+export const getAnnouncementAdmin = adminOnly
+  .route({
+    summary: 'Get administrator announcement',
+    description:
+      'Use this operation to get administrator announcement under the caller’s current role and ownership rules.',
+    tags: ['Tools'],
+    spec: outputSpec('seller-tools.getAnnouncementAdmin'),
+  })
+  .handler(async () => {
+    return (
+      (await getSetting<z.infer<typeof announcementSchema>>(
+        'announcement',
+      )) ?? {
+        text: '',
+        level: 'info' as const,
+        active: false,
+      }
+    )
+  })
 
 export const setAnnouncement = adminOnly
+  .route({
+    summary: 'Set announcement',
+    description:
+      'Use this operation to set announcement under the caller’s current role and ownership rules.',
+    tags: ['Tools'],
+    spec: outputSpec('seller-tools.setAnnouncement'),
+  })
   .input(announcementSchema)
   .handler(async ({ input, context }) => {
     await setSetting('announcement', input)

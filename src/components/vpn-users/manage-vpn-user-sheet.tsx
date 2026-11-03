@@ -430,7 +430,7 @@ export function ManageVpnUserSheet({
                     name="additionalDataLimitGb"
                     id={`${RENEW_FORM_ID}-data-limit`}
                     label="حجم اضافه‌شونده (گیگابایت)"
-                    description="این مقدار به سقف فعلی اضافه و فقط همین مقدار صورتحساب می‌شود. حداقل ۱۰ گیگابایت."
+                    description="این مقدار به سقف فعلی اضافه و فقط همین مقدار صورتحساب می‌شود. حداقل ۰٫۱ گیگابایت."
                   />
 
                   <Controller

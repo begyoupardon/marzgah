@@ -37,6 +37,7 @@ const templateFiles = [
   'tsr.config.json',
   'vite.config.ts',
   'drizzle.config.ts',
+  'scripts/generate-api-output-schemas.ts',
   'wrangler.example.jsonc',
   'worker-configuration.d.ts',
   'components.json',

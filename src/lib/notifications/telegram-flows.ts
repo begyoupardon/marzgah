@@ -5,10 +5,9 @@
  * write. State lives in the telegram_flows table so it survives restarts.
  */
 import { localUsernameSchema } from '#/lib/reseller-naming'
+import { gbToBytes, MIN_DATA_LIMIT_GB } from '#/lib/vpn-plans'
 
 import { esc } from './telegram-ui'
-
-const GB = 1024 ** 3
 
 export type Data = Record<string, unknown>
 export type FlowCtx = {
@@ -37,6 +36,8 @@ export type FlowDef = {
 }
 
 const fa = (n: number) => Math.round(n).toLocaleString('fa-IR')
+const faGb = (n: number) =>
+  n.toLocaleString('fa-IR', { maximumFractionDigits: 2 })
 
 function int(min: number, max: number, label: string) {
   return (raw: string) => {
@@ -63,7 +64,7 @@ const optionalText = (max: number, label: string) => (raw: string) => {
 }
 
 const gbChoices = (values: number[]) =>
-  values.map((v) => ({ label: `${fa(v)} GB`, value: String(v) }))
+  values.map((v) => ({ label: `${faGb(v)} GB`, value: String(v) }))
 const dayChoices = [30, 60, 90].map((d) => ({
   label: `${fa(d)} روز`,
   value: String(d),
@@ -74,7 +75,18 @@ const days = (raw: string) => {
     throw new Error('مدت باید ۳۰، ۶۰ یا ۹۰ روز باشد.')
   return n
 }
-const dataGb = int(10, 10_000, 'حجم')
+const parseGb = (raw: string) => {
+  const gb = Number(
+    raw
+      .trim()
+      .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+      .replace('٫', '.'),
+  )
+  if (!Number.isFinite(gb) || gb < MIN_DATA_LIMIT_GB || gb > 10_000)
+    throw new Error('حجم باید بین ۰٫۱ و ۱۰٬۰۰۰ گیگابایت باشد.')
+  return gb
+}
+const dataGb = parseGb
 
 const nullableCap = (label: string) => (raw: string) => {
   const text = raw.trim().toLowerCase()
@@ -114,7 +126,7 @@ export const FLOWS: Record<string, FlowDef> = {
       {
         key: 'gb',
         ask: () => ({
-          text: 'حجم را انتخاب کنید یا عدد گیگابایت بفرستید (حداقل ۱۰):',
+          text: 'حجم را انتخاب کنید یا عدد گیگابایت بفرستید (حداقل ۰٫۱):',
           choices: gbChoices([10, 20, 30, 50, 100]),
         }),
         parse: dataGb,
@@ -146,10 +158,10 @@ export const FLOWS: Record<string, FlowDef> = {
         input: {
           ...(d.resellerId ? { resellerId: d.resellerId } : {}),
           username: d.username,
-          dataLimitBytes: (d.gb as number) * GB,
+          dataLimitBytes: gbToBytes(d.gb as number),
           durationDays: d.days,
         },
-        summary: `ساخت کاربر ${d.username} با ${fa(d.gb as number)} گیگابایت برای ${fa(d.days as number)} روز${price}`,
+        summary: `ساخت کاربر ${d.username} با ${faGb(d.gb as number)} گیگابایت برای ${fa(d.days as number)} روز${price}`,
       }
     },
   },
@@ -168,17 +180,15 @@ export const FLOWS: Record<string, FlowDef> = {
       {
         key: 'extraGb',
         ask: () => ({
-          text: 'چند گیگابایت حجم اضافه شود؟ (۰ = بدون افزودن، یا حداقل ۱۰)',
+          text: 'چند گیگابایت حجم اضافه شود؟ (۰ = بدون افزودن، یا حداقل ۰٫۱)',
           choices: [
             { label: 'بدون افزودن', value: '0' },
             ...gbChoices([10, 20, 50, 100]),
           ],
         }),
         parse: (raw) => {
-          const n = int(0, 10_000, 'حجم افزوده')(raw)
-          if (n !== 0 && n < 10)
-            throw new Error('حجم افزوده باید ۰ یا حداقل ۱۰ گیگابایت باشد.')
-          return n
+          if (raw.trim() === '0' || raw.trim() === '۰') return 0
+          return parseGb(raw)
         },
       },
     ],
@@ -190,10 +200,10 @@ export const FLOWS: Record<string, FlowDef> = {
         durationDays: d.days,
         reactivate: true,
         ...((d.extraGb as number) > 0
-          ? { additionalDataLimitBytes: (d.extraGb as number) * GB }
+          ? { additionalDataLimitBytes: gbToBytes(d.extraGb as number) }
           : {}),
       },
-      summary: `تمدید ${d.username} برای ${fa(d.days as number)} روز${(d.extraGb as number) > 0 ? ` و افزودن ${fa(d.extraGb as number)} گیگابایت` : ''}`,
+      summary: `تمدید ${d.username} برای ${fa(d.days as number)} روز${(d.extraGb as number) > 0 ? ` و افزودن ${faGb(d.extraGb as number)} گیگابایت` : ''}`,
     }),
   },
 
@@ -203,7 +213,7 @@ export const FLOWS: Record<string, FlowDef> = {
       {
         key: 'gb',
         ask: (d) => ({
-          text: `📦 <b>تغییر حجم ${esc(d.username)}</b>\nحجم کل جدید را انتخاب کنید یا عدد گیگابایت بفرستید (حداقل ۱۰). افزایش حجم هزینه دارد.`,
+          text: `📦 <b>تغییر حجم ${esc(d.username)}</b>\nحجم کل جدید را انتخاب کنید یا عدد گیگابایت بفرستید (حداقل ۰٫۱). افزایش حجم هزینه دارد.`,
           choices: gbChoices([10, 20, 30, 50, 100, 200]),
         }),
         parse: dataGb,
@@ -212,8 +222,11 @@ export const FLOWS: Record<string, FlowDef> = {
     finish: (d) => ({
       kind: 'action',
       command: 'update',
-      input: { username: d.username, dataLimitBytes: (d.gb as number) * GB },
-      summary: `تغییر حجم ${d.username} به ${fa(d.gb as number)} گیگابایت`,
+      input: {
+        username: d.username,
+        dataLimitBytes: gbToBytes(d.gb as number),
+      },
+      summary: `تغییر حجم ${d.username} به ${faGb(d.gb as number)} گیگابایت`,
     }),
   },
 

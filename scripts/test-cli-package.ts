@@ -141,6 +141,8 @@ try {
   assert.ok(existsSync(join(project, '.marzgah-version')))
   assert.ok(existsSync(join(project, 'public/licenses/Arad-OFL.txt')))
   assert.ok(existsSync(join(project, 'drizzle/meta/_journal.json')))
+  assert.ok(existsSync(join(project, 'scripts/generate-api-output-schemas.ts')))
+  assert.ok(existsSync(join(project, 'src/orpc/output-schemas.generated.json')))
   assert.ok(!existsSync(join(project, '.env')))
   assert.ok(!existsSync(join(project, '.git')))
   assert.ok(!existsSync(join(project, 'data')))
