@@ -313,6 +313,9 @@ export const telegramLinks = sqliteTable('telegram_links', {
   botId: text('bot_id').references(() => telegramBots.id, {
     onDelete: 'set null',
   }),
+  locale: text('locale', { enum: ['fa', 'en'] })
+    .default('fa')
+    .notNull(),
   linkedAt: integer('linked_at', { mode: 'timestamp_ms' })
     .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
     .notNull(),

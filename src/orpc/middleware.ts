@@ -20,6 +20,7 @@ export type AppContext = {
     botId: string
     botOwnerId: string | null
     chatId: string
+    locale?: 'fa' | 'en'
   }
 }
 

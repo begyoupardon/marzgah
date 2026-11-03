@@ -1,0 +1,1 @@
+ALTER TABLE `telegram_links` ADD `locale` text DEFAULT 'fa' NOT NULL;

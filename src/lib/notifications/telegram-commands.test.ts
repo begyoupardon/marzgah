@@ -3,7 +3,8 @@ import { afterAll, expect, it } from 'bun:test'
 import { setupRouterTest } from '../../../test/helpers/orpc'
 import { FakeBackend } from '../../../test/fakes/backend'
 import { resetBackends, setBackend } from '#/lib/backends/registry'
-import { telegramConfirmations } from '#/db/schema'
+import { telegramConfirmations, telegramLinks } from '#/db/schema'
+import { eq } from 'drizzle-orm'
 import { gbToBytes } from '#/lib/vpn-plans'
 import {
   makeReseller,
@@ -17,6 +18,55 @@ const [
   { routeTelegramCommand, handleTelegramCallback },
   { getResellerTelegramBot, saveTelegramBot },
 ] = await Promise.all([import('./telegram-commands'), import('./telegram')])
+
+it('saves an English language choice and renders subsequent bot screens in English', async () => {
+  const owner = await makeReseller(db)
+  const bot = await saveTelegramBot(
+    {
+      kind: 'reseller',
+      ownerUserId: owner.id,
+      botToken: '123456:ENGLISH-TEST',
+      botUsername: 'english_bot',
+    },
+    db,
+  )
+  await db
+    .insert(telegramLinks)
+    .values({ userId: owner.id, chatId: 'en-chat', botId: bot.id })
+  const messages: string[] = []
+  const send = async (text: string, keyboard?: { text: string }[][]) => {
+    messages.push(text, ...(keyboard ?? []).flat().map((button) => button.text))
+  }
+  const actor = {
+    userId: owner.id,
+    botId: bot.id,
+    botOwnerId: owner.id,
+    chatId: 'en-chat',
+    locale: 'fa' as const,
+  }
+  await handleTelegramCallback('lang:en', actor, { db, send })
+  expect(messages.join('\n')).toContain('Management panel')
+  expect(messages.join('\n')).toContain('Create user')
+  const [link] = await db
+    .select()
+    .from(telegramLinks)
+    .where(eq(telegramLinks.userId, owner.id))
+  expect(link?.locale).toBe('en')
+  messages.length = 0
+  await routeTelegramCommand('/menu', { ...actor, locale: link!.locale }, bot, {
+    db,
+    send,
+  })
+  expect(messages.join('\n')).toContain('Management panel')
+  messages.length = 0
+  await handleTelegramCallback(
+    'n:create',
+    { ...actor, locale: link!.locale },
+    { db, send },
+  )
+  expect(messages.join('\n')).toContain('Create user')
+  expect(messages.join('\n')).toContain('username')
+})
 
 it('executes read commands through shared procedures and preserves reseller scoping', async () => {
   const owner = await makeReseller(db)

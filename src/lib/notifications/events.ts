@@ -1,10 +1,16 @@
 import { and, eq, gt, isNotNull, isNull, lte, sql } from 'drizzle-orm'
 
 import { db as defaultDb } from '#/db'
-import { resellerProfiles, vpnUsers, walletEntries } from '#/db/schema'
+import {
+  resellerProfiles,
+  vpnUsers,
+  walletEntries,
+  telegramLinks,
+} from '#/db/schema'
 import type { Db } from '#/db/types'
 import { getBalance, getOutstandingToman } from '#/lib/wallet'
 import { enqueue } from './outbox'
+import { tl, tn } from './telegram-locale'
 
 type Deps = { db?: Db; now?: Date }
 
@@ -14,6 +20,14 @@ export const LOW_WALLET_TOMAN = 50_000
 
 const day = (d: Date) => d.toISOString().slice(0, 10)
 const toman = (n: number) => `${n.toLocaleString('fa-IR')} تومان`
+const localesFor = async (db: Db) =>
+  new Map(
+    (
+      await db
+        .select({ userId: telegramLinks.userId, locale: telegramLinks.locale })
+        .from(telegramLinks)
+    ).map((row) => [row.userId, row.locale] as const),
+  )
 
 /** Users whose plan ends within the warning window; one message per expiry date. */
 export async function scanExpiring({
@@ -36,6 +50,7 @@ export async function scanExpiring({
       ),
     )
   let queued = 0
+  const locales = await localesFor(db)
   for (const r of rows) {
     const days = Math.max(
       1,
@@ -46,7 +61,11 @@ export async function scanExpiring({
         userId: r.resellerId,
         event: 'expiring',
         dedupeKey: `expiring:${r.id}:${day(r.expireAt!)}`,
-        text: `⏰ اشتراک ${r.marzbanUsername} حدود ${days.toLocaleString('fa-IR')} روز دیگر منقضی می‌شود.`,
+        text: tl(
+          locales.get(r.resellerId) ?? 'fa',
+          `⏰ اشتراک ${r.marzbanUsername} حدود ${days.toLocaleString('fa-IR')} روز دیگر منقضی می‌شود.`,
+          `⏰ ${r.marzbanUsername} expires in about ${tn('en', days)} days.`,
+        ),
       },
       { db, now },
     )
@@ -72,6 +91,7 @@ export async function scanLowTraffic({
       ),
     )
   let queued = 0
+  const locales = await localesFor(db)
   for (const r of rows) {
     const percent = Math.min(
       100,
@@ -82,7 +102,11 @@ export async function scanLowTraffic({
         userId: r.resellerId,
         event: 'low_traffic',
         dedupeKey: `lowtraffic:${r.id}:${r.dataLimitBytes}:${r.expireAt ? day(r.expireAt) : 'none'}`,
-        text: `📶 ${r.marzbanUsername} ${percent.toLocaleString('fa-IR')}٪ از حجم خود را مصرف کرده است.`,
+        text: tl(
+          locales.get(r.resellerId) ?? 'fa',
+          `📶 ${r.marzbanUsername} ${percent.toLocaleString('fa-IR')}٪ از حجم خود را مصرف کرده است.`,
+          `📶 ${r.marzbanUsername} has used ${tn('en', percent)}% of its data allowance.`,
+        ),
       },
       { db, now },
     )
@@ -111,6 +135,7 @@ export async function scanLowWallet({
     )
   const week = Math.floor(now.getTime() / (7 * DAY))
   let queued = 0
+  const locales = await localesFor(db)
   for (const s of sellers) {
     const net =
       (await getBalance(s.id, db)) - (await getOutstandingToman(s.id, db))
@@ -120,7 +145,11 @@ export async function scanLowWallet({
         userId: s.id,
         event: 'low_wallet',
         dedupeKey: `lowwallet:${s.id}:${week}`,
-        text: `💰 موجودی کیف پول شما کم است (${toman(net)}). برای ادامه فروش آن را شارژ کنید.`,
+        text: tl(
+          locales.get(s.id) ?? 'fa',
+          `💰 موجودی کیف پول شما کم است (${toman(net)}). برای ادامه فروش آن را شارژ کنید.`,
+          `💰 Your wallet balance is low (${tn('en', net)} toman). Add funds to keep selling.`,
+        ),
       },
       { db, now },
     )

@@ -3,6 +3,8 @@
 Roles: **admin** (runs the panel) and **reseller / seller** (sells to customers). Customers have no account; they use a
 private link. Admins see all data; sellers only ever see their own, enforced on the server for every request.
 
+The Telegram bot supports Persian and English menus, guided actions, and alerts. It starts in the language reported by Telegram when the account is linked. Send `/language` or tap **Language / زبان** in the main menu to change it; the choice is saved for that Telegram connection.
+
 ## Users, billing and the wallet
 
 **Selling.** A seller creates a customer (name is prefixed with the seller's suffix: `<suffix>_<name>`), renews it,

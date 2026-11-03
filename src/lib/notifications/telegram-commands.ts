@@ -1,8 +1,9 @@
 import { call } from '@orpc/server'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 
 import { router } from '#/orpc/router'
-import { user } from '#/db/schema'
+import { user, telegramLinks } from '#/db/schema'
+import { tl, type TelegramLocale } from './telegram-locale'
 import type { AppContext } from '#/orpc/middleware'
 import {
   cancelTelegramConfirmation,
@@ -335,39 +336,78 @@ function parseAction(text: string, role: string) {
   }
 }
 
-export const telegramMenu = (role: string, ownBot: boolean) =>
-  [
-    'دستورهای ربات:',
-    '/dashboard — خلاصه پنل',
-    '/users [جستجو] — فهرست کاربران',
-    '/status نام‌کاربری — وضعیت کاربر',
-    '/wallet — کیف پول',
-    '/billing — گزارش مالی',
-    '/renewals — درخواست‌های تمدید',
-    '/create نام‌کاربری گیگابایت روز — ساخت کاربر',
-    '/renew نام‌کاربری روز حجم‌افزوده — تمدید',
-    '/disable|/enable نام‌کاربری — فعال یا غیرفعال‌کردن',
-    '/reset نام‌کاربری — صفرکردن مصرف',
-    '/revoke نام‌کاربری — باطل‌کردن لینک اشتراک',
-    ...(role === 'admin'
-      ? [
-          '/archive نام‌کاربری — آرشیو کاربر',
-          '/resellers — فهرست نمایندگان',
-          '/suspend|/resume شناسه‌نماینده — مدیریت نماینده',
-          '/settle شناسه‌مالی — تسویه',
-          '/adjust شناسه credit|debit مبلغ دلیل — اصلاح کیف پول',
-          '/balance شناسه موجودی — تنظیم موجودی',
-          '/limits شناسه تعداد گیگ — تنظیم سقف‌ها',
-        ]
-      : []),
-    '/approve|/reject شناسه‌درخواست — تصمیم تمدید',
-    '/diag — تشخیص مشکل دکمه‌ها و وب‌هوک',
-    '/cancel — انصراف از عملیات جاری',
-    '/unlink — قطع اتصال تلگرام',
-    ownBot ? 'این ربات به حساب شما متصل است.' : '',
-  ]
-    .filter(Boolean)
-    .join('\n')
+export const telegramMenu = (
+  role: string,
+  ownBot: boolean,
+  locale: TelegramLocale = 'fa',
+) =>
+  locale === 'en'
+    ? [
+        'Bot commands:',
+        '/dashboard — Panel overview',
+        '/users [search] — List users',
+        '/status username — User status',
+        '/wallet — Wallet',
+        '/billing — Billing',
+        '/renewals — Renewal requests',
+        '/create username GB days — Create user',
+        '/renew username days extra-GB — Renew user',
+        '/disable|/enable username — Change status',
+        '/reset username — Reset usage',
+        '/revoke username — Revoke subscription',
+        ...(role === 'admin'
+          ? [
+              '/archive username — Archive user',
+              '/resellers — List resellers',
+              '/suspend|/resume reseller-id — Manage reseller',
+              '/settle billing-id — Settle billing',
+              '/adjust id credit|debit amount reason — Adjust wallet',
+              '/balance id amount — Set balance',
+              '/limits id users GB — Set limits',
+            ]
+          : []),
+        '/approve|/reject request-id — Decide renewal',
+        '/diag — Diagnose buttons and webhook',
+        '/language — Change language',
+        '/cancel — Cancel current operation',
+        '/unlink — Disconnect Telegram',
+        ownBot ? 'This bot is connected to your account.' : '',
+      ]
+        .filter(Boolean)
+        .join('\n')
+    : [
+        'دستورهای ربات:',
+        '/dashboard — خلاصه پنل',
+        '/users [جستجو] — فهرست کاربران',
+        '/status نام‌کاربری — وضعیت کاربر',
+        '/wallet — کیف پول',
+        '/billing — گزارش مالی',
+        '/renewals — درخواست‌های تمدید',
+        '/create نام‌کاربری گیگابایت روز — ساخت کاربر',
+        '/renew نام‌کاربری روز حجم‌افزوده — تمدید',
+        '/disable|/enable نام‌کاربری — فعال یا غیرفعال‌کردن',
+        '/reset نام‌کاربری — صفرکردن مصرف',
+        '/revoke نام‌کاربری — باطل‌کردن لینک اشتراک',
+        ...(role === 'admin'
+          ? [
+              '/archive نام‌کاربری — آرشیو کاربر',
+              '/resellers — فهرست نمایندگان',
+              '/suspend|/resume شناسه‌نماینده — مدیریت نماینده',
+              '/settle شناسه‌مالی — تسویه',
+              '/adjust شناسه credit|debit مبلغ دلیل — اصلاح کیف پول',
+              '/balance شناسه موجودی — تنظیم موجودی',
+              '/limits شناسه تعداد گیگ — تنظیم سقف‌ها',
+            ]
+          : []),
+        '/approve|/reject شناسه‌درخواست — تصمیم تمدید',
+        '/diag — تشخیص مشکل دکمه‌ها و وب‌هوک',
+        '/language — تغییر زبان',
+        '/cancel — انصراف از عملیات جاری',
+        '/unlink — قطع اتصال تلگرام',
+        ownBot ? 'این ربات به حساب شما متصل است.' : '',
+      ]
+        .filter(Boolean)
+        .join('\n')
 
 async function invoke(action: CommandAction, actor: Actor) {
   const procedure = commandProcedures[action.command]
@@ -391,29 +431,32 @@ function renderRead(
   result: any,
   role: string,
   o: ReadOptions = {},
+  locale: TelegramLocale = 'fa',
 ): Screen {
   switch (command) {
     case 'dashboard':
-      return dashboardScreen(result)
+      return dashboardScreen(result, locale)
     case 'users': {
       if (!o.username)
-        return userListScreen(result, { view: o.view, query: o.query })
+        return userListScreen(result, { view: o.view, query: o.query }, locale)
       const row = (result?.items ?? []).find(
         (r: any) => r.marzbanUsername === o.username,
       )
-      return row ? userCardScreen(row, role) : backHome('کاربر پیدا نشد.')
+      return row
+        ? userCardScreen(row, role, new Date(), locale)
+        : backHome(tl(locale, 'کاربر پیدا نشد.', 'User not found.'), [], locale)
     }
     case 'wallet':
     case 'resellerWallet':
-      return walletScreen(result)
+      return walletScreen(result, locale)
     case 'billing':
-      return billingScreen(Array.isArray(result) ? result : [], role)
+      return billingScreen(Array.isArray(result) ? result : [], role, locale)
     case 'renewals':
-      return renewalsScreen(result ?? [])
+      return renewalsScreen(result ?? [], locale)
     case 'resellers':
-      return resellersScreen(result ?? [], o.page)
+      return resellersScreen(result ?? [], o.page, locale)
     default:
-      return backHome('انجام شد.')
+      return backHome(tl(locale, 'انجام شد.', 'Done.'), [], locale)
   }
 }
 
@@ -434,6 +477,7 @@ const scope = (actor: Actor) => ({
 
 const flowCtx = (actor: Actor, role: string): FlowCtx => ({
   role,
+  locale: actor.locale ?? 'fa',
   invoke: (command, input) => invoke({ command, input }, actor),
 })
 
@@ -447,6 +491,7 @@ async function askConfirmation(
   actor: Actor,
   { db, send, now = new Date() }: Ctx,
 ) {
+  if (actor.locale === 'en') summary = englishActionSummary(action)
   const confirmation = await createTelegramConfirmation(
     {
       ...scope(actor),
@@ -455,7 +500,36 @@ async function askConfirmation(
     },
     { db, now },
   )
-  return showScreen(send, confirmScreen(summary, confirmation.token))
+  return showScreen(
+    send,
+    confirmScreen(summary, confirmation.token, actor.locale),
+  )
+}
+
+function englishActionSummary(action: CommandAction) {
+  const input = (action.input ?? {}) as Record<string, any>
+  const target =
+    input.username ?? input.resellerId ?? input.id ?? input.eventId ?? ''
+  const names: Record<string, string> = {
+    create: 'Create user',
+    update: 'Update user',
+    renew: 'Renew user',
+    archive: 'Archive user',
+    reset: 'Reset usage for',
+    revoke: 'Revoke subscription for',
+    createLink: 'Create customer link for',
+    approve: 'Approve renewal',
+    reject: 'Reject renewal',
+    settle: 'Settle billing row',
+    claimPaid: 'Mark payment for',
+    suspend: 'Suspend reseller',
+    resume: 'Resume reseller',
+    adjust: 'Adjust reseller credit',
+    balance: 'Set reseller balance',
+    limits: 'Update reseller limits',
+    contact: 'Update contact for',
+  }
+  return `${names[action.command] ?? 'Apply action'} ${target}`.trim()
 }
 
 /** What the user sees once a confirmed action has run. */
@@ -465,30 +539,47 @@ function renderResult(
   result: any,
   summary: string | undefined,
   role: string,
+  locale: TelegramLocale = 'fa',
 ): Screen {
   if (command === 'create' && result?.marzbanUsername) {
-    const card = userCardScreen(result, role)
+    const card = userCardScreen(result, role, new Date(), locale)
     const link = result.subscriptionUrl
-      ? `\n\n📋 لینک اشتراک:\n<code>${esc(result.subscriptionUrl)}</code>`
+      ? `\n\n${tl(locale, '📋 لینک اشتراک:', '📋 Subscription link:')}\n<code>${esc(result.subscriptionUrl)}</code>`
       : ''
-    return { ...card, text: `✅ <b>کاربر ساخته شد</b>\n\n${card.text}${link}` }
+    return {
+      ...card,
+      text: `✅ <b>${tl(locale, 'کاربر ساخته شد', 'User created')}</b>\n\n${card.text}${link}`,
+    }
   }
   const username = input?.username as string | undefined
   if (command === 'createLink' && result?.url)
     return backHome(
-      `🌐 <b>صفحه مشتری ${esc(username)}</b>\n<code>${esc(result.url)}</code>\n\nلینک قبلی باطل شد. این لینک را برای مشتری بفرستید.`,
+      `🌐 <b>${tl(locale, 'صفحه مشتری', 'Customer page')} ${esc(username)}</b>\n<code>${esc(result.url)}</code>\n\n${tl(locale, 'لینک قبلی باطل شد. این لینک را برای مشتری بفرستید.', 'The previous link was revoked. Send this link to the customer.')}`,
       [
-        username ? { text: '👤 مشاهده کاربر', data: `u:${username}` } : null,
+        username
+          ? {
+              text: tl(locale, '👤 مشاهده کاربر', '👤 View user'),
+              data: `u:${username}`,
+            }
+          : null,
       ].filter(Boolean) as any,
+      locale,
     )
   const target = username
-    ? { text: '👤 مشاهده کاربر', data: `u:${username}` }
+    ? {
+        text: tl(locale, '👤 مشاهده کاربر', '👤 View user'),
+        data: `u:${username}`,
+      }
     : input?.resellerId
-      ? { text: '🏪 مشاهده نماینده', data: `r:${input.resellerId}` }
+      ? {
+          text: tl(locale, '🏪 مشاهده نماینده', '🏪 View reseller'),
+          data: `r:${input.resellerId}`,
+        }
       : null
   return backHome(
-    `✅ <b>انجام شد</b>${summary ? `\n${esc(summary)}` : ''}`,
+    `✅ <b>${tl(locale, 'انجام شد', 'Done')}</b>${summary ? `\n${esc(summary)}` : ''}`,
     target ? [target] : [],
+    locale,
   )
 }
 
@@ -502,7 +593,18 @@ async function runConfirmation(
     now,
   })
   if (!confirmation)
-    return showScreen(send, backHome('⌛️ این تأیید منقضی یا نامعتبر است.'))
+    return showScreen(
+      send,
+      backHome(
+        tl(
+          actor.locale ?? 'fa',
+          '⌛️ این تأیید منقضی یا نامعتبر است.',
+          '⌛️ This confirmation is expired or invalid.',
+        ),
+        [],
+        actor.locale,
+      ),
+    )
   const { command, input, summary } = confirmation.payload as {
     command: string
     input?: unknown
@@ -510,7 +612,12 @@ async function runConfirmation(
   }
   const result = await invoke({ command, input } as CommandAction, actor)
   const role = await roleOf(actor, db)
-  return showScreen(send, renderResult(command, input, result, summary, role))
+  const displaySummary =
+    actor.locale === 'en' ? englishActionSummary({ command, input }) : summary
+  return showScreen(
+    send,
+    renderResult(command, input, result, displaySummary, role, actor.locale),
+  )
 }
 
 /** Persist the flow's position and show the next question, retry, or confirmation. */
@@ -522,13 +629,22 @@ async function applyAdvance(
   ctx: Ctx,
 ) {
   const { db, send, now = new Date() } = ctx
-  if (!advance) return showScreen(send, backHome('درخواست نامعتبر است.'))
+  if (!advance)
+    return showScreen(
+      send,
+      backHome(
+        tl(actor.locale ?? 'fa', 'درخواست نامعتبر است.', 'Invalid request.'),
+        [],
+        actor.locale,
+      ),
+    )
   if (advance.kind === 'retry')
     return showScreen(
       send,
       askScreen(
         `⚠️ ${esc(advance.message)}\n\n${advance.ask.text}`,
         advance.ask.choices,
+        actor.locale,
       ),
     )
   if (advance.kind === 'ask') {
@@ -537,7 +653,10 @@ async function applyAdvance(
       { flow: name, stepIndex: advance.stepIndex, data: advance.data },
       { db, now },
     )
-    return showScreen(send, askScreen(advance.ask.text, advance.ask.choices))
+    return showScreen(
+      send,
+      askScreen(advance.ask.text, advance.ask.choices, actor.locale),
+    )
   }
   await clearFlow(scope(actor), db)
   const done = advance.done
@@ -548,7 +667,13 @@ async function applyAdvance(
     )
     return showScreen(
       send,
-      renderRead(done.command, result, role, { query: done.query }),
+      renderRead(
+        done.command,
+        result,
+        role,
+        { query: done.query },
+        actor.locale,
+      ),
     )
   }
   return askConfirmation(
@@ -568,7 +693,14 @@ async function startFlow(
 ) {
   const adminOnly = ['adjust', 'balance', 'limits']
   if (adminOnly.includes(name) && role !== 'admin')
-    return showScreen(ctx.send, backHome('این بخش فقط برای مدیر است.'))
+    return showScreen(
+      ctx.send,
+      backHome(
+        tl(actor.locale ?? 'fa', 'این بخش فقط برای مدیر است.', 'Admins only.'),
+        [],
+        actor.locale,
+      ),
+    )
   return applyAdvance(
     name,
     await beginFlow(name, arg, flowCtx(actor, role)),
@@ -589,7 +721,15 @@ async function continueFlow(
   if (!state)
     return showScreen(
       ctx.send,
-      backHome('⌛️ این مرحله منقضی شده است. دوباره از منو شروع کنید.'),
+      backHome(
+        tl(
+          actor.locale ?? 'fa',
+          '⌛️ این مرحله منقضی شده است. دوباره از منو شروع کنید.',
+          '⌛️ This step expired. Start again from the menu.',
+        ),
+        [],
+        actor.locale,
+      ),
     )
   const fc = flowCtx(actor, role)
   let answer: string
@@ -598,7 +738,18 @@ async function continueFlow(
     const ask = await currentAsk(state.flow, state.stepIndex, state.data, fc)
     const choice = ask?.choices?.[raw.index]
     if (!choice)
-      return showScreen(ctx.send, backHome('این گزینه دیگر معتبر نیست.'))
+      return showScreen(
+        ctx.send,
+        backHome(
+          tl(
+            actor.locale ?? 'fa',
+            'این گزینه دیگر معتبر نیست.',
+            'This option is no longer valid.',
+          ),
+          [],
+          actor.locale,
+        ),
+      )
     answer = choice.value
   }
   return applyAdvance(
@@ -611,7 +762,12 @@ async function continueFlow(
 }
 
 /** Lets the owner see why buttons might be dead without shell access; repairs the one known cause. */
-async function diagnose(bot: TelegramBot, send: Reply, now: Date) {
+async function diagnose(
+  bot: TelegramBot,
+  send: Reply,
+  now: Date,
+  locale: TelegramLocale = 'fa',
+) {
   const api = createTelegramNotifier(bot.botToken)
   const info = await api.call('getWebhookInfo', {})
   const hook = (info.result ?? {}) as {
@@ -647,6 +803,22 @@ async function diagnose(bot: TelegramBot, send: Reply, now: Date) {
       ? `آخرین دکمه رسیده به سرور: <code>${esc(tap.data)}</code> (${Math.round((now.getTime() - tap.at.getTime()) / 1000)} ثانیه پیش)`
       : 'آخرین دکمه رسیده به سرور: هرگز (از آخرین راه‌اندازی)',
   ]
+  if (locale === 'en') {
+    const translated = [
+      '🩺 <b>Bot diagnostics</b>',
+      '',
+      `Webhook: ${hook.url === expected ? '✅ Correct' : `❌ ${esc(hook.url || 'Not set')}`}`,
+      `Buttons (callback_query): ${buttonsAllowed ? '✅ Enabled' : repaired ? '🔧 Repaired; tap the button again' : '❌ Disabled'}`,
+      `Pending updates: ${hook.pending_update_count ?? 0}`,
+      hook.last_error_message
+        ? `Last delivery error: ${esc(hook.last_error_message)}`
+        : 'Last delivery error: —',
+      tap
+        ? `Last button received: <code>${esc(tap.data)}</code> (${Math.round((now.getTime() - tap.at.getTime()) / 1000)} seconds ago)`
+        : 'Last button received: Never since restart',
+    ]
+    return showScreen(send, backHome(translated.join('\n'), [], locale))
+  }
   return showScreen(send, backHome(lines.join('\n')))
 }
 
@@ -658,18 +830,41 @@ export async function routeTelegramCommand(
 ) {
   const [word, token] = words(text)
   const ctx = { db, send, now }
+  const locale = actor.locale ?? 'fa'
+  const languageScreen = (): Screen => ({
+    text: tl(
+      locale,
+      '🌐 <b>زبان ربات</b>\nزبان دلخواه را انتخاب کنید:',
+      '🌐 <b>Bot language</b>\nChoose your language:',
+    ),
+    keyboard: [
+      [
+        { text: 'فارسی', data: 'lang:fa' },
+        { text: 'English', data: 'lang:en' },
+      ],
+      [{ text: tl(locale, '🏠 منوی اصلی', '🏠 Main menu'), data: 'm:home' }],
+    ],
+  })
+  if (word === '/language') return showScreen(send, languageScreen())
   if (word === '/unlink') {
     await auditBotAction(actor.userId, 'unlink', db)
     await clearFlow(scope(actor), db)
     await unlinkTelegram(actor.userId, db)
-    return send('اتصال تلگرام قطع شد.')
+    return send(tl(locale, 'اتصال تلگرام قطع شد.', 'Telegram disconnected.'))
   }
-  if (word === '/diag') return diagnose(bot, send, now)
+  if (word === '/diag') return diagnose(bot, send, now, locale)
   if (word === '/confirm' && token) return runConfirmation(token, actor, ctx)
   if (word === '/cancel') {
     if (token) await cancelTelegramConfirmation(token, scope(actor), db)
     await clearFlow(scope(actor), db)
-    return showScreen(send, backHome('✖️ عملیات لغو شد.'))
+    return showScreen(
+      send,
+      backHome(
+        tl(locale, '✖️ عملیات لغو شد.', '✖️ Operation cancelled.'),
+        [],
+        locale,
+      ),
+    )
   }
 
   const role = await roleOf(actor, db)
@@ -681,21 +876,31 @@ export async function routeTelegramCommand(
     await clearFlow(scope(actor), db)
   }
   const parsed = parseAction(text, role)
-  if (!parsed) return showScreen(send, mainMenu(role))
+  if (!parsed) return showScreen(send, mainMenu(role, locale))
   if ('help' in parsed)
     return showScreen(
       send,
-      backHome(esc(telegramMenu(role, bot.kind === 'reseller'))),
+      backHome(
+        esc(telegramMenu(role, bot.kind === 'reseller', locale)),
+        [],
+        locale,
+      ),
     )
   if ('read' in parsed && parsed.read) {
     const result = await invoke(parsed.read, actor)
     const input = parsed.read.input as { q?: string } | undefined
     return showScreen(
       send,
-      renderRead(String(parsed.read.command), result, role, {
-        username: parsed.findUsername,
-        query: parsed.findUsername ? undefined : input?.q,
-      }),
+      renderRead(
+        String(parsed.read.command),
+        result,
+        role,
+        {
+          username: parsed.findUsername,
+          query: parsed.findUsername ? undefined : input?.q,
+        },
+        locale,
+      ),
     )
   }
   if ('action' in parsed)
@@ -709,20 +914,49 @@ export async function handleTelegramCallback(
   { db, send, now = new Date() }: Ctx,
 ) {
   const ctx = { db, send, now }
+  const locale = actor.locale ?? 'fa'
   const [verb, ...rest] = data.split(':')
   const arg = rest.join(':')
+  if (verb === 'lang' && (arg === 'fa' || arg === 'en')) {
+    await db
+      .update(telegramLinks)
+      .set({ locale: arg })
+      .where(
+        and(
+          eq(telegramLinks.userId, actor.userId),
+          eq(telegramLinks.chatId, actor.chatId),
+          eq(telegramLinks.botId, actor.botId),
+        ),
+      )
+    await clearFlow(scope(actor), db)
+    await auditBotAction(actor.userId, `language/${arg}`, db)
+    return showScreen(send, mainMenu(await roleOf(actor, db), arg))
+  }
   if (verb === 'noop') return
   if (verb === 'confirm' && arg) return runConfirmation(arg, actor, ctx)
   if (verb === 'cancel' && arg) {
     await cancelTelegramConfirmation(arg, scope(actor), db)
-    return showScreen(send, backHome('✖️ درخواست لغو شد.'))
+    return showScreen(
+      send,
+      backHome(
+        tl(locale, '✖️ درخواست لغو شد.', '✖️ Request cancelled.'),
+        [],
+        locale,
+      ),
+    )
   }
 
   const role = await roleOf(actor, db)
   const read = async (command: string, input?: unknown, opts?: ReadOptions) =>
     showScreen(
       send,
-      renderRead(command, await invoke({ command, input }, actor), role, opts),
+      renderRead(
+        command,
+        await invoke({ command, input }, actor),
+        role,
+        opts,
+        locale,
+      ),
     )
   const owned = async (username: string) => {
     const result = (await invoke(
@@ -737,7 +971,14 @@ export async function handleTelegramCallback(
   if (verb === 'f') {
     if (arg === 'x') {
       await clearFlow(scope(actor), db)
-      return showScreen(send, backHome('✖️ عملیات لغو شد.'))
+      return showScreen(
+        send,
+        backHome(
+          tl(locale, '✖️ عملیات لغو شد.', '✖️ Operation cancelled.'),
+          [],
+          locale,
+        ),
+      )
     }
     return continueFlow({ index: Number(arg) }, actor, role, ctx)
   }
@@ -755,11 +996,29 @@ export async function handleTelegramCallback(
     const [target, page] = arg.split(':')
     switch (target) {
       case 'home':
-        return showScreen(send, mainMenu(role))
+        return showScreen(send, mainMenu(role, locale))
+      case 'language':
+        return showScreen(send, {
+          text: tl(
+            locale,
+            '🌐 <b>زبان ربات</b>\nزبان دلخواه را انتخاب کنید:',
+            '🌐 <b>Bot language</b>\nChoose your language:',
+          ),
+          keyboard: [
+            [
+              { text: 'فارسی', data: 'lang:fa' },
+              { text: 'English', data: 'lang:en' },
+            ],
+          ],
+        })
       case 'help':
         return showScreen(
           send,
-          backHome(esc(telegramMenu(role, actor.botOwnerId !== null))),
+          backHome(
+            esc(telegramMenu(role, actor.botOwnerId !== null, locale)),
+            [],
+            locale,
+          ),
         )
       case 'dash':
         return read('dashboard', {})
@@ -792,14 +1051,26 @@ export async function handleTelegramCallback(
     const row = await owned(arg)
     return showScreen(
       send,
-      row ? userCardScreen(row, role) : backHome('کاربر پیدا نشد.'),
+      row
+        ? userCardScreen(row, role, new Date(), locale)
+        : backHome(
+            tl(locale, 'کاربر پیدا نشد.', 'User not found.'),
+            [],
+            locale,
+          ),
     )
   }
   if (verb === 's' && arg) {
     const row = await owned(arg)
     return showScreen(
       send,
-      row ? subscriptionScreen(row) : backHome('کاربر پیدا نشد.'),
+      row
+        ? subscriptionScreen(row, locale)
+        : backHome(
+            tl(locale, 'کاربر پیدا نشد.', 'User not found.'),
+            [],
+            locale,
+          ),
     )
   }
   if (verb === 'a') {
@@ -807,7 +1078,14 @@ export async function handleTelegramCallback(
     const username = nameParts.join(':')
     const spec = USER_ACTIONS[code ?? '']
     if (!spec || !username || (spec.adminOnly && role !== 'admin'))
-      return showScreen(send, backHome('درخواست نامعتبر است.'))
+      return showScreen(
+        send,
+        backHome(
+          tl(locale, 'درخواست نامعتبر است.', 'Invalid request.'),
+          [],
+          locale,
+        ),
+      )
     return askConfirmation(
       { command: spec.command, input: { ...spec.input, username } },
       `${spec.label} ${username}`,
@@ -824,7 +1102,14 @@ export async function handleTelegramCallback(
     )
   if ((verb === 'bs' || verb === 'bc') && arg) {
     if (verb === 'bs' && role !== 'admin')
-      return showScreen(send, backHome('این بخش فقط برای مدیر است.'))
+      return showScreen(
+        send,
+        backHome(
+          tl(locale, 'این بخش فقط برای مدیر است.', 'Admins only.'),
+          [],
+          locale,
+        ),
+      )
     return askConfirmation(
       {
         command: verb === 'bs' ? 'settle' : 'claimPaid',
@@ -836,21 +1121,43 @@ export async function handleTelegramCallback(
     )
   }
   if ((verb === 'r' || verb === 'x') && role !== 'admin')
-    return showScreen(send, backHome('این بخش فقط برای مدیر است.'))
+    return showScreen(
+      send,
+      backHome(
+        tl(locale, 'این بخش فقط برای مدیر است.', 'Admins only.'),
+        [],
+        locale,
+      ),
+    )
   if (verb === 'r' && arg) {
     const list = (await invoke({ command: 'resellers' }, actor)) as any[]
     const reseller = list.find((r) => r.id === arg)
-    if (!reseller) return showScreen(send, backHome('نماینده پیدا نشد.'))
+    if (!reseller)
+      return showScreen(
+        send,
+        backHome(
+          tl(locale, 'نماینده پیدا نشد.', 'Reseller not found.'),
+          [],
+          locale,
+        ),
+      )
     const snap = await invoke(
       { command: 'resellerWallet', input: { resellerId: arg } },
       actor,
     )
-    return showScreen(send, resellerCardScreen(reseller, snap))
+    return showScreen(send, resellerCardScreen(reseller, snap, locale))
   }
   if (verb === 'x') {
     const [code, id] = [arg.split(':')[0], arg.split(':').slice(1).join(':')]
     if ((code !== 'sus' && code !== 'res') || !id)
-      return showScreen(send, backHome('درخواست نامعتبر است.'))
+      return showScreen(
+        send,
+        backHome(
+          tl(locale, 'درخواست نامعتبر است.', 'Invalid request.'),
+          [],
+          locale,
+        ),
+      )
     return askConfirmation(
       {
         command: code === 'sus' ? 'suspend' : 'resume',
@@ -861,5 +1168,12 @@ export async function handleTelegramCallback(
       ctx,
     )
   }
-  return showScreen(send, backHome('درخواست نامعتبر است.'))
+  return showScreen(
+    send,
+    backHome(
+      tl(locale, 'درخواست نامعتبر است.', 'Invalid request.'),
+      [],
+      locale,
+    ),
+  )
 }

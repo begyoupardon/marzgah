@@ -1,9 +1,10 @@
 import { and, desc, eq } from 'drizzle-orm'
 
 import { db as defaultDb } from '#/db'
-import { renewalRequests, vpnUsers } from '#/db/schema'
+import { renewalRequests, vpnUsers, telegramLinks } from '#/db/schema'
 import type { Db } from '#/db/types'
 import { enqueue } from '#/lib/notifications/outbox'
+import { tl } from '#/lib/notifications/telegram-locale'
 
 type Deps = { db?: Db; now?: Date }
 
@@ -72,14 +73,27 @@ export async function requestRenewal(
     throw new RenewalError('A request is already waiting', 'ALREADY_PENDING')
   }
   try {
+    const [link] = await db
+      .select({ locale: telegramLinks.locale })
+      .from(telegramLinks)
+      .where(eq(telegramLinks.userId, target.resellerId))
+      .limit(1)
     await enqueue(
       {
         userId: target.resellerId,
         event: 'renewal_requested',
         dedupeKey: `renewal-requested:${id}`,
         text: legacy
-          ? `🔁 ${target.marzbanUsername} درخواست تمدید ${input.months!.toLocaleString('fa-IR')} ماهه داده است.`
-          : `🔁 ${target.marzbanUsername} درخواست تمدید ${input.durationDays!.toLocaleString('fa-IR')} روزه داده است.`,
+          ? tl(
+              link?.locale ?? 'fa',
+              `🔁 ${target.marzbanUsername} درخواست تمدید ${input.months!.toLocaleString('fa-IR')} ماهه داده است.`,
+              `🔁 ${target.marzbanUsername} requested a ${input.months} month renewal.`,
+            )
+          : tl(
+              link?.locale ?? 'fa',
+              `🔁 ${target.marzbanUsername} درخواست تمدید ${input.durationDays!.toLocaleString('fa-IR')} روزه داده است.`,
+              `🔁 ${target.marzbanUsername} requested a ${input.durationDays} day renewal.`,
+            ),
       },
       { db, now },
     )

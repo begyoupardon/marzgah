@@ -15,6 +15,7 @@ import type { Db } from '#/db/types'
 import { getEnv } from '#/lib/env'
 import { createRateLimiter } from '#/lib/rate-limit'
 import { mainMenu, type Keyboard } from './telegram-ui'
+import { telegramLocale, tl, type TelegramLocale } from './telegram-locale'
 import { decryptJson, encryptJson, getSetting } from '#/lib/settings'
 import type { Notifier, SendResult } from './types'
 
@@ -163,6 +164,20 @@ export const BOT_COMMANDS = [
   { command: 'cancel', description: 'انصراف از عملیات جاری' },
   { command: 'help', description: 'راهنمای دستورها' },
   { command: 'diag', description: 'تشخیص مشکل ربات' },
+  { command: 'language', description: 'تغییر زبان' },
+]
+
+export const BOT_COMMANDS_EN = [
+  { command: 'menu', description: 'Main menu' },
+  { command: 'users', description: 'List users' },
+  { command: 'dashboard', description: 'Panel overview' },
+  { command: 'wallet', description: 'Wallet' },
+  { command: 'billing', description: 'Billing' },
+  { command: 'renewals', description: 'Renewal requests' },
+  { command: 'cancel', description: 'Cancel current action' },
+  { command: 'help', description: 'Command help' },
+  { command: 'diag', description: 'Bot diagnostics' },
+  { command: 'language', description: 'Change language' },
 ]
 
 /**
@@ -199,6 +214,10 @@ export async function repairBotWebhooks(
       | undefined
     if (!info.ok || hook?.url !== url) continue
     await api.call('setMyCommands', { commands: BOT_COMMANDS })
+    await api.call('setMyCommands', {
+      commands: BOT_COMMANDS_EN,
+      language_code: 'en',
+    })
     if (
       !hook.allowed_updates ||
       hook.allowed_updates.includes('callback_query')
@@ -474,7 +493,8 @@ export async function confirmLink(
     db = defaultDb,
     now = new Date(),
     botId,
-  }: { db?: Db; now?: Date; botId?: string } = {},
+    locale = 'fa',
+  }: { db?: Db; now?: Date; botId?: string; locale?: TelegramLocale } = {},
 ): Promise<{ userId: string } | null> {
   const hash = await sha256(code.trim().toUpperCase())
   const [row] = await db
@@ -499,10 +519,15 @@ export async function confirmLink(
     )
   await db
     .insert(telegramLinks)
-    .values({ userId: row.userId, chatId, botId: row.botId ?? botId ?? null })
+    .values({
+      userId: row.userId,
+      chatId,
+      botId: row.botId ?? botId ?? null,
+      locale,
+    })
     .onConflictDoUpdate({
       target: telegramLinks.userId,
-      set: { chatId, botId: row.botId ?? botId ?? null, linkedAt: now },
+      set: { chatId, botId: row.botId ?? botId ?? null, locale, linkedAt: now },
     })
   return { userId: row.userId }
 }
@@ -687,13 +712,13 @@ type Update = {
   update_id?: number
   message?: {
     text?: string
-    from?: { id: number }
+    from?: { id: number; language_code?: string }
     chat?: { id: number; type: string }
   }
   callback_query?: {
     id: string
     data?: string
-    from?: { id: number }
+    from?: { id: number; language_code?: string }
     message?: { message_id?: number; chat?: { id: number; type: string } }
   }
 }
@@ -756,6 +781,10 @@ export async function handleTelegramUpdate(
   const chat = update?.message?.chat
   const callback = update.callback_query
   const senderId = update?.message?.from?.id ?? callback?.from?.id
+  const requestLocale = telegramLocale(
+    update?.message?.from?.language_code ?? callback?.from?.language_code,
+  )
+  let responseLocale = requestLocale
   const activeChat = chat ?? callback?.message?.chat
   if (
     (!text && !callback?.data) ||
@@ -771,7 +800,11 @@ export async function handleTelegramUpdate(
     await send
       .send(
         String(activeChat.id),
-        'درخواست‌ها زیاد است. یک دقیقه دیگر دوباره تلاش کنید.',
+        tl(
+          requestLocale,
+          'درخواست‌ها زیاد است. یک دقیقه دیگر دوباره تلاش کنید.',
+          'Too many requests. Please try again in a minute.',
+        ),
       )
       .catch(() => {})
     return Response.json({ ok: true })
@@ -834,6 +867,7 @@ export async function handleTelegramUpdate(
         db,
         now,
         botId: bot.id,
+        locale: requestLocale,
       })
       let role = 'reseller'
       if (linked) {
@@ -850,33 +884,50 @@ export async function handleTelegramUpdate(
       if (!linked) {
         await send.send(
           chatId,
-          'کد نامعتبر یا منقضی شده است. در پنل دوباره کد بگیرید.',
+          tl(
+            requestLocale,
+            'کد نامعتبر یا منقضی شده است. در پنل دوباره کد بگیرید.',
+            'Invalid or expired code. Generate a new code in the panel.',
+          ),
         )
       } else if (send.call) {
         await send.send(
           chatId,
-          '✅ حساب شما متصل شد. اعلان‌ها از این پس اینجا ارسال می‌شود.',
+          tl(
+            requestLocale,
+            '✅ حساب شما متصل شد. اعلان‌ها از این پس اینجا ارسال می‌شود.',
+            '✅ Your account is connected. Notifications will appear here.',
+          ),
         )
-        const menu = mainMenu(role)
+        const menu = mainMenu(role, requestLocale)
         await sendRich(chatId, menu.text, menu.keyboard)
       } else {
         await send.send(
           chatId,
-          `✅ حساب شما متصل شد. اعلان‌ها از این پس اینجا ارسال می‌شود.\n\n${telegramMenu(role, bot.kind === 'reseller')}`,
+          `${tl(requestLocale, '✅ حساب شما متصل شد. اعلان‌ها از این پس اینجا ارسال می‌شود.', '✅ Your account is connected. Notifications will appear here.')}\n\n${telegramMenu(role, bot.kind === 'reseller', requestLocale)}`,
         )
       }
       return Response.json({ ok: true })
     }
 
     const [link] = await db
-      .select({ userId: telegramLinks.userId, botId: telegramLinks.botId })
+      .select({
+        userId: telegramLinks.userId,
+        botId: telegramLinks.botId,
+        locale: telegramLinks.locale,
+      })
       .from(telegramLinks)
       .where(eq(telegramLinks.chatId, String(senderId)))
       .limit(1)
+    if (link) responseLocale = link.locale
     if (!link || link.botId !== bot.id) {
       await send.send(
         String(activeChat.id),
-        'برای اتصال، از دکمه «اتصال تلگرام» داخل پنل استفاده کنید.',
+        tl(
+          requestLocale,
+          'برای اتصال، از دکمه «اتصال تلگرام» داخل پنل استفاده کنید.',
+          'To connect, use the Telegram connection button in the panel.',
+        ),
       )
       return Response.json({ ok: true })
     }
@@ -893,7 +944,11 @@ export async function handleTelegramUpdate(
     if (!permitted) {
       await send.send(
         String(activeChat.id),
-        'این ربات برای حساب شما مجاز نیست. از پنل ربات مناسب را متصل کنید.',
+        tl(
+          link.locale,
+          'این ربات برای حساب شما مجاز نیست. از پنل ربات مناسب را متصل کنید.',
+          'This bot is not available for your account. Connect the correct bot from the panel.',
+        ),
       )
       return Response.json({ ok: true })
     }
@@ -902,6 +957,7 @@ export async function handleTelegramUpdate(
       botId: bot.id,
       botOwnerId: bot.ownerUserId,
       chatId: String(activeChat.id),
+      locale: link.locale,
     }
     const { routeTelegramCommand, handleTelegramCallback } =
       await import('./telegram-commands')
@@ -932,7 +988,11 @@ export async function handleTelegramUpdate(
     await send
       .send(
         String(activeChat.id),
-        'انجام درخواست ممکن نشد. کمی بعد دوباره تلاش کنید.',
+        tl(
+          responseLocale,
+          'انجام درخواست ممکن نشد. کمی بعد دوباره تلاش کنید.',
+          'Could not complete the request. Please try again later.',
+        ),
       )
       .catch(() => {})
   }

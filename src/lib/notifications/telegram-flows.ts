@@ -8,10 +8,12 @@ import { localUsernameSchema } from '#/lib/reseller-naming'
 import { gbToBytes, MIN_DATA_LIMIT_GB } from '#/lib/vpn-plans'
 
 import { esc } from './telegram-ui'
+import type { TelegramLocale } from './telegram-locale'
 
 export type Data = Record<string, unknown>
 export type FlowCtx = {
   role: string
+  locale?: TelegramLocale
   invoke: (command: string, input?: unknown) => Promise<any>
 }
 export type Ask = {
@@ -411,6 +413,84 @@ export type Advance =
   | { kind: 'retry'; message: string; ask: Ask }
   | { kind: 'done'; done: Done }
 
+function localizeAsk(
+  name: string,
+  index: number,
+  data: Data,
+  ask: Ask,
+  locale: TelegramLocale = 'fa',
+): Ask {
+  if (locale !== 'en') return ask
+  const target = esc(data.username ?? '')
+  const prompts: Record<string, string[]> = {
+    create: [
+      '➕ <b>Create user</b>\nWhich reseller should own this user?',
+      '➕ <b>Create user</b>\nSend a username (English letters, numbers, - _ . @; up to 24 characters). The reseller suffix is added automatically.',
+      'Choose a data limit or send a number of GB (minimum 0.1):',
+      'Choose a subscription duration:',
+    ],
+    renew: [
+      `🔄 <b>Renew ${target}</b>\nChoose a duration:`,
+      'How many GB should be added? (0 = none; otherwise at least 0.1 GB)',
+    ],
+    limit: [
+      `📦 <b>Change data limit for ${target}</b>\nChoose the new total GB or send a number (minimum 0.1). Increasing data may incur a charge.`,
+    ],
+    note: [
+      `📝 <b>Note for ${target}</b>\nSend a note (up to 500 characters). Send - to clear it.`,
+    ],
+    contact: [
+      `📞 <b>Contact for ${target}</b>\nSend a phone number. Send - to clear it.`,
+      'Send the customer Telegram username without @. Send - to clear it.',
+    ],
+    search: [
+      '🔎 <b>Search</b>\nSend part of a username, note, phone number, or Telegram username:',
+    ],
+    adjust: [
+      '💰 <b>Adjust reseller credit</b>\nChoose the action:',
+      'Send the amount in toman:',
+      'Send a reason (3 to 200 characters):',
+    ],
+    balance: [
+      '⚖️ <b>Set balance</b>\nSend the target balance in toman:',
+      'Send a reason, or - to skip:',
+    ],
+    limits: [
+      '🧮 <b>Reseller limits</b>\nSend the maximum number of users (number or - for unlimited):',
+      'Send the maximum total GB (number or - for unlimited):',
+    ],
+  }
+  const choices = ask.choices?.map((choice) => ({
+    ...choice,
+    label: choice.label
+      .replace(/ روز$/, ' days')
+      .replace('بدون افزودن', 'No extra data')
+      .replace('➕ افزایش', '➕ Credit')
+      .replace('➖ کاهش', '➖ Debit')
+      .replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit))),
+  }))
+  return { text: prompts[name]?.[index] ?? ask.text, choices }
+}
+
+function localizeDone(done: Done, locale: TelegramLocale = 'fa'): Done {
+  if (locale !== 'en' || done.kind !== 'action') return done
+  const input = done.input as Record<string, any>
+  const target = input.username ?? input.resellerId ?? ''
+  const title: Record<string, string> = {
+    create: 'Create user',
+    renew: 'Renew user',
+    update: 'Update user',
+    contact: 'Update contact',
+    adjust: 'Adjust reseller credit',
+    balance: 'Set reseller balance',
+    limits: 'Update reseller limits',
+  }
+  return {
+    ...done,
+    summary: `${title[done.command] ?? 'Apply action'} ${target}`.trim(),
+  }
+}
+
 async function nextStep(def: FlowDef, from: number, data: Data, ctx: FlowCtx) {
   let i = from
   while (i < def.steps.length && def.steps[i]!.skip?.(data, ctx)) i++
@@ -428,12 +508,21 @@ export async function beginFlow(
   const data = (await def.start?.(arg, ctx)) ?? {}
   const index = await nextStep(def, 0, data, ctx)
   if (index >= def.steps.length)
-    return { kind: 'done', done: await def.finish(data, ctx) }
+    return {
+      kind: 'done',
+      done: localizeDone(await def.finish(data, ctx), ctx.locale),
+    }
   return {
     kind: 'ask',
     stepIndex: index,
     data,
-    ask: await def.steps[index]!.ask(data, ctx),
+    ask: localizeAsk(
+      name,
+      index,
+      data,
+      await def.steps[index]!.ask(data, ctx),
+      ctx.locale,
+    ),
   }
 }
 
@@ -445,7 +534,9 @@ export async function currentAsk(
   ctx: FlowCtx,
 ) {
   const step = FLOWS[name]?.steps[stepIndex]
-  return step ? step.ask(data, ctx) : null
+  return step
+    ? localizeAsk(name, stepIndex, data, await step.ask(data, ctx), ctx.locale)
+    : null
 }
 
 /** Feed an answer; returns the next question, a retry message, or the finished flow. */
@@ -465,18 +556,38 @@ export async function advanceFlow(
   } catch (error) {
     return {
       kind: 'retry',
-      message: error instanceof Error ? error.message : 'مقدار نامعتبر است.',
-      ask: await step.ask(data, ctx),
+      message:
+        ctx.locale === 'en'
+          ? 'Invalid value. Please try again.'
+          : error instanceof Error
+            ? error.message
+            : 'مقدار نامعتبر است.',
+      ask: localizeAsk(
+        name,
+        stepIndex,
+        data,
+        await step.ask(data, ctx),
+        ctx.locale,
+      ),
     }
   }
   const next = { ...data, [step.key]: value }
   const index = await nextStep(def, stepIndex + 1, next, ctx)
   if (index >= def.steps.length)
-    return { kind: 'done', done: await def.finish(next, ctx) }
+    return {
+      kind: 'done',
+      done: localizeDone(await def.finish(next, ctx), ctx.locale),
+    }
   return {
     kind: 'ask',
     stepIndex: index,
     data: next,
-    ask: await def.steps[index]!.ask(next, ctx),
+    ask: localizeAsk(
+      name,
+      index,
+      next,
+      await def.steps[index]!.ask(next, ctx),
+      ctx.locale,
+    ),
   }
 }

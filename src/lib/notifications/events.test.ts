@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 
 import { createTestDb } from '../../../test/helpers/db'
 import { makeReseller, makeVpnUser } from '../../../test/helpers/factories'
-import { notifications } from '#/db/schema'
+import { notifications, telegramLinks } from '#/db/schema'
 import { credit } from '#/lib/wallet'
 import {
   runAllScans,
@@ -17,6 +17,18 @@ const GB = 1024 ** 3
 const NOW = new Date('2026-06-01T00:00:00Z')
 const for_ = async (userId: string) =>
   await db.select().from(notifications).where(eq(notifications.userId, userId))
+
+it('sends English expiry alerts to a link set to English', async () => {
+  const owner = await makeReseller(db)
+  await db
+    .insert(telegramLinks)
+    .values({ userId: owner.id, chatId: 'english-alert', locale: 'en' })
+  await makeVpnUser(db, owner.id, {
+    expireAt: new Date('2026-06-03T00:00:00Z'),
+  })
+  expect(await scanExpiring({ db, now: NOW })).toBeGreaterThanOrEqual(1)
+  expect((await for_(owner.id))[0]?.text).toContain('expires in about')
+})
 
 it('warns once per expiry date for users ending within 3 days', async () => {
   const r = await makeReseller(db)

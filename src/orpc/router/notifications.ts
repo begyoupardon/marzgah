@@ -10,6 +10,7 @@ import {
   createLinkCode,
   createTelegramNotifier,
   BOT_COMMANDS,
+  BOT_COMMANDS_EN,
   getTelegramConfig,
   getPlatformTelegramBot,
   getResellerTelegramBot,
@@ -332,6 +333,9 @@ export const saveTelegramReseller = authed
     await createTelegramNotifier(saved.botToken)
       .call('setMyCommands', { commands: BOT_COMMANDS })
       .catch(() => {})
+    await createTelegramNotifier(saved.botToken)
+      .call('setMyCommands', { commands: BOT_COMMANDS_EN, language_code: 'en' })
+      .catch(() => {})
     await writeAuditLog({
       actorUserId: context.user.id,
       actorRole: 'reseller',
@@ -462,6 +466,9 @@ export const registerTelegramWebhook = adminOnly
     if (!set.ok)
       throw new ORPCError('BAD_GATEWAY', { message: 'ثبت وب‌هوک ناموفق بود' })
     await bot.call('setMyCommands', { commands: BOT_COMMANDS }).catch(() => {})
+    await bot
+      .call('setMyCommands', { commands: BOT_COMMANDS_EN, language_code: 'en' })
+      .catch(() => {})
     await writeAuditLog({
       actorUserId: context.user.id,
       actorRole: 'admin',

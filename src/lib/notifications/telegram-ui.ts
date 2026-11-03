@@ -3,6 +3,8 @@
  * Field names mirror what the router procedures actually return; the tests run
  * these against real procedure output, so a wrong name fails loudly.
  */
+import type { TelegramLocale } from './telegram-locale'
+import * as english from './telegram-ui-en'
 
 const GB = 1024 ** 3
 const DAY = 86_400_000
@@ -48,30 +50,44 @@ export function usageBar(used: number, limit: number | null, width = 10) {
   return `${'▓'.repeat(filled)}${'░'.repeat(width - filled)} ${fa(ratio * 100)}٪`
 }
 
-export const mainMenu = (role: string): Screen => ({
-  text: '🤖 <b>پنل مدیریت</b>\nیک گزینه را انتخاب کنید:',
-  keyboard: rows(
-    [btn('📊 داشبورد', 'm:dash'), btn('👥 کاربران', 'l:a:1')],
-    [btn('➕ ساخت کاربر', 'n:create'), btn('🔎 جستجو', 'n:search')],
-    role === 'admin'
-      ? [btn('🧾 مالی', 'm:billing'), btn('🔄 تمدیدها', 'm:renewals')]
-      : [btn('💰 کیف پول', 'm:wallet'), btn('🧾 مالی', 'm:billing')],
-    role === 'admin'
-      ? [btn('🏪 نمایندگان', 'm:resellers:1')]
-      : [btn('🔄 درخواست‌های تمدید', 'm:renewals')],
-    [btn('❓ راهنمای دستورها', 'm:help')],
-  ),
-})
+export const mainMenu = (
+  role: string,
+  locale: TelegramLocale = 'fa',
+): Screen =>
+  locale === 'en'
+    ? english.enMainMenu(role)
+    : {
+        text: '🤖 <b>پنل مدیریت</b>\nیک گزینه را انتخاب کنید:',
+        keyboard: rows(
+          [btn('📊 داشبورد', 'm:dash'), btn('👥 کاربران', 'l:a:1')],
+          [btn('➕ ساخت کاربر', 'n:create'), btn('🔎 جستجو', 'n:search')],
+          role === 'admin'
+            ? [btn('🧾 مالی', 'm:billing'), btn('🔄 تمدیدها', 'm:renewals')]
+            : [btn('💰 کیف پول', 'm:wallet'), btn('🧾 مالی', 'm:billing')],
+          role === 'admin'
+            ? [btn('🏪 نمایندگان', 'm:resellers:1')]
+            : [btn('🔄 درخواست‌های تمدید', 'm:renewals')],
+          [btn('🌐 زبان', 'm:language'), btn('❓ راهنمای دستورها', 'm:help')],
+        ),
+      }
 
 export const backHome = (
   text: string,
   extra: Array<Button | null> = [],
-): Screen => ({
-  text,
-  keyboard: rows(extra, [HOME]),
-})
+  locale: TelegramLocale = 'fa',
+): Screen =>
+  locale === 'en'
+    ? english.enBackHome(text, extra)
+    : {
+        text,
+        keyboard: rows(extra, [HOME]),
+      }
 
-export function dashboardScreen(result: any): Screen {
+export function dashboardScreen(
+  result: any,
+  locale: TelegramLocale = 'fa',
+): Screen {
+  if (locale === 'en') return english.enDashboard(result)
   const s = result?.stats
   if (!s) return backHome('خلاصه دریافت شد.')
   const risk = result?.atRisk
@@ -108,7 +124,9 @@ export const LIST_VIEWS: Record<
 export function userListScreen(
   result: any,
   { view = 'a', query }: { view?: string; query?: string } = {},
+  locale: TelegramLocale = 'fa',
 ): Screen {
+  if (locale === 'en') return english.enUserList(result, { view, query })
   const items: any[] = result?.items ?? []
   const page = result?.page ?? 1
   const pageCount = result?.pageCount ?? 1
@@ -157,7 +175,13 @@ const BILLING_LABEL: Record<string, string> = {
   claimed: '🟡 پرداخت اعلام‌شده',
 }
 
-export function userCardScreen(u: any, role: string, now = new Date()): Screen {
+export function userCardScreen(
+  u: any,
+  role: string,
+  now = new Date(),
+  locale: TelegramLocale = 'fa',
+): Screen {
+  if (locale === 'en') return english.enUserCard(u, role, now)
   const name = u.marzbanUsername as string
   const expire = u.expireAt ? new Date(u.expireAt) : null
   const left = expire
@@ -213,7 +237,11 @@ export function userCardScreen(u: any, role: string, now = new Date()): Screen {
   }
 }
 
-export function subscriptionScreen(u: any): Screen {
+export function subscriptionScreen(
+  u: any,
+  locale: TelegramLocale = 'fa',
+): Screen {
+  if (locale === 'en') return english.enSubscription(u)
   const url = u.subscriptionUrl as string | null
   const back = [btn('‹ بازگشت به کاربر', `u:${u.marzbanUsername}`)]
   if (!url) return backHome('این کاربر هنوز لینک اشتراک ندارد.', back)
@@ -223,7 +251,8 @@ export function subscriptionScreen(u: any): Screen {
   )
 }
 
-export function walletScreen(snap: any): Screen {
+export function walletScreen(snap: any, locale: TelegramLocale = 'fa'): Screen {
+  if (locale === 'en') return english.enWallet(snap)
   const entries: any[] = (snap?.entries ?? []).slice(0, 5)
   const lines = [
     '💰 <b>کیف پول</b>',
@@ -247,7 +276,12 @@ export function walletScreen(snap: any): Screen {
 const settleIcon = (r: any) =>
   r.settledAt ? '✅' : r.claimedPaidAt ? '🟡' : '💸'
 
-export function billingScreen(items: any[], role: string): Screen {
+export function billingScreen(
+  items: any[],
+  role: string,
+  locale: TelegramLocale = 'fa',
+): Screen {
+  if (locale === 'en') return english.enBilling(items, role)
   const open = items.filter((r) => !r.settledAt)
   if (!open.length) return backHome('🧾 همه ردیف‌های مالی تسویه شده‌اند ✅')
   const total = open.reduce((sum, r) => sum + Number(r.amountToman || 0), 0)
@@ -281,7 +315,11 @@ export function billingScreen(items: any[], role: string): Screen {
   }
 }
 
-export function renewalsScreen(items: any[]): Screen {
+export function renewalsScreen(
+  items: any[],
+  locale: TelegramLocale = 'fa',
+): Screen {
+  if (locale === 'en') return english.enRenewals(items)
   const shown = items.slice(0, 8)
   if (!shown.length) return backHome('🔄 درخواست تمدیدی نیست.')
   const days = (r: any) => r.durationDays || (r.months ?? 1) * 30
@@ -306,7 +344,12 @@ export function renewalsScreen(items: any[]): Screen {
 
 const RESELLER_PAGE = 8
 
-export function resellersScreen(items: any[], page = 1): Screen {
+export function resellersScreen(
+  items: any[],
+  page = 1,
+  locale: TelegramLocale = 'fa',
+): Screen {
+  if (locale === 'en') return english.enResellers(items, page)
   if (!items.length) return backHome('🏪 نماینده‌ای نیست.')
   const pageCount = Math.max(1, Math.ceil(items.length / RESELLER_PAGE))
   const p = Math.min(Math.max(1, page), pageCount)
@@ -334,7 +377,12 @@ export function resellersScreen(items: any[], page = 1): Screen {
   }
 }
 
-export function resellerCardScreen(r: any, snap: any): Screen {
+export function resellerCardScreen(
+  r: any,
+  snap: any,
+  locale: TelegramLocale = 'fa',
+): Screen {
+  if (locale === 'en') return english.enResellerCard(r, snap)
   const suspended = r.status === 'disabled'
   const lines = [
     `🏪 <b>${esc(r.name)}</b>`,
@@ -367,19 +415,28 @@ export function resellerCardScreen(r: any, snap: any): Screen {
   }
 }
 
-export const confirmScreen = (summary: string, token: string): Screen => ({
-  text: `⚠️ <b>تأیید عملیات</b>\n${esc(summary)}\n\n⏱ این درخواست ۵ دقیقه اعتبار دارد.`,
-  keyboard: rows([
-    btn('✅ تأیید', `confirm:${token}`),
-    btn('✖️ لغو', `cancel:${token}`),
-  ]),
-})
+export const confirmScreen = (
+  summary: string,
+  token: string,
+  locale: TelegramLocale = 'fa',
+): Screen =>
+  locale === 'en'
+    ? english.enConfirm(summary, token)
+    : {
+        text: `⚠️ <b>تأیید عملیات</b>\n${esc(summary)}\n\n⏱ این درخواست ۵ دقیقه اعتبار دارد.`,
+        keyboard: rows([
+          btn('✅ تأیید', `confirm:${token}`),
+          btn('✖️ لغو', `cancel:${token}`),
+        ]),
+      }
 
 /** A flow question: prompt plus choice buttons (3 per row) and a cancel button. */
 export function askScreen(
   text: string,
   choices?: Array<{ label: string }>,
+  locale: TelegramLocale = 'fa',
 ): Screen {
+  if (locale === 'en') return english.enAsk(text, choices)
   const buttons = (choices ?? []).map((c, i) => btn(c.label, `f:${i}`))
   const grid: Array<Array<Button | null>> = []
   for (let i = 0; i < buttons.length; i += 3) grid.push(buttons.slice(i, i + 3))

@@ -163,6 +163,7 @@ function update(
   text: string,
   type = 'private',
   senderId = 777,
+  languageCode?: string,
 ) {
   return new Request('https://panel.test/api/telegram/webhook', {
     method: 'POST',
@@ -171,12 +172,45 @@ function update(
       update_id: ++updateId,
       message: {
         text,
-        from: { id: senderId },
+        from: { id: senderId, language_code: languageCode },
         chat: { id: senderId, type },
       },
     }),
   })
 }
+
+it('starts a new Telegram link in the sender language', async () => {
+  const owner = await makeReseller(db)
+  const bot = await saveTelegramBot(
+    {
+      kind: 'reseller',
+      ownerUserId: owner.id,
+      botToken: '123456:LOCALE-TEST',
+      botUsername: 'locale_bot',
+    },
+    db,
+  )
+  const { code } = await createLinkCode(owner.id, { db, botId: bot.id })
+  const sent: string[] = []
+  await handleTelegramUpdate(
+    update(bot.webhookSecret, `/start ${code}`, 'private', 998877, 'en-US'),
+    {
+      db,
+      notifier: {
+        send: async (_chat, text) => {
+          sent.push(text)
+          return { ok: true }
+        },
+      },
+    },
+  )
+  const [link] = await db
+    .select()
+    .from(telegramLinks)
+    .where(eq(telegramLinks.userId, owner.id))
+  expect(link?.locale).toBe('en')
+  expect(sent.join('\n')).toContain('Your account is connected')
+})
 
 it('the bot webhook rejects bad secrets and links on a valid /start code', async () => {
   const r = await makeReseller(db)
