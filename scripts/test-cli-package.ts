@@ -143,6 +143,13 @@ try {
   assert.ok(existsSync(join(project, 'drizzle/meta/_journal.json')))
   assert.ok(existsSync(join(project, 'scripts/generate-api-output-schemas.ts')))
   assert.ok(existsSync(join(project, 'src/orpc/output-schemas.generated.json')))
+  assert.ok(existsSync(join(project, 'docs/api.md')))
+  assert.ok(
+    existsSync(join(project, 'src/lib/notifications/telegram-ui-en.ts')),
+  )
+  assert.ok(
+    existsSync(join(project, 'drizzle/0018_overconfident_overlord.sql')),
+  )
   assert.ok(!existsSync(join(project, '.env')))
   assert.ok(!existsSync(join(project, '.git')))
   assert.ok(!existsSync(join(project, 'data')))
@@ -158,6 +165,27 @@ try {
     ),
   )
   run([bin, 'migrate'], project)
+  const migrated = new Database(env.DATABASE_PATH, { readonly: true })
+  try {
+    assert.ok(
+      migrated
+        .query(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'api_keys'",
+        )
+        .get(),
+      'API key migration must be included in the CLI package',
+    )
+    assert.ok(
+      (
+        migrated.query('PRAGMA table_info(telegram_links)').all() as Array<{
+          name: string
+        }>
+      ).some((column) => column.name === 'locale'),
+      'Telegram language migration must be included in the CLI package',
+    )
+  } finally {
+    migrated.close()
+  }
   writeFileSync(join(project, '.marzgah-version'), '0.0.0-test\n')
   const upgraded = run([bin, 'upgrade', '--yes'], project)
   assert.ok(upgraded.output.includes('Panel files upgraded'))

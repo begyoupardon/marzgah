@@ -2,6 +2,8 @@
 
 Set up and administer a self-hosted Marzgah VPN reseller panel. Requires **Bun 1.4.4 or newer**; npm distributes this package, but the executable runs on Bun.
 
+This release includes named per-user API keys for agents, the OpenAPI JSON at `/api/spec.json`, a 0.1 GB minimum plan allowance, and a Telegram bot with Persian and English menus. The generated panel includes `docs/api.md` with curl examples and key rotation guidance.
+
 ## Create a panel
 
 ```sh

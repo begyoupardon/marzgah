@@ -1,6 +1,6 @@
 # Publishing the Marzgah CLI
 
-The root website package stays private. The publishable package is `packages/cli`, named `@begyoupardon/marzgah`, version `0.1.0`. Its public source metadata points only to https://github.com/begyoupardon/marzgah. Confirm that you control the matching npm scope before publishing, or change the package name first. Code remains `UNLICENSED` until the owner chooses a license.
+The root website package stays private. The publishable package is `packages/cli`, named `@begyoupardon/marzgah`. Read its current version from `packages/cli/package.json`. Its public source metadata points only to https://github.com/begyoupardon/marzgah. Code remains `UNLICENSED` until the owner chooses a license.
 
 ## Build and review
 
@@ -40,6 +40,16 @@ Verify that `npm whoami` is the intended npm account. This command publishes the
 2. In GitHub, create/configure the `npm` environment and add your desired release approval protection. The workflow runs only in the exact release repository and uses OIDC instead of an npm token.
 3. Update `packages/cli/package.json` to the next version, build/test/review, and commit with the intended identity.
 4. Push a version-matching tag, for example `cli-v0.1.1` for version `0.1.1`. The workflow checks the full Git history, builds the CLI, installs/tests its tarball, and publishes it.
+
+For the 0.5.0 release, the package includes per-user API keys, the OpenAPI reference and agent guide, 0.1 GB minimum plans, and English Telegram bot support. The SQLite migrations through `0018` ship with the CLI. After CI passes, use:
+
+```sh
+git push origin master
+git tag -a cli-v0.5.0 -m "Marzgah CLI v0.5.0"
+git push origin cli-v0.5.0
+```
+
+The tag push triggers npm trusted publishing. Check the GitHub Actions run and npm package version before telling users to run `bunx @begyoupardon/marzgah@0.5.0 upgrade` from a panel directory.
 
 Trusted publishing currently requires npm >=11.5.1 and Node >=22.14.0; this workflow uses Node 24 and npm 11. Public repository/package provenance is generated automatically and links the package to this release repository. Configure a trusted publisher shortly before its first use: an unused new configuration currently expires after two days.
 
