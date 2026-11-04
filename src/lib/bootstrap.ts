@@ -19,7 +19,7 @@ export const bootstrapAdmin = createServerFn({ method: 'POST' })
     z.object({
       email: z.email(),
       name: z.string().min(1),
-      password: z.string().min(8),
+      password: z.string().min(12),
     }),
   )
   .handler(async ({ data }) => {

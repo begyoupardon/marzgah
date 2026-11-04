@@ -1,5 +1,5 @@
 import { afterAll, expect, it } from 'bun:test'
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -65,6 +65,14 @@ it('migrate, create-admin, backup and restore round-trip', () => {
 it('rejects short admin passwords', () => {
   const r = cli('create-admin', '--email', 'e@f.test', '--password', 'short')
   expect(r.code).not.toBe(0)
+})
+
+it('refuses a corrupt restore without changing the database', () => {
+  const bad = join(dir, 'bad.db')
+  writeFileSync(bad, 'not a database')
+  const before = count(dbPath)
+  expect(cli('restore', bad).code).not.toBe(0)
+  expect(count(dbPath)).toBe(before)
 })
 
 it('exposes the upgrade command', () => {

@@ -1,4 +1,4 @@
-import { ORPCError } from '@orpc/server'
+import { ORPCError, call } from '@orpc/server'
 import { getEnv } from '#/lib/env'
 import { desc, eq, sql } from 'drizzle-orm'
 import * as z from 'zod'
@@ -11,18 +11,14 @@ import {
   setCredentialPassword,
 } from '#/lib/create-user'
 import { writeAuditLog } from '#/lib/ledger'
-import {
-  credit,
-  debit,
-  getBalance,
-  settleOutstandingFromWallet,
-} from '#/lib/wallet'
+import { credit } from '#/lib/wallet'
 import { usernameSuffixSchema } from '#/lib/reseller-naming'
 import { getBackend } from '#/lib/backends/registry'
 import { resumeReseller, suspendReseller } from '#/lib/reseller-suspension'
 import { withKeyedLock } from '#/lib/keyed-lock'
 import { adminOnly } from '../middleware'
 import { outputSpec } from '../openapi-response'
+import { setBalance } from './wallet'
 
 export const listResellers = adminOnly
   .route({
@@ -266,40 +262,19 @@ export const updateReseller = adminOnly
     }
 
     if (input.targetBalanceToman !== undefined) {
-      const current = await getBalance(input.userId)
-      const diff = input.targetBalanceToman - current
-      if (diff > 0) {
-        await credit({
+      await call(
+        setBalance,
+        {
           resellerId: input.userId,
-          amountToman: diff,
-          reason: `تنظیم موجودی توسط مدیر (موجودی قبلی: ${current.toLocaleString('fa-IR')})`,
-          provider: 'admin-set-balance',
-          reference: crypto.randomUUID(),
-          actorUserId: context.user.id,
-        })
-        await settleOutstandingFromWallet(input.userId)
-      } else if (diff < 0) {
-        await debit({
-          resellerId: input.userId,
-          amountToman: Math.abs(diff),
-          reason: `تنظیم موجودی توسط مدیر (موجودی قبلی: ${current.toLocaleString('fa-IR')})`,
-          provider: 'admin-set-balance',
-          reference: crypto.randomUUID(),
-          actorUserId: context.user.id,
-        })
-      }
-      await writeAuditLog({
-        actorUserId: context.user.id,
-        actorRole: 'admin',
-        action: 'wallet.set_balance',
-        entityType: 'wallet',
-        resellerId: input.userId,
-        payload: {
-          previousBalanceToman: current,
           targetBalanceToman: input.targetBalanceToman,
-          diff,
         },
-      })
+        {
+          context: {
+            headers: context.headers,
+            telegramActor: context.telegramActor,
+          },
+        },
+      )
     }
 
     if (input.password !== undefined) {

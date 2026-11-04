@@ -5,6 +5,7 @@ import * as z from 'zod'
 import { db } from '#/db'
 import { resellerProfiles, walletEntries } from '#/db/schema'
 import { writeAuditLog } from '#/lib/ledger'
+import { withKeyedLock } from '#/lib/keyed-lock'
 import {
   InsufficientFundsError,
   credit,
@@ -111,38 +112,40 @@ export const adjustWallet = adminOnly
     if (!profile)
       throw new ORPCError('NOT_FOUND', { message: 'Reseller not found' })
 
-    const move = {
-      resellerId: input.resellerId,
-      amountToman: input.amountToman,
-      reason: `admin:${input.reason}`,
-      provider: 'admin-adjustment',
-      reference: crypto.randomUUID(),
-      actorUserId: context.user.id,
-    }
-    try {
-      if (input.type === 'credit') {
-        await credit(move)
-        await settleOutstandingFromWallet(input.resellerId)
-      } else {
-        await debit(move)
+    return withKeyedLock(input.resellerId, async () => {
+      const move = {
+        resellerId: input.resellerId,
+        amountToman: input.amountToman,
+        reason: `admin:${input.reason}`,
+        provider: 'admin-adjustment',
+        reference: crypto.randomUUID(),
+        actorUserId: context.user.id,
       }
-    } catch (error) {
-      if (error instanceof InsufficientFundsError) {
-        throw new ORPCError('BAD_REQUEST', {
-          message: 'Balance is too low for this debit',
-        })
+      try {
+        if (input.type === 'credit') {
+          await credit(move)
+          await settleOutstandingFromWallet(input.resellerId)
+        } else {
+          await debit(move)
+        }
+      } catch (error) {
+        if (error instanceof InsufficientFundsError) {
+          throw new ORPCError('BAD_REQUEST', {
+            message: 'Balance is too low for this debit',
+          })
+        }
+        throw error
       }
-      throw error
-    }
-    await writeAuditLog({
-      actorUserId: context.user.id,
-      actorRole: 'admin',
-      action: `wallet.${input.type}`,
-      entityType: 'wallet',
-      resellerId: input.resellerId,
-      payload: { amountToman: input.amountToman, reason: input.reason },
+      await writeAuditLog({
+        actorUserId: context.user.id,
+        actorRole: 'admin',
+        action: `wallet.${input.type}`,
+        entityType: 'wallet',
+        resellerId: input.resellerId,
+        payload: { amountToman: input.amountToman, reason: input.reason },
+      })
+      return { balanceToman: await getBalance(input.resellerId) }
     })
-    return { balanceToman: await getBalance(input.resellerId) }
   })
 
 /** Set the exact target balance for a reseller, automatically calculating credit or debit. */
@@ -170,51 +173,53 @@ export const setBalance = adminOnly
     if (!profile)
       throw new ORPCError('NOT_FOUND', { message: 'Reseller not found' })
 
-    const currentBalance = await getBalance(input.resellerId)
-    const outstanding = await getOutstandingToman(input.resellerId)
-    const diff = input.targetBalanceToman + outstanding - currentBalance
+    return withKeyedLock(input.resellerId, async () => {
+      const currentBalance = await getBalance(input.resellerId)
+      const outstanding = await getOutstandingToman(input.resellerId)
+      const diff = input.targetBalanceToman + outstanding - currentBalance
 
-    if (diff > 0) {
-      await credit({
-        resellerId: input.resellerId,
-        amountToman: diff,
-        reason:
-          input.reason ||
-          `تنظیم مستقیم موجودی توسط مدیر (موجودی قبلی: ${currentBalance.toLocaleString('fa-IR')})`,
-        provider: 'admin-set-balance',
-        reference: crypto.randomUUID(),
+      if (diff > 0) {
+        await credit({
+          resellerId: input.resellerId,
+          amountToman: diff,
+          reason:
+            input.reason ||
+            `تنظیم مستقیم موجودی توسط مدیر (موجودی قبلی: ${currentBalance.toLocaleString('fa-IR')})`,
+          provider: 'admin-set-balance',
+          reference: crypto.randomUUID(),
+          actorUserId: context.user.id,
+        })
+      } else if (diff < 0) {
+        await debit({
+          resellerId: input.resellerId,
+          amountToman: Math.abs(diff),
+          reason:
+            input.reason ||
+            `تنظیم مستقیم موجودی توسط مدیر (موجودی قبلی: ${currentBalance.toLocaleString('fa-IR')})`,
+          provider: 'admin-set-balance',
+          reference: crypto.randomUUID(),
+          actorUserId: context.user.id,
+        })
+      }
+
+      await settleOutstandingFromWallet(input.resellerId)
+
+      await writeAuditLog({
         actorUserId: context.user.id,
-      })
-    } else if (diff < 0) {
-      await debit({
+        actorRole: 'admin',
+        action: 'wallet.set_balance',
+        entityType: 'wallet',
         resellerId: input.resellerId,
-        amountToman: Math.abs(diff),
-        reason:
-          input.reason ||
-          `تنظیم مستقیم موجودی توسط مدیر (موجودی قبلی: ${currentBalance.toLocaleString('fa-IR')})`,
-        provider: 'admin-set-balance',
-        reference: crypto.randomUUID(),
-        actorUserId: context.user.id,
+        payload: {
+          previousBalanceToman: currentBalance,
+          targetBalanceToman: input.targetBalanceToman,
+          diff,
+          reason: input.reason,
+        },
       })
-    }
 
-    await settleOutstandingFromWallet(input.resellerId)
-
-    await writeAuditLog({
-      actorUserId: context.user.id,
-      actorRole: 'admin',
-      action: 'wallet.set_balance',
-      entityType: 'wallet',
-      resellerId: input.resellerId,
-      payload: {
-        previousBalanceToman: currentBalance,
-        targetBalanceToman: input.targetBalanceToman,
-        diff,
-        reason: input.reason,
-      },
+      return { balanceToman: await getBalance(input.resellerId) }
     })
-
-    return { balanceToman: await getBalance(input.resellerId) }
   })
 
 /** `null` restores the legacy unlimited post-paid behaviour. */

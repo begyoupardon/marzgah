@@ -1,7 +1,11 @@
 import { expect, it } from 'bun:test'
 
 import { callAs, setupRouterTest } from '../../../test/helpers/orpc'
-import { makeReseller, makeUser, makeVpnUser } from '../../../test/helpers/factories'
+import {
+  makeReseller,
+  makeUser,
+  makeVpnUser,
+} from '../../../test/helpers/factories'
 import { billingEvents } from '#/db/schema'
 
 const db = await setupRouterTest()
@@ -144,6 +148,46 @@ it('sets the requested balance after settling existing debt', async () => {
   }
   expect(result.balanceToman).toBe(50_000)
   expect(snapshot).toMatchObject({ balanceToman: 50_000, outstandingToman: 0 })
+
+  await db.insert(billingEvents).values({
+    id: crypto.randomUUID(),
+    resellerId: debtor.id,
+    vpnUserId: customer.id,
+    marzbanUsername: customer.marzbanUsername,
+    type: 'renew',
+    dataLimitGb: 10,
+    pricePerGbToman: 10_000,
+    amountToman: 100_000,
+    actorUserId: debtor.id,
+  })
+  await callAs(
+    adminRouter.updateReseller,
+    { userId: debtor.id, targetBalanceToman: 25_000 },
+    admin.id,
+  )
+  expect(await callAs(wallet.myWallet, undefined, debtor.id)).toMatchObject({
+    balanceToman: 25_000,
+    outstandingToman: 0,
+  })
+})
+
+it('serializes concurrent target balance changes', async () => {
+  const reseller = await makeReseller(db)
+  await Promise.all([
+    callAs(
+      wallet.setBalance,
+      { resellerId: reseller.id, targetBalanceToman: 500 },
+      admin.id,
+    ),
+    callAs(
+      adminRouter.updateReseller,
+      { userId: reseller.id, targetBalanceToman: 500 },
+      admin.id,
+    ),
+  ])
+  expect(await callAs(wallet.myWallet, undefined, reseller.id)).toMatchObject({
+    balanceToman: 500,
+  })
 })
 
 it('creates reseller with initial balance and credit limit', async () => {

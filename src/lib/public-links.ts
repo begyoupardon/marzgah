@@ -40,7 +40,7 @@ export async function createLink(
     const token = Buffer.from(
       crypto.getRandomValues(new Uint8Array(24)),
     ).toString('base64url')
-    await revokeLinks(vpnUserId, { db, now })
+    await revokeLinksUnlocked(vpnUserId, db, now)
     const expiresAt = expiresInDays
       ? new Date(now.getTime() + expiresInDays * DAY)
       : null
@@ -58,6 +58,12 @@ export async function revokeLinks(
   vpnUserId: string,
   { db = defaultDb, now = new Date() }: Deps = {},
 ) {
+  return withKeyedLock(`customer-link:${vpnUserId}`, () =>
+    revokeLinksUnlocked(vpnUserId, db, now),
+  )
+}
+
+async function revokeLinksUnlocked(vpnUserId: string, db: Db, now: Date) {
   const revoked = await db
     .update(subscriptionTokens)
     .set({ revokedAt: now })
