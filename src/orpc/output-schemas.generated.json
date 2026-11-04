@@ -530,9 +530,43 @@
           "outstandingToman",
           "eventCount"
         ]
+      },
+      "charts": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "daily": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "byType": {
+                "type": "object",
+                "properties": {
+                  "create": {
+                    "type": "number"
+                  },
+                  "renew": {
+                    "type": "number"
+                  },
+                  "extra_gb": {
+                    "type": "number"
+                  }
+                },
+                "required": ["create", "renew", "extra_gb"]
+              }
+            },
+            "required": ["daily", "byType"]
+          }
+        ]
       }
     },
-    "required": ["events", "pageCount", "summary"]
+    "required": ["events", "pageCount", "summary", "charts"]
   },
   "billing.adminBillingSummary": {
     "type": "object",
@@ -723,6 +757,40 @@
           "eventCount"
         ]
       },
+      "charts": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "daily": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "byType": {
+                "type": "object",
+                "properties": {
+                  "create": {
+                    "type": "number"
+                  },
+                  "renew": {
+                    "type": "number"
+                  },
+                  "extra_gb": {
+                    "type": "number"
+                  }
+                },
+                "required": ["create", "renew", "extra_gb"]
+              }
+            },
+            "required": ["daily", "byType"]
+          }
+        ]
+      },
       "byReseller": {
         "type": "array",
         "items": {
@@ -802,7 +870,14 @@
         }
       }
     },
-    "required": ["resellers", "events", "pageCount", "summary", "byReseller"]
+    "required": [
+      "resellers",
+      "events",
+      "pageCount",
+      "summary",
+      "charts",
+      "byReseller"
+    ]
   },
   "billing.claimBillingPaid": {
     "type": "object",

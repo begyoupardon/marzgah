@@ -1,5 +1,5 @@
 import { ORPCError } from '@orpc/server'
-import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, isNotNull, isNull, lt, sql } from 'drizzle-orm'
 import * as z from 'zod'
 
 import { db } from '#/db'
@@ -20,6 +20,13 @@ function mapEvent(row: typeof billingEvents.$inferSelect) {
 const pageInput = z.object({
   page: z.number().int().min(1).default(1),
   status: z.enum(['all', 'outstanding', 'claimed', 'settled']).default('all'),
+  dayStarts: z
+    .array(z.number().int().nonnegative().max(8_640_000_000_000_000))
+    .length(15)
+    .refine((starts) =>
+      starts.every((start, i) => i === 0 || start > starts[i - 1]),
+    )
+    .optional(),
 })
 
 const totals = {
@@ -83,6 +90,48 @@ async function eventPage(
   }
 }
 
+async function chartTotals(
+  resellerId: string | undefined,
+  dayStarts?: number[],
+) {
+  if (!dayStarts) return null
+  const owner = resellerId
+    ? eq(billingEvents.resellerId, resellerId)
+    : undefined
+  const day = sql<number>`case ${sql.join(
+    dayStarts
+      .slice(1)
+      .map((end, i) => sql`when ${billingEvents.createdAt} < ${end} then ${i}`),
+    sql` `,
+  )} end`
+  const [days, types] = await Promise.all([
+    db
+      .select({ day, amount: sql<number>`sum(${billingEvents.amountToman})` })
+      .from(billingEvents)
+      .where(
+        and(
+          owner,
+          gte(billingEvents.createdAt, new Date(dayStarts[0])),
+          lt(billingEvents.createdAt, new Date(dayStarts[14])),
+        ),
+      )
+      .groupBy(day),
+    db
+      .select({
+        type: billingEvents.type,
+        amount: sql<number>`sum(${billingEvents.amountToman})`,
+      })
+      .from(billingEvents)
+      .where(owner)
+      .groupBy(billingEvents.type),
+  ])
+  const daily = Array<number>(14).fill(0)
+  for (const row of days) daily[Number(row.day)] = Number(row.amount)
+  const byType = { create: 0, renew: 0, extra_gb: 0 }
+  for (const row of types) byType[row.type] = Number(row.amount)
+  return { daily, byType }
+}
+
 export const myBillingSummary = authed
   .route({
     summary: 'Get my billing summary',
@@ -107,6 +156,7 @@ export const myBillingSummary = authed
       .where(eq(billingEvents.resellerId, resellerId))
     return {
       summary: summary(row),
+      charts: await chartTotals(resellerId, input?.dayStarts),
       ...(await eventPage(
         resellerId,
         input?.page ?? 1,
@@ -167,6 +217,7 @@ export const adminBillingSummary = adminOnly
 
     return {
       summary: summary(totalRows[0]),
+      charts: await chartTotals(input?.resellerId, input?.dayStarts),
       byReseller: byReseller.map((item) => ({
         ...summary(item),
         resellerId: item.resellerId,

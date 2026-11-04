@@ -94,43 +94,32 @@ export function compactToman(value: number, locale: Locale = 'fa') {
   return value.toLocaleString(localeTag(locale))
 }
 
+export function localDayStarts(days = 14, now = new Date()) {
+  const today = new Date(now)
+  today.setHours(0, 0, 0, 0)
+  return Array.from({ length: days + 1 }, (_, index) => {
+    const day = new Date(today)
+    day.setDate(today.getDate() - days + 1 + index)
+    return day.getTime()
+  })
+}
+
 export function buildDailyTrend(
-  events: BillingEvent[],
-  days = 14,
+  daily: number[],
+  dayStarts: number[],
   locale: Locale = 'fa',
 ) {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const buckets = new Map<
-    string,
-    { date: string; label: string; amount: number }
-  >()
-
-  for (let i = days - 1; i >= 0; i -= 1) {
-    const day = new Date(today)
-    day.setDate(today.getDate() - i)
-    const key = day.toISOString().slice(0, 10)
-    buckets.set(key, {
-      date: key,
+  return daily.map((amount, index) => {
+    const day = new Date(dayStarts[index])
+    return {
+      date: `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`,
       label: day.toLocaleDateString(localeTag(locale), {
         month: 'short',
         day: 'numeric',
       }),
-      amount: 0,
-    })
-  }
-
-  for (const event of events) {
-    const iso =
-      typeof event.createdAt === 'string'
-        ? event.createdAt
-        : new Date(event.createdAt).toISOString()
-    const key = iso.slice(0, 10)
-    const bucket = buckets.get(key)
-    if (bucket) bucket.amount += event.amountToman
-  }
-
-  return [...buckets.values()]
+      amount,
+    }
+  })
 }
 
 export function buildSettlementSlices(summary: LedgerSummary | undefined) {
@@ -159,15 +148,7 @@ export function buildSettlementSlices(summary: LedgerSummary | undefined) {
   ].filter((row) => row.value > 0)
 }
 
-export function buildTypeBars(events: BillingEvent[]) {
-  const totals = {
-    create: 0,
-    renew: 0,
-    extra_gb: 0,
-  }
-  for (const event of events) {
-    totals[event.type] += event.amountToman
-  }
+export function buildTypeBars(totals: Record<BillingEvent['type'], number>) {
   return (Object.keys(totals) as Array<keyof typeof totals>).map((key) => ({
     type: key,
     label: eventTypeLabel(key),

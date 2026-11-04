@@ -112,9 +112,12 @@ export async function drainOutbox({
       if (!selected) {
         await db
           .update(notifications)
-          .set({ status: 'skipped', lastError: 'linked bot is unavailable' })
+          .set({
+            nextAttemptAt: new Date(now.getTime() + 60 * 60_000),
+            lastError: 'linked bot is unavailable',
+          })
           .where(eq(notifications.id, id))
-        result.skipped++
+        result.retried++
         continue
       }
       outcome = await selected.send(link.chatId, row.text)

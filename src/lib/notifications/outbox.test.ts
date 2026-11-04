@@ -166,6 +166,32 @@ it('skips recipients with no linked channel', async () => {
   expect((await row(`${r.id}:nolink`)).status).toBe('skipped')
 })
 
+it('retries a linked account when its bot becomes available again', async () => {
+  const r = await linked()
+  const key = `${r.id}:bot-unavailable`
+  await enqueue(
+    { userId: r.id, event: 'e', dedupeKey: key, text: 'waiting' },
+    { db, now: T0 },
+  )
+  await drainOutbox({ db, now: T0, notifierForBot: async () => null })
+  const pending = await row(key)
+  expect(pending.status).toBe('queued')
+  expect(pending.attempts).toBe(0)
+  const sent: string[] = []
+  await drainOutbox({
+    db,
+    now: pending.nextAttemptAt,
+    notifierForBot: async () => ({
+      send: async (_chat, text) => {
+        sent.push(text)
+        return { ok: true }
+      },
+    }),
+  })
+  expect(sent.filter((text) => text === 'waiting')).toEqual(['waiting'])
+  expect((await row(key)).status).toBe('sent')
+})
+
 it('routes each linked notification through the recipient’s configured bot', async () => {
   const reseller = await makeReseller(db)
   const bot = await saveTelegramBot(

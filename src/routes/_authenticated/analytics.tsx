@@ -54,12 +54,12 @@ import {
   buildSettlementSlices,
   buildTypeBars,
   compactToman,
+  localDayStarts,
   resellerChartConfig,
   settlementChartConfig,
   trendChartConfig,
   typeChartConfig,
 } from '#/lib/sales-analytics'
-import type { BillingEvent } from '#/lib/sales-analytics'
 import { orpc } from '#/orpc/client'
 
 export const Route = createFileRoute('/_authenticated/analytics')({
@@ -74,15 +74,19 @@ function AnalyticsPage() {
   const { session } = authRoute.useRouteContext()
   const isAdmin = session.user.role === 'admin'
   const [filterResellerId, setFilterResellerId] = useState('')
+  const dayStarts = useMemo(() => localDayStarts(), [])
 
   const resellerSummaryQuery = useQuery({
-    ...orpc.billing.mySummary.queryOptions(),
+    ...orpc.billing.mySummary.queryOptions({ input: { dayStarts } }),
     enabled: !isAdmin,
   })
 
   const adminSummaryQuery = useQuery({
     ...orpc.billing.adminSummary.queryOptions({
-      input: filterResellerId ? { resellerId: filterResellerId } : {},
+      input: {
+        dayStarts,
+        ...(filterResellerId ? { resellerId: filterResellerId } : {}),
+      },
     }),
     enabled: isAdmin,
   })
@@ -91,22 +95,14 @@ function AnalyticsPage() {
     ? adminSummaryQuery.data?.summary
     : resellerSummaryQuery.data?.summary
 
-  const allEvents = useMemo(() => {
-    const raw = (
-      isAdmin
-        ? adminSummaryQuery.data?.events
-        : resellerSummaryQuery.data?.events
-    ) as BillingEvent[] | undefined
-    return raw ?? []
-  }, [
-    adminSummaryQuery.data?.events,
-    isAdmin,
-    resellerSummaryQuery.data?.events,
-  ])
+  const charts = isAdmin
+    ? adminSummaryQuery.data?.charts
+    : resellerSummaryQuery.data?.charts
 
   const trendData = useMemo(
-    () => buildDailyTrend(allEvents, 14, locale),
-    [allEvents, locale],
+    () =>
+      buildDailyTrend(charts?.daily ?? Array(14).fill(0), dayStarts, locale),
+    [charts?.daily, dayStarts, locale],
   )
   const settlementData = useMemo(
     () => buildSettlementSlices(summary),
@@ -114,11 +110,13 @@ function AnalyticsPage() {
   )
   const typeData = useMemo(
     () =>
-      buildTypeBars(allEvents).map((item) => ({
-        ...item,
-        label: t(item.label),
-      })),
-    [allEvents, t],
+      buildTypeBars(charts?.byType ?? { create: 0, renew: 0, extra_gb: 0 }).map(
+        (item) => ({
+          ...item,
+          label: t(item.label),
+        }),
+      ),
+    [charts?.byType, t],
   )
   const hasTrend = trendData.some((d) => d.amount > 0)
   const settledRatio =

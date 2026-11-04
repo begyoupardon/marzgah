@@ -80,7 +80,16 @@ export async function scanLowTraffic({
   now = new Date(),
 }: Deps = {}) {
   const rows = await db
-    .select()
+    .select({
+      user: vpnUsers,
+      cycleId: sql<string | null>`(
+        select billing_events.id from billing_events
+        where billing_events.vpn_user_id = vpn_users.id
+          and billing_events.type in ('create', 'renew')
+        order by billing_events.created_at desc, billing_events.id desc
+        limit 1
+      )`,
+    })
     .from(vpnUsers)
     .where(
       and(
@@ -92,7 +101,7 @@ export async function scanLowTraffic({
     )
   let queued = 0
   const locales = await localesFor(db)
-  for (const r of rows) {
+  for (const { user: r, cycleId } of rows) {
     const percent = Math.min(
       100,
       Math.floor((r.usedTrafficBytes / r.dataLimitBytes!) * 100),
@@ -101,7 +110,7 @@ export async function scanLowTraffic({
       {
         userId: r.resellerId,
         event: 'low_traffic',
-        dedupeKey: `lowtraffic:${r.id}:${r.dataLimitBytes}:${r.expireAt ? day(r.expireAt) : 'none'}`,
+        dedupeKey: `lowtraffic:${r.id}:${r.dataLimitBytes}:${r.expireAt ? day(r.expireAt) : 'none'}${!r.expireAt && cycleId ? `:${cycleId}` : ''}`,
         text: tl(
           locales.get(r.resellerId) ?? 'fa',
           `📶 ${r.marzbanUsername} ${percent.toLocaleString('fa-IR')}٪ از حجم خود را مصرف کرده است.`,

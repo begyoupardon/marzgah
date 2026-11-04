@@ -7,6 +7,7 @@ import {
   makeVpnUser,
 } from '../../../test/helpers/factories'
 import { callAs, setupRouterTest } from '../../../test/helpers/orpc'
+import { localDayStarts } from '#/lib/sales-analytics'
 
 const db = await setupRouterTest()
 const seller = await makeReseller(db)
@@ -15,6 +16,7 @@ const vpnUser = await makeVpnUser(db, seller.id)
 const billing = await import('./billing')
 
 it('keeps full ledger totals while paging and filtering event rows', async () => {
+  const dayStarts = localDayStarts()
   await db.insert(billingEvents).values(
     Array.from({ length: 51 }, (_, i) => ({
       id: `sale-${i}`,
@@ -32,12 +34,13 @@ it('keeps full ledger totals while paging and filtering event rows', async () =>
 
   const first = (await callAs(
     billing.myBillingSummary,
-    { page: 1, status: 'all' },
+    { page: 1, status: 'all', dayStarts },
     seller.id,
   )) as {
     summary: { totalToman: number; settledToman: number; eventCount: number }
     events: unknown[]
     pageCount: number
+    charts: { daily: number[]; byType: { create: number } }
   }
   expect(first.summary).toMatchObject({
     totalToman: 51_000,
@@ -46,6 +49,10 @@ it('keeps full ledger totals while paging and filtering event rows', async () =>
   })
   expect(first.events).toHaveLength(50)
   expect(first.pageCount).toBe(2)
+  expect(first.charts.daily.reduce((sum, amount) => sum + amount, 0)).toBe(
+    51_000,
+  )
+  expect(first.charts.byType.create).toBe(51_000)
   const second = (await callAs(
     billing.myBillingSummary,
     { page: 2, status: 'all' },

@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 
 import { createTestDb } from '../../../test/helpers/db'
 import { makeReseller, makeVpnUser } from '../../../test/helpers/factories'
-import { notifications, telegramLinks } from '#/db/schema'
+import { billingEvents, notifications, telegramLinks } from '#/db/schema'
 import { credit } from '#/lib/wallet'
 import {
   runAllScans,
@@ -83,6 +83,34 @@ it('warns about high usage once per quota cycle', async () => {
   const rows = await for_(r.id)
   expect(rows).toHaveLength(1)
   expect(rows[0]?.text).toContain('۹۵')
+})
+
+it('warns again after renewing a plan with no expiry and the same limit', async () => {
+  const r = await makeReseller(db)
+  const vpn = await makeVpnUser(db, r.id, {
+    dataLimitBytes: 10 * GB,
+    usedTrafficBytes: 9.5 * GB,
+    expireAt: null,
+  })
+  const bill = (id: string, createdAt: Date) => ({
+    id,
+    resellerId: r.id,
+    vpnUserId: vpn.id,
+    marzbanUsername: vpn.marzbanUsername,
+    type: 'renew' as const,
+    dataLimitGb: 10,
+    pricePerGbToman: 1000,
+    amountToman: 10_000,
+    actorUserId: r.id,
+    createdAt,
+  })
+  await db.insert(billingEvents).values(bill(crypto.randomUUID(), NOW))
+  expect(await scanLowTraffic({ db, now: NOW })).toBe(1)
+  await db
+    .insert(billingEvents)
+    .values(bill(crypto.randomUUID(), new Date(NOW.getTime() + 1000)))
+  expect(await scanLowTraffic({ db, now: NOW })).toBe(1)
+  expect(await scanLowTraffic({ db, now: NOW })).toBe(0)
 })
 
 it('nags about a low wallet only for wallet users, once a week', async () => {
