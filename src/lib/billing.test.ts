@@ -47,7 +47,7 @@ describe('anti-fraud: usage/hide never credits', () => {
     expect(summary.soldGb).toBe(75)
   })
 
-  it('reset usage / disable / volume decrease do not bill credit', () => {
+  it('reset usage and volume decrease do not bill credit', () => {
     expect(
       shouldBillForUpdate({
         previousBytes: gbToBytes(50),
@@ -56,13 +56,6 @@ describe('anti-fraud: usage/hide never credits', () => {
       }),
     ).toBe(false)
 
-    expect(
-      shouldBillForUpdate({
-        previousBytes: gbToBytes(50),
-        nextBytes: gbToBytes(50),
-        statusChangedToDisabled: true,
-      }),
-    ).toBe(false)
 
     expect(
       shouldBillForUpdate({

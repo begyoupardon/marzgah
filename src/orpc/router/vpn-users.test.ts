@@ -26,6 +26,7 @@ vi.mock('#/lib/marzban/quotas', () => ({
   getOwnedVpnUser: mocks.owned,
   getResellerProfile: mocks.profile,
   assertCanCreateVpnUser: mocks.profile,
+  assertCanIncreaseVpnQuota: async () => {},
   QuotaExceededError: class extends Error {},
 }))
 vi.mock('#/lib/marzban/sync', () => ({

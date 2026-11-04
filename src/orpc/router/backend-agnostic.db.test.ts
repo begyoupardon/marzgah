@@ -158,6 +158,65 @@ it('charges a concurrent quota increase only once', async () => {
   expect(events.filter((event) => event.type === 'extra_gb')).toHaveLength(1)
 })
 
+it('rejects direct expiry edits by sellers', async () => {
+  await expect(
+    callAs(vpn.updateVpnUser, { username: 'fk_ali', expireAt: null }, seller.id),
+  ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+  await expect(
+    callAs(
+      vpn.updateVpnUser,
+      { username: 'fk_ali', expireAt: '2035-01-01T00:00:00.000Z' },
+      seller.id,
+    ),
+  ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+})
+
+it('charges an allowance increase even when disabling in the same edit', async () => {
+  const chargedSeller = await makeReseller(db, { usernameSuffix: 'ch' })
+  await callAs(
+    vpn.createVpnUser,
+    { username: 'user', dataLimitBytes: 10 * GB, durationDays: 30 },
+    chargedSeller.id,
+  )
+  await callAs(
+    vpn.updateVpnUser,
+    { username: 'ch_user', dataLimitBytes: 20 * GB, status: 'disabled' },
+    chargedSeller.id,
+  )
+  const events = await db
+    .select()
+    .from(billingEvents)
+    .where(eq(billingEvents.marzbanUsername, 'ch_user'))
+  expect(events.filter((event) => event.type === 'extra_gb')).toHaveLength(1)
+})
+
+it('enforces the total data cap on edits and renewals', async () => {
+  const cappedSeller = await makeReseller(db, {
+    usernameSuffix: 'cap',
+    maxTotalGb: 15,
+  })
+  await callAs(
+    vpn.createVpnUser,
+    { username: 'user', dataLimitBytes: 10 * GB, durationDays: 30 },
+    cappedSeller.id,
+  )
+  await expect(
+    callAs(
+      vpn.updateVpnUser,
+      { username: 'cap_user', dataLimitBytes: 20 * GB },
+      cappedSeller.id,
+    ),
+  ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+  await expect(
+    callAs(
+      vpn.renewVpnUser,
+      { username: 'cap_user', durationDays: 30, additionalDataLimitBytes: 20 * GB },
+      cappedSeller.id,
+    ),
+  ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+  expect((await mirror('cap_user')).dataLimitBytes).toBe(10 * GB)
+})
+
 it('explains when an account cannot take a password, and applies it when it can', async () => {
   await expect(
     callAs(

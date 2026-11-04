@@ -26,6 +26,7 @@ import { DEFAULT_BACKEND_ID, getBackend } from '#/lib/backends/registry'
 import { BackendError } from '#/lib/backends/types'
 import {
   assertCanCreateVpnUser,
+  assertCanIncreaseVpnQuota,
   getOwnedVpnUser,
   getResellerProfile,
   QuotaExceededError,
@@ -504,6 +505,12 @@ export const updateVpnUser = authed
             ? new Date(input.expireAt)
             : null
 
+      if (expireAt !== undefined && context.user.role !== 'admin') {
+        throw new ORPCError('FORBIDDEN', {
+          message: 'تغییر مستقیم تاریخ انقضا فقط برای مدیر مجاز است',
+        })
+      }
+
       const current = await syncVpnUserFromMarzban(input.username, {
         repairInbounds: false,
       })
@@ -517,14 +524,18 @@ export const updateVpnUser = authed
           : previousBytes
 
       const plannedExtraGb = extraGbDelta(previousBytes, nextBytes)
-      if (
-        plannedExtraGb > 0 &&
-        shouldBillForUpdate({
-          previousBytes,
-          nextBytes,
-          statusChangedToDisabled: input.status === 'disabled',
-        })
-      ) {
+      try {
+        await assertCanIncreaseVpnQuota(
+          owned.resellerId,
+          (nextBytes ?? 0) - (previousBytes ?? 0),
+        )
+      } catch (error) {
+        if (error instanceof QuotaExceededError) {
+          throw new ORPCError('BAD_REQUEST', { message: error.message })
+        }
+        throw error
+      }
+      if (plannedExtraGb > 0) {
         const billingProfile = await getResellerProfile(owned.resellerId)
         if (billingProfile) {
           await guardSpend(
@@ -562,7 +573,6 @@ export const updateVpnUser = authed
       const billExtra = shouldBillForUpdate({
         previousBytes,
         nextBytes,
-        statusChangedToDisabled: input.status === 'disabled',
       })
       const deltaGb = extraGbDelta(previousBytes, nextBytes)
 
@@ -752,6 +762,17 @@ export const renewVpnUser = authed
         throw new ORPCError('BAD_REQUEST', {
           message: 'حجم افزوده‌شده نامعتبر است',
         })
+      }
+      try {
+        await assertCanIncreaseVpnQuota(
+          owned.resellerId,
+          nextDataLimitBytes - current.dataLimitBytes,
+        )
+      } catch (error) {
+        if (error instanceof QuotaExceededError) {
+          throw new ORPCError('BAD_REQUEST', { message: error.message })
+        }
+        throw error
       }
       const legacyMonths =
         input.durationDays === undefined ? input.durationMonths : undefined

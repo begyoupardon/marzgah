@@ -67,6 +67,25 @@ export async function assertCanCreateVpnUser(
   return profile
 }
 
+/** Check a changed allowance against the reseller's total allocated data cap. */
+export async function assertCanIncreaseVpnQuota(
+  resellerUserId: string,
+  addBytes: number,
+) {
+  if (addBytes <= 0) return
+  const profile = await getResellerProfile(resellerUserId)
+  if (profile?.maxTotalGb == null) return
+  const [row] = await db
+    .select({ bytes: sum(vpnUsers.dataLimitBytes) })
+    .from(vpnUsers)
+    .where(
+      and(eq(vpnUsers.resellerId, resellerUserId), isNull(vpnUsers.removedAt)),
+    )
+  if (Number(row?.bytes ?? 0) + addBytes > profile.maxTotalGb * GB) {
+    throw new QuotaExceededError(`Total data limit reached (${profile.maxTotalGb} GB)`)
+  }
+}
+
 export async function getOwnedVpnUser(
   marzbanUsername: string,
   resellerUserId: string,

@@ -171,7 +171,8 @@ export const setBalance = adminOnly
       throw new ORPCError('NOT_FOUND', { message: 'Reseller not found' })
 
     const currentBalance = await getBalance(input.resellerId)
-    const diff = input.targetBalanceToman - currentBalance
+    const outstanding = await getOutstandingToman(input.resellerId)
+    const diff = input.targetBalanceToman + outstanding - currentBalance
 
     if (diff > 0) {
       await credit({
@@ -184,7 +185,6 @@ export const setBalance = adminOnly
         reference: crypto.randomUUID(),
         actorUserId: context.user.id,
       })
-      await settleOutstandingFromWallet(input.resellerId)
     } else if (diff < 0) {
       await debit({
         resellerId: input.resellerId,
@@ -197,6 +197,8 @@ export const setBalance = adminOnly
         actorUserId: context.user.id,
       })
     }
+
+    await settleOutstandingFromWallet(input.resellerId)
 
     await writeAuditLog({
       actorUserId: context.user.id,

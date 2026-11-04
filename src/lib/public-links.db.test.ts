@@ -50,6 +50,16 @@ it('a new link revokes the old one', async () => {
   expect(await resolveToken(b.token, { db, now: T0 })).not.toBeNull()
 })
 
+it('concurrent link creation leaves only the newest token valid', async () => {
+  const { row } = await customer()
+  const [a, b] = await Promise.all([
+    createLink(row.id, { db, now: T0 }),
+    createLink(row.id, { db, now: T0 }),
+  ])
+  expect(await resolveToken(a.token, { db, now: T0 })).toBeNull()
+  expect(await resolveToken(b.token, { db, now: T0 })).not.toBeNull()
+})
+
 it('returns the same null for every kind of bad link', async () => {
   const { row } = await customer()
   const ok = await createLink(row.id, { db, now: T0, expiresInDays: 7 })

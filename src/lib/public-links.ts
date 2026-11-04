@@ -9,6 +9,7 @@ import {
   vpnUsers,
 } from '#/db/schema'
 import type { Db } from '#/db/types'
+import { withKeyedLock } from '#/lib/keyed-lock'
 
 type Deps = { db?: Db; now?: Date }
 
@@ -35,20 +36,22 @@ export async function createLink(
     now = new Date(),
   }: Deps & { expiresInDays?: number | null } = {},
 ) {
-  const token = Buffer.from(
-    crypto.getRandomValues(new Uint8Array(24)),
-  ).toString('base64url')
-  await revokeLinks(vpnUserId, { db, now })
-  const expiresAt = expiresInDays
-    ? new Date(now.getTime() + expiresInDays * DAY)
-    : null
-  await db.insert(subscriptionTokens).values({
-    id: crypto.randomUUID(),
-    vpnUserId,
-    tokenHash: await hash(token),
-    expiresAt,
+  return withKeyedLock(`customer-link:${vpnUserId}`, async () => {
+    const token = Buffer.from(
+      crypto.getRandomValues(new Uint8Array(24)),
+    ).toString('base64url')
+    await revokeLinks(vpnUserId, { db, now })
+    const expiresAt = expiresInDays
+      ? new Date(now.getTime() + expiresInDays * DAY)
+      : null
+    await db.insert(subscriptionTokens).values({
+      id: crypto.randomUUID(),
+      vpnUserId,
+      tokenHash: await hash(token),
+      expiresAt,
+    })
+    return { token, expiresAt }
   })
-  return { token, expiresAt }
 }
 
 export async function revokeLinks(

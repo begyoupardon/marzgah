@@ -124,10 +124,9 @@ export function canAdminUnsettle(row: LedgerRowLike) {
 export function shouldBillForUpdate(args: {
   previousBytes: number | null | undefined
   nextBytes: number | null | undefined
-  statusChangedToDisabled?: boolean
   usageReset?: boolean
 }) {
-  if (args.statusChangedToDisabled || args.usageReset) return false
+  if (args.usageReset) return false
   return extraGbDelta(args.previousBytes, args.nextBytes) > 0
 }
 
