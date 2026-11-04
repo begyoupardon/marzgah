@@ -20,6 +20,7 @@ import {
   repairBotWebhooks,
 } from '#/lib/notifications/telegram'
 import { createScheduler } from '#/lib/scheduler'
+import { repairVpnOperations } from '#/lib/vpn-operations'
 
 /** Refresh every active mirror from Marzban (rows synced <30s ago are skipped). */
 export async function syncAllUsers() {
@@ -119,6 +120,12 @@ export function buildScheduler(opts: { backups: boolean }) {
     intervalMs: 60_000,
     run: drainNotifications,
     initialDelayMs: 30_000,
+  })
+  scheduler.register({
+    name: 'repair-vpn-operations',
+    intervalMs: 60_000,
+    run: repairVpnOperations,
+    initialDelayMs: 10_000,
   })
   if (opts.backups) {
     scheduler.register({

@@ -288,7 +288,7 @@ it('customer asks, seller approves: renewal is billed exactly once', async () =>
   ).toMatchObject({ hasPendingRenewal: false })
 })
 
-it('a failed renewal leaves the request open for another try', async () => {
+it('a failed renewal stays claimed and recovers without a second charge', async () => {
   const token = await link('bo_cust', bob.id)
   await callAs(
     api.publicRequestRenewal,
@@ -310,8 +310,13 @@ it('a failed renewal leaves the request open for another try', async () => {
     .select()
     .from(renewalRequests)
     .where(eq(renewalRequests.id, req.id))
-  expect(row?.status).toBe('pending')
-  await callAs(api.approveRenewalRequest, { id: req.id }, bob.id)
+  expect(row?.status).toBe('approved')
+  await db
+    .update(auditLogs)
+    .set({ createdAt: new Date(Date.now() - 31_000) })
+    .where(eq(auditLogs.action, 'vpn_user.pending_renew'))
+  const { repairVpnOperations } = await import('#/lib/vpn-operations')
+  await repairVpnOperations()
   const [after] = await db
     .select()
     .from(renewalRequests)

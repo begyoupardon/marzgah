@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, getRouteApi, Link } from '@tanstack/react-router'
 import { cn } from 'cn'
 import { CircleDollarSignIcon, HandCoinsIcon, WalletIcon } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 
 import {
@@ -90,19 +90,26 @@ function SalesPage() {
   const [statusFilter, setStatusFilter] = useState<
     'all' | 'outstanding' | 'claimed' | 'settled'
   >('outstanding')
+  const [page, setPage] = useState(1)
   const [pending, setPending] = useState<{
     mode: 'claim' | 'settle' | 'unsettle'
     event: BillingEvent
   } | null>(null)
 
   const resellerSummaryQuery = useQuery({
-    ...orpc.billing.mySummary.queryOptions(),
+    ...orpc.billing.mySummary.queryOptions({
+      input: { page, status: statusFilter },
+    }),
     enabled: !isAdmin,
   })
 
   const adminSummaryQuery = useQuery({
     ...orpc.billing.adminSummary.queryOptions({
-      input: filterResellerId ? { resellerId: filterResellerId } : {},
+      input: {
+        ...(filterResellerId ? { resellerId: filterResellerId } : {}),
+        page,
+        status: statusFilter,
+      },
     }),
     enabled: isAdmin,
   })
@@ -162,23 +169,13 @@ function SalesPage() {
     ? adminSummaryQuery.error
     : resellerSummaryQuery.error
 
-  const allEvents = useMemo(() => {
-    const raw = (
-      isAdmin
-        ? adminSummaryQuery.data?.events
-        : resellerSummaryQuery.data?.events
-    ) as BillingEvent[] | undefined
-    return raw ?? []
-  }, [
-    adminSummaryQuery.data?.events,
-    isAdmin,
-    resellerSummaryQuery.data?.events,
-  ])
-
-  const events = useMemo(() => {
-    if (statusFilter === 'all') return allEvents
-    return allEvents.filter((e) => settlementStatus(e) === statusFilter)
-  }, [allEvents, statusFilter])
+  const events = ((isAdmin
+    ? adminSummaryQuery.data?.events
+    : resellerSummaryQuery.data?.events) ?? []) as BillingEvent[]
+  const pageCount =
+    (isAdmin
+      ? adminSummaryQuery.data?.pageCount
+      : resellerSummaryQuery.data?.pageCount) ?? 0
 
   const busy =
     claimMutation.isPending ||
@@ -229,7 +226,10 @@ function SalesPage() {
                 label: `${r.name} (${r.email})`,
               }))}
               value={filterResellerId || null}
-              onValueChange={(value) => setFilterResellerId(value ?? '')}
+              onValueChange={(value) => {
+                setFilterResellerId(value ?? '')
+                setPage(1)
+              }}
             >
               <SelectTrigger className="w-full sm:w-56">
                 <SelectValue placeholder={t('همه نمایندگان')} />
@@ -256,7 +256,10 @@ function SalesPage() {
               all: t('همه'),
             }}
             value={statusFilter}
-            onValueChange={(value) => setStatusFilter(value ?? 'all')}
+            onValueChange={(value) => {
+              setStatusFilter(value ?? 'all')
+              setPage(1)
+            }}
           >
             <SelectTrigger className="w-full sm:w-44">
               <SelectValue placeholder={t('وضعیت')} />
@@ -500,6 +503,28 @@ function SalesPage() {
             </TableBody>
           </Table>
         </div>
+        {pageCount > 1 ? (
+          <div className="flex items-center justify-end gap-3 border-t p-4">
+            <Button
+              variant="outline"
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+            >
+              {t('قبلی')}
+            </Button>
+            <span>
+              {page.toLocaleString(numberLocale)} /{' '}
+              {pageCount.toLocaleString(numberLocale)}
+            </span>
+            <Button
+              variant="outline"
+              disabled={page >= pageCount}
+              onClick={() => setPage(page + 1)}
+            >
+              {t('بعدی')}
+            </Button>
+          </div>
+        ) : null}
       </Card>
 
       <AlertDialog

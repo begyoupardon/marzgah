@@ -21,6 +21,7 @@ import {
 import { authed, base } from '../middleware'
 import { outputSpec } from '../openapi-response'
 import { renewVpnUser } from './vpn-users'
+import { hasPendingVpnOperation } from '#/lib/vpn-operations'
 
 const viewLimiter = createRateLimiter({ windowMs: 60_000, max: 60 })
 const renewIpLimiter = createRateLimiter({ windowMs: 60 * 60_000, max: 10 })
@@ -268,7 +269,7 @@ export const approveRenewalRequest = authed
         },
       )
     } catch (error) {
-      await reopen(request.id)
+      if (!(await hasPendingVpnOperation(username))) await reopen(request.id)
       throw error
     }
     await writeAuditLog({

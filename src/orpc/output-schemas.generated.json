@@ -380,6 +380,126 @@
   "billing.myBillingSummary": {
     "type": "object",
     "properties": {
+      "events": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "resellerId": {
+              "type": "string"
+            },
+            "vpnUserId": {
+              "type": "string"
+            },
+            "marzbanUsername": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": ["create", "renew", "extra_gb"]
+            },
+            "dataLimitGb": {
+              "type": "number"
+            },
+            "durationMonths": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "durationDays": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "pricePerGbToman": {
+              "type": "number"
+            },
+            "amountToman": {
+              "type": "number"
+            },
+            "actorUserId": {
+              "type": "string"
+            },
+            "claimedPaidAt": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "claimedByUserId": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "settledAt": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "settledByUserId": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "createdAt": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "resellerId",
+            "vpnUserId",
+            "marzbanUsername",
+            "type",
+            "dataLimitGb",
+            "durationMonths",
+            "durationDays",
+            "pricePerGbToman",
+            "amountToman",
+            "actorUserId",
+            "claimedPaidAt",
+            "claimedByUserId",
+            "settledAt",
+            "settledByUserId",
+            "createdAt"
+          ]
+        }
+      },
+      "pageCount": {
+        "type": "number"
+      },
       "summary": {
         "type": "object",
         "properties": {
@@ -410,6 +530,47 @@
           "outstandingToman",
           "eventCount"
         ]
+      }
+    },
+    "required": ["events", "pageCount", "summary"]
+  },
+  "billing.adminBillingSummary": {
+    "type": "object",
+    "properties": {
+      "resellers": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "usernameSuffix": {
+              "type": "string"
+            },
+            "pricePerGbToman": {
+              "type": "number"
+            },
+            "status": {
+              "type": "string",
+              "enum": ["active", "disabled"]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "email",
+            "usernameSuffix",
+            "pricePerGbToman",
+            "status"
+          ]
+        }
       },
       "events": {
         "type": "array",
@@ -527,13 +688,10 @@
             "createdAt"
           ]
         }
-      }
-    },
-    "required": ["summary", "events"]
-  },
-  "billing.adminBillingSummary": {
-    "type": "object",
-    "properties": {
+      },
+      "pageCount": {
+        "type": "number"
+      },
       "summary": {
         "type": "object",
         "properties": {
@@ -570,6 +728,9 @@
         "items": {
           "type": "object",
           "properties": {
+            "resellerId": {
+              "type": "string"
+            },
             "reseller": {
               "anyOf": [
                 {
@@ -626,177 +787,22 @@
             },
             "eventCount": {
               "type": "number"
-            },
-            "resellerId": {
-              "type": "string"
             }
           },
           "required": [
+            "resellerId",
             "reseller",
             "soldGb",
             "totalToman",
             "settledToman",
             "claimedToman",
             "outstandingToman",
-            "eventCount",
-            "resellerId"
-          ]
-        }
-      },
-      "events": {
-        "type": "array",
-        "items": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string"
-            },
-            "resellerId": {
-              "type": "string"
-            },
-            "vpnUserId": {
-              "type": "string"
-            },
-            "marzbanUsername": {
-              "type": "string"
-            },
-            "type": {
-              "type": "string",
-              "enum": ["create", "renew", "extra_gb"]
-            },
-            "dataLimitGb": {
-              "type": "number"
-            },
-            "durationMonths": {
-              "anyOf": [
-                {
-                  "type": "null"
-                },
-                {
-                  "type": "number"
-                }
-              ]
-            },
-            "durationDays": {
-              "anyOf": [
-                {
-                  "type": "null"
-                },
-                {
-                  "type": "number"
-                }
-              ]
-            },
-            "pricePerGbToman": {
-              "type": "number"
-            },
-            "amountToman": {
-              "type": "number"
-            },
-            "actorUserId": {
-              "type": "string"
-            },
-            "claimedPaidAt": {
-              "anyOf": [
-                {
-                  "type": "null"
-                },
-                {
-                  "type": "string"
-                }
-              ]
-            },
-            "claimedByUserId": {
-              "anyOf": [
-                {
-                  "type": "null"
-                },
-                {
-                  "type": "string"
-                }
-              ]
-            },
-            "settledAt": {
-              "anyOf": [
-                {
-                  "type": "null"
-                },
-                {
-                  "type": "string"
-                }
-              ]
-            },
-            "settledByUserId": {
-              "anyOf": [
-                {
-                  "type": "null"
-                },
-                {
-                  "type": "string"
-                }
-              ]
-            },
-            "createdAt": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "id",
-            "resellerId",
-            "vpnUserId",
-            "marzbanUsername",
-            "type",
-            "dataLimitGb",
-            "durationMonths",
-            "durationDays",
-            "pricePerGbToman",
-            "amountToman",
-            "actorUserId",
-            "claimedPaidAt",
-            "claimedByUserId",
-            "settledAt",
-            "settledByUserId",
-            "createdAt"
-          ]
-        }
-      },
-      "resellers": {
-        "type": "array",
-        "items": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string"
-            },
-            "name": {
-              "type": "string"
-            },
-            "email": {
-              "type": "string"
-            },
-            "usernameSuffix": {
-              "type": "string"
-            },
-            "pricePerGbToman": {
-              "type": "number"
-            },
-            "status": {
-              "type": "string",
-              "enum": ["active", "disabled"]
-            }
-          },
-          "required": [
-            "id",
-            "name",
-            "email",
-            "usernameSuffix",
-            "pricePerGbToman",
-            "status"
+            "eventCount"
           ]
         }
       }
     },
-    "required": ["summary", "byReseller", "events", "resellers"]
+    "required": ["resellers", "events", "pageCount", "summary", "byReseller"]
   },
   "billing.claimBillingPaid": {
     "type": "object",

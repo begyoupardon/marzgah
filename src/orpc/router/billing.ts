@@ -1,5 +1,5 @@
 import { ORPCError } from '@orpc/server'
-import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import * as z from 'zod'
 
 import { db } from '#/db'
@@ -8,8 +8,6 @@ import {
   canAdminSettle,
   canAdminUnsettle,
   canResellerClaim,
-  summarizeByReseller,
-  summarizeLedger,
 } from '#/lib/billing'
 import { serializeBillingRow, writeAuditLog } from '#/lib/ledger'
 import { adminOnly, authed } from '../middleware'
@@ -17,6 +15,72 @@ import { outputSpec } from '../openapi-response'
 
 function mapEvent(row: typeof billingEvents.$inferSelect) {
   return serializeBillingRow(row)
+}
+
+const pageInput = z.object({
+  page: z.number().int().min(1).default(1),
+  status: z.enum(['all', 'outstanding', 'claimed', 'settled']).default('all'),
+})
+
+const totals = {
+  soldGb: sql<number>`coalesce(sum(${billingEvents.dataLimitGb}), 0)`,
+  totalToman: sql<number>`coalesce(sum(${billingEvents.amountToman}), 0)`,
+  settledToman: sql<number>`coalesce(sum(case when ${billingEvents.settledAt} is not null then ${billingEvents.amountToman} else 0 end), 0)`,
+  claimedToman: sql<number>`coalesce(sum(case when ${billingEvents.settledAt} is null and ${billingEvents.claimedPaidAt} is not null then ${billingEvents.amountToman} else 0 end), 0)`,
+  outstandingToman: sql<number>`coalesce(sum(case when ${billingEvents.settledAt} is null then ${billingEvents.amountToman} else 0 end), 0)`,
+  eventCount: sql<number>`count(*)`,
+}
+
+function summary(row: Record<keyof typeof totals, number> | undefined) {
+  return {
+    soldGb: Math.round(Number(row?.soldGb ?? 0) * 100) / 100,
+    totalToman: Number(row?.totalToman ?? 0),
+    settledToman: Number(row?.settledToman ?? 0),
+    claimedToman: Number(row?.claimedToman ?? 0),
+    outstandingToman: Number(row?.outstandingToman ?? 0),
+    eventCount: Number(row?.eventCount ?? 0),
+  }
+}
+
+function statusCondition(status: z.infer<typeof pageInput>['status']) {
+  if (status === 'settled') return isNotNull(billingEvents.settledAt)
+  if (status === 'claimed')
+    return and(
+      isNull(billingEvents.settledAt),
+      isNotNull(billingEvents.claimedPaidAt),
+    )
+  if (status === 'outstanding')
+    return and(
+      isNull(billingEvents.settledAt),
+      isNull(billingEvents.claimedPaidAt),
+    )
+  return undefined
+}
+
+async function eventPage(
+  resellerId: string | undefined,
+  page: number,
+  status: z.infer<typeof pageInput>['status'],
+) {
+  const where = and(
+    resellerId ? eq(billingEvents.resellerId, resellerId) : undefined,
+    statusCondition(status),
+  )
+  const [countRow] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(billingEvents)
+    .where(where)
+  const rows = await db
+    .select()
+    .from(billingEvents)
+    .where(where)
+    .orderBy(desc(billingEvents.createdAt), desc(billingEvents.id))
+    .limit(50)
+    .offset((page - 1) * 50)
+  return {
+    events: rows.map(mapEvent),
+    pageCount: Math.ceil(Number(countRow?.count ?? 0) / 50),
+  }
 }
 
 export const myBillingSummary = authed
@@ -27,7 +91,8 @@ export const myBillingSummary = authed
     tags: ['Billing'],
     spec: outputSpec('billing.myBillingSummary'),
   })
-  .handler(async ({ context }) => {
+  .input(pageInput.optional())
+  .handler(async ({ input, context }) => {
     const resellerId = context.user.role === 'admin' ? null : context.user.id
 
     if (!resellerId) {
@@ -36,16 +101,17 @@ export const myBillingSummary = authed
       })
     }
 
-    const rows = await db
-      .select()
+    const [row] = await db
+      .select(totals)
       .from(billingEvents)
       .where(eq(billingEvents.resellerId, resellerId))
-      .orderBy(desc(billingEvents.createdAt))
-
-    const mapped = rows.map(mapEvent)
     return {
-      summary: summarizeLedger(mapped),
-      events: mapped,
+      summary: summary(row),
+      ...(await eventPage(
+        resellerId,
+        input?.page ?? 1,
+        input?.status ?? 'all',
+      )),
     }
   })
 
@@ -58,29 +124,32 @@ export const adminBillingSummary = adminOnly
     spec: outputSpec('billing.adminBillingSummary'),
   })
   .input(
-    z.object({
-      resellerId: z.string().optional(),
-    }),
+    pageInput
+      .extend({
+        resellerId: z.string().optional(),
+      })
+      .optional(),
   )
   .handler(async ({ input }) => {
-    const rows = input.resellerId
-      ? await db
-          .select()
-          .from(billingEvents)
-          .where(eq(billingEvents.resellerId, input.resellerId))
-          .orderBy(desc(billingEvents.createdAt))
-      : await db
-          .select()
-          .from(billingEvents)
-          .orderBy(desc(billingEvents.createdAt))
-
-    const mapped = rows.map(mapEvent)
-    const byReseller = summarizeByReseller(
-      mapped.map((r) => ({
-        ...r,
-        resellerId: r.resellerId,
-      })),
-    )
+    const [totalRows, byReseller] = await Promise.all([
+      db
+        .select(totals)
+        .from(billingEvents)
+        .where(
+          input?.resellerId
+            ? eq(billingEvents.resellerId, input.resellerId)
+            : undefined,
+        ),
+      db
+        .select({ resellerId: billingEvents.resellerId, ...totals })
+        .from(billingEvents)
+        .where(
+          input?.resellerId
+            ? eq(billingEvents.resellerId, input.resellerId)
+            : undefined,
+        )
+        .groupBy(billingEvents.resellerId),
+    ])
 
     const resellers = await db
       .select({
@@ -97,12 +166,17 @@ export const adminBillingSummary = adminOnly
     const resellerMap = new Map(resellers.map((r) => [r.id, r]))
 
     return {
-      summary: summarizeLedger(mapped),
+      summary: summary(totalRows[0]),
       byReseller: byReseller.map((item) => ({
-        ...item,
+        ...summary(item),
+        resellerId: item.resellerId,
         reseller: resellerMap.get(item.resellerId) ?? null,
       })),
-      events: mapped,
+      ...(await eventPage(
+        input?.resellerId,
+        input?.page ?? 1,
+        input?.status ?? 'all',
+      )),
       resellers,
     }
   })

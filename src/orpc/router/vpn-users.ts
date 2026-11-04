@@ -14,9 +14,15 @@ import {
 } from '#/lib/billing'
 import { insertBillingEvent, writeAuditLog } from '#/lib/ledger'
 import { withKeyedLock } from '#/lib/keyed-lock'
+import {
+  beginVpnOperation,
+  finishVpnOperation,
+  hasPendingVpnOperation,
+  markVpnUserCreated,
+} from '#/lib/vpn-operations'
 import { labelCondition, parseLabels, viewCondition } from '#/lib/user-filters'
 import { assertCanSpend, InsufficientFundsError } from '#/lib/wallet'
-import { getBackend } from '#/lib/backends/registry'
+import { DEFAULT_BACKEND_ID, getBackend } from '#/lib/backends/registry'
 import { BackendError } from '#/lib/backends/types'
 import {
   assertCanCreateVpnUser,
@@ -64,6 +70,14 @@ function resolveResellerId(
 
 function actorRole(role: string): 'admin' | 'reseller' {
   return role === 'admin' ? 'admin' : 'reseller'
+}
+
+async function assertActiveReseller(resellerId: string) {
+  if ((await getResellerProfile(resellerId))?.status !== 'active') {
+    throw new ORPCError('FORBIDDEN', {
+      message: 'Reseller account is disabled',
+    })
+  }
 }
 
 function escapeLike(value: string) {
@@ -317,6 +331,13 @@ export const createVpnUser = authed
         profile.pricePerGbToman,
       )
 
+      const operationId = await beginVpnOperation({
+        username: fullUsername,
+        resellerId,
+        actorUserId: context.user.id,
+        operation: { kind: 'create', backend: DEFAULT_BACKEND_ID },
+      })
+
       let created
       try {
         created = await getBackend().createUser({
@@ -332,9 +353,26 @@ export const createVpnUser = authed
           (error.code === 'CONFLICT' ||
             isDuplicateUsernameMessage(error.message))
         ) {
+          await finishVpnOperation(operationId)
           throw new ORPCError('CONFLICT', {
             message: DUPLICATE_USERNAME_MESSAGE,
           })
+        }
+        throw error
+      }
+
+      try {
+        await markVpnUserCreated(operationId)
+      } catch (error) {
+        try {
+          await getBackend().deleteUser(created.username)
+          await finishVpnOperation(operationId)
+        } catch (cleanupError) {
+          console.error(
+            'VPN create needs manual review',
+            fullUsername,
+            cleanupError,
+          )
         }
         throw error
       }
@@ -350,6 +388,7 @@ export const createVpnUser = authed
         })
         if (!mirrored) throw new Error('mirror missing')
         billing = await insertBillingEvent({
+          id: operationId,
           resellerId,
           vpnUserId: mirrored.id,
           marzbanUsername: fullUsername,
@@ -365,18 +404,27 @@ export const createVpnUser = authed
           actorUserId: context.user.id,
         })
       } catch (error) {
-        await getBackend()
-          .deleteUser(created.username)
-          .catch(() => {})
-        await softRemoveMirroredVpnUser(created.username, {
-          actorUserId: context.user.id,
-          reason: 'create_failed',
-        }).catch(() => {})
+        try {
+          await getBackend().deleteUser(created.username)
+          await softRemoveMirroredVpnUser(created.username, {
+            actorUserId: context.user.id,
+            reason: 'create_failed',
+          })
+          await finishVpnOperation(operationId)
+        } catch (cleanupError) {
+          console.error(
+            'VPN create cleanup pending',
+            fullUsername,
+            cleanupError,
+          )
+        }
         throw new ORPCError('INTERNAL_SERVER_ERROR', {
-          message: 'کاربر ساخته نشد؛ دوباره تلاش کنید',
+          message: 'کاربر ساخته نشد؛ بازیابی خودکار در انتظار است',
           cause: error,
         })
       }
+
+      await finishVpnOperation(operationId)
 
       await writeAuditLog({
         actorUserId: context.user.id,
@@ -441,140 +489,152 @@ export const updateVpnUser = authed
       throw new ORPCError('NOT_FOUND', { message: 'کاربر VPN پیدا نشد' })
     }
 
-    const expireAt =
-      input.expireAt === undefined
-        ? undefined
-        : input.expireAt
-          ? new Date(input.expireAt)
-          : null
+    return withKeyedLock(owned.resellerId, async () => {
+      await assertActiveReseller(owned.resellerId)
+      if (await hasPendingVpnOperation(input.username)) {
+        throw new ORPCError('CONFLICT', {
+          message: 'VPN operation recovery is pending',
+        })
+      }
 
-    const current = await syncVpnUserFromMarzban(input.username, {
-      repairInbounds: false,
-    })
-    if (!current || current.removedAt) {
-      throw new ORPCError('NOT_FOUND', { message: 'کاربر VPN پیدا نشد' })
-    }
-    const previousBytes = current.dataLimitBytes
-    const nextBytes =
-      input.dataLimitBytes !== undefined ? input.dataLimitBytes : previousBytes
+      const expireAt =
+        input.expireAt === undefined
+          ? undefined
+          : input.expireAt
+            ? new Date(input.expireAt)
+            : null
 
-    const plannedExtraGb = extraGbDelta(previousBytes, nextBytes)
-    if (
-      plannedExtraGb > 0 &&
-      shouldBillForUpdate({
+      const current = await syncVpnUserFromMarzban(input.username, {
+        repairInbounds: false,
+      })
+      if (!current || current.removedAt) {
+        throw new ORPCError('NOT_FOUND', { message: 'کاربر VPN پیدا نشد' })
+      }
+      const previousBytes = current.dataLimitBytes
+      const nextBytes =
+        input.dataLimitBytes !== undefined
+          ? input.dataLimitBytes
+          : previousBytes
+
+      const plannedExtraGb = extraGbDelta(previousBytes, nextBytes)
+      if (
+        plannedExtraGb > 0 &&
+        shouldBillForUpdate({
+          previousBytes,
+          nextBytes,
+          statusChangedToDisabled: input.status === 'disabled',
+        })
+      ) {
+        const billingProfile = await getResellerProfile(owned.resellerId)
+        if (billingProfile) {
+          await guardSpend(
+            owned.resellerId,
+            plannedExtraGb,
+            billingProfile.pricePerGbToman,
+          )
+        }
+      }
+
+      try {
+        await getBackend(owned.backend).updateUser(input.username, {
+          ...(input.dataLimitBytes !== undefined
+            ? { dataLimitBytes: input.dataLimitBytes }
+            : {}),
+          ...(expireAt !== undefined ? { expireAt } : {}),
+          ...(input.note !== undefined ? { note: input.note } : {}),
+          ...(input.status ? { status: input.status } : {}),
+          ...(input.password !== undefined ? { password: input.password } : {}),
+        })
+      } catch (error) {
+        if (error instanceof BackendError && error.code === 'UNSUPPORTED') {
+          throw new ORPCError('BAD_REQUEST', {
+            message:
+              'این کاربر پروتکل با رمز عبور ندارد (مثلاً فقط VLESS/VMess).',
+          })
+        }
+        throw error
+      }
+
+      const mirrored = await syncVpnUserFromMarzban(input.username, {
+        resellerId: owned.resellerId,
+      })
+
+      const billExtra = shouldBillForUpdate({
         previousBytes,
         nextBytes,
         statusChangedToDisabled: input.status === 'disabled',
       })
-    ) {
-      const billingProfile = await getResellerProfile(owned.resellerId)
-      if (billingProfile) {
-        await guardSpend(
-          owned.resellerId,
-          plannedExtraGb,
-          billingProfile.pricePerGbToman,
-        )
-      }
-    }
+      const deltaGb = extraGbDelta(previousBytes, nextBytes)
 
-    try {
-      await getBackend(owned.backend).updateUser(input.username, {
-        ...(input.dataLimitBytes !== undefined
-          ? { dataLimitBytes: input.dataLimitBytes }
-          : {}),
-        ...(expireAt !== undefined ? { expireAt } : {}),
-        ...(input.note !== undefined ? { note: input.note } : {}),
-        ...(input.status ? { status: input.status } : {}),
-        ...(input.password !== undefined ? { password: input.password } : {}),
-      })
-    } catch (error) {
-      if (error instanceof BackendError && error.code === 'UNSUPPORTED') {
-        throw new ORPCError('BAD_REQUEST', {
-          message: 'این کاربر پروتکل با رمز عبور ندارد (مثلاً فقط VLESS/VMess).',
+      if (billExtra && deltaGb > 0) {
+        const profile = await getResellerProfile(owned.resellerId)
+        if (!profile) {
+          throw new ORPCError('BAD_REQUEST', {
+            message: 'پروفایل نماینده یافت نشد',
+          })
+        }
+        const billing = await insertBillingEvent({
+          resellerId: owned.resellerId,
+          vpnUserId: owned.id,
+          marzbanUsername: input.username,
+          type: 'extra_gb',
+          dataLimitGb: deltaGb,
+          durationMonths: null,
+          pricePerGbToman: profile.pricePerGbToman,
+          actorUserId: context.user.id,
+        })
+        await writeAuditLog({
+          actorUserId: context.user.id,
+          actorRole: actorRole(context.user.role),
+          action: 'vpn_user.extra_gb',
+          entityType: 'vpn_user',
+          entityId: owned.id,
+          vpnUsername: input.username,
+          resellerId: owned.resellerId,
+          payload: {
+            previousBytes,
+            nextBytes,
+            deltaGb,
+            amountToman: billing.amountToman,
+            billingEventId: billing.id,
+          },
+        })
+      } else {
+        await writeAuditLog({
+          actorUserId: context.user.id,
+          actorRole: actorRole(context.user.role),
+          action: 'vpn_user.update',
+          entityType: 'vpn_user',
+          entityId: owned.id,
+          vpnUsername: input.username,
+          resellerId: owned.resellerId,
+          payload: {
+            dataLimitBytes: input.dataLimitBytes,
+            status: input.status,
+            note: input.note,
+            passwordChanged: input.password !== undefined,
+            billable: false,
+            before: {
+              dataLimitBytes: previousBytes,
+              status: current.status,
+              note: current.note,
+              expireAt: current.expireAt?.toISOString() ?? null,
+            },
+            after: {
+              dataLimitBytes: nextBytes,
+              status: input.status ?? current.status,
+              note: input.note !== undefined ? input.note : current.note,
+              expireAt:
+                expireAt === undefined
+                  ? (current.expireAt?.toISOString() ?? null)
+                  : (expireAt?.toISOString() ?? null),
+            },
+          },
         })
       }
-      throw error
-    }
 
-    const mirrored = await syncVpnUserFromMarzban(input.username, {
-      resellerId: owned.resellerId,
+      return mirrored
     })
-
-    const billExtra = shouldBillForUpdate({
-      previousBytes,
-      nextBytes,
-      statusChangedToDisabled: input.status === 'disabled',
-    })
-    const deltaGb = extraGbDelta(previousBytes, nextBytes)
-
-    if (billExtra && deltaGb > 0) {
-      const profile = await getResellerProfile(owned.resellerId)
-      if (!profile) {
-        throw new ORPCError('BAD_REQUEST', {
-          message: 'پروفایل نماینده یافت نشد',
-        })
-      }
-      const billing = await insertBillingEvent({
-        resellerId: owned.resellerId,
-        vpnUserId: owned.id,
-        marzbanUsername: input.username,
-        type: 'extra_gb',
-        dataLimitGb: deltaGb,
-        durationMonths: null,
-        pricePerGbToman: profile.pricePerGbToman,
-        actorUserId: context.user.id,
-      })
-      await writeAuditLog({
-        actorUserId: context.user.id,
-        actorRole: actorRole(context.user.role),
-        action: 'vpn_user.extra_gb',
-        entityType: 'vpn_user',
-        entityId: owned.id,
-        vpnUsername: input.username,
-        resellerId: owned.resellerId,
-        payload: {
-          previousBytes,
-          nextBytes,
-          deltaGb,
-          amountToman: billing.amountToman,
-          billingEventId: billing.id,
-        },
-      })
-    } else {
-      await writeAuditLog({
-        actorUserId: context.user.id,
-        actorRole: actorRole(context.user.role),
-        action: 'vpn_user.update',
-        entityType: 'vpn_user',
-        entityId: owned.id,
-        vpnUsername: input.username,
-        resellerId: owned.resellerId,
-        payload: {
-          dataLimitBytes: input.dataLimitBytes,
-          status: input.status,
-          note: input.note,
-          passwordChanged: input.password !== undefined,
-          billable: false,
-          before: {
-            dataLimitBytes: previousBytes,
-            status: current.status,
-            note: current.note,
-            expireAt: current.expireAt?.toISOString() ?? null,
-          },
-          after: {
-            dataLimitBytes: nextBytes,
-            status: input.status ?? current.status,
-            note: input.note !== undefined ? input.note : current.note,
-            expireAt:
-              expireAt === undefined
-                ? (current.expireAt?.toISOString() ?? null)
-                : (expireAt?.toISOString() ?? null),
-          },
-        },
-      })
-    }
-
-    return mirrored
   })
 
 export const renewVpnUser = authed
@@ -621,141 +681,166 @@ export const renewVpnUser = authed
       throw new ORPCError('NOT_FOUND', { message: 'کاربر VPN پیدا نشد' })
     }
 
-    const profile = await getResellerProfile(owned.resellerId)
-    if (!profile) {
-      throw new ORPCError('BAD_REQUEST', {
-        message: 'پروفایل نماینده یافت نشد',
-      })
-    }
+    return withKeyedLock(owned.resellerId, async () => {
+      await assertActiveReseller(owned.resellerId)
 
-    if (
-      (input.durationDays === 0 || input.durationMonths === 0) &&
-      !profile.allowUnlimitedExpire
-    ) {
-      throw new ORPCError('FORBIDDEN', {
-        message: 'این نماینده مجاز به تمدید نامحدود نیست',
-      })
-    }
+      const profile = await getResellerProfile(owned.resellerId)
+      if (!profile) {
+        throw new ORPCError('BAD_REQUEST', {
+          message: 'پروفایل نماینده یافت نشد',
+        })
+      }
 
-    if (
-      input.durationDays === undefined &&
-      input.durationMonths === undefined
-    ) {
-      throw new ORPCError('BAD_REQUEST', { message: 'مدت تمدید الزامی است' })
-    }
+      if (
+        (input.durationDays === 0 || input.durationMonths === 0) &&
+        !profile.allowUnlimitedExpire
+      ) {
+        throw new ORPCError('FORBIDDEN', {
+          message: 'این نماینده مجاز به تمدید نامحدود نیست',
+        })
+      }
 
-    // A locally known unlimited cap cannot receive an incremental allowance.
-    // Reject it before any backend read, mutation, billing or wallet action.
-    if (owned.dataLimitBytes == null) {
-      throw new ORPCError('BAD_REQUEST', {
-        message: 'حجم پلن برای تمدید مشخص نیست',
-      })
-    }
-    const preflightAdditionalBytes =
-      input.additionalDataLimitBytes ?? owned.dataLimitBytes
-    if (
-      !Number.isSafeInteger(preflightAdditionalBytes) ||
-      !isValidDataLimitBytes(preflightAdditionalBytes) ||
-      !Number.isSafeInteger(owned.dataLimitBytes + preflightAdditionalBytes)
-    ) {
-      throw new ORPCError('BAD_REQUEST', {
-        message: 'حجم افزوده‌شده نامعتبر است',
-      })
-    }
+      if (
+        input.durationDays === undefined &&
+        input.durationMonths === undefined
+      ) {
+        throw new ORPCError('BAD_REQUEST', { message: 'مدت تمدید الزامی است' })
+      }
 
-    const current = await syncVpnUserFromMarzban(input.username, {
-      repairInbounds: false,
-    })
-    if (!current || current.removedAt) {
-      throw new ORPCError('NOT_FOUND', { message: 'کاربر VPN پیدا نشد' })
-    }
-    if (
-      current.dataLimitBytes == null ||
-      !isValidDataLimitBytes(current.dataLimitBytes)
-    ) {
-      throw new ORPCError('BAD_REQUEST', {
-        message: 'حجم پلن برای تمدید مشخص نیست',
-      })
-    }
+      // A locally known unlimited cap cannot receive an incremental allowance.
+      // Reject it before any backend read, mutation, billing or wallet action.
+      if (owned.dataLimitBytes == null) {
+        throw new ORPCError('BAD_REQUEST', {
+          message: 'حجم پلن برای تمدید مشخص نیست',
+        })
+      }
+      const preflightAdditionalBytes =
+        input.additionalDataLimitBytes ?? owned.dataLimitBytes
+      if (
+        !Number.isSafeInteger(preflightAdditionalBytes) ||
+        !isValidDataLimitBytes(preflightAdditionalBytes) ||
+        !Number.isSafeInteger(owned.dataLimitBytes + preflightAdditionalBytes)
+      ) {
+        throw new ORPCError('BAD_REQUEST', {
+          message: 'حجم افزوده‌شده نامعتبر است',
+        })
+      }
 
-    const addedBytes = input.additionalDataLimitBytes ?? current.dataLimitBytes
-    // Renewal starts a fresh period: leftover volume is not carried over.
-    const nextDataLimitBytes = addedBytes
-    if (
-      !Number.isSafeInteger(nextDataLimitBytes) ||
-      !isValidDataLimitBytes(addedBytes)
-    ) {
-      throw new ORPCError('BAD_REQUEST', {
-        message: 'حجم افزوده‌شده نامعتبر است',
+      const current = await syncVpnUserFromMarzban(input.username, {
+        repairInbounds: false,
       })
-    }
-    const legacyMonths =
-      input.durationDays === undefined ? input.durationMonths : undefined
-    const expireAt =
-      legacyMonths === 0
-        ? null
-        : legacyMonths
-          ? renewExpireAtFromMonths(current.expireAt, legacyMonths)
-          : renewExpireAt(current.expireAt, input.durationDays!)
-    const durationDays =
-      legacyMonths !== undefined
-        ? null
-        : input.durationDays === 0
+      if (!current || current.removedAt) {
+        throw new ORPCError('NOT_FOUND', { message: 'کاربر VPN پیدا نشد' })
+      }
+      if (
+        current.dataLimitBytes == null ||
+        !isValidDataLimitBytes(current.dataLimitBytes)
+      ) {
+        throw new ORPCError('BAD_REQUEST', {
+          message: 'حجم پلن برای تمدید مشخص نیست',
+        })
+      }
+
+      const addedBytes =
+        input.additionalDataLimitBytes ?? current.dataLimitBytes
+      // Renewal starts a fresh period: leftover volume is not carried over.
+      const nextDataLimitBytes = addedBytes
+      if (
+        !Number.isSafeInteger(nextDataLimitBytes) ||
+        !isValidDataLimitBytes(addedBytes)
+      ) {
+        throw new ORPCError('BAD_REQUEST', {
+          message: 'حجم افزوده‌شده نامعتبر است',
+        })
+      }
+      const legacyMonths =
+        input.durationDays === undefined ? input.durationMonths : undefined
+      const expireAt =
+        legacyMonths === 0
           ? null
-          : input.durationDays
+          : legacyMonths
+            ? renewExpireAtFromMonths(current.expireAt, legacyMonths)
+            : renewExpireAt(current.expireAt, input.durationDays!)
+      const durationDays =
+        legacyMonths !== undefined
+          ? null
+          : input.durationDays === 0
+            ? null
+            : input.durationDays
 
-    await guardSpend(
-      owned.resellerId,
-      billingGbFromBytes(addedBytes),
-      profile.pricePerGbToman,
-    )
+      await guardSpend(
+        owned.resellerId,
+        billingGbFromBytes(addedBytes),
+        profile.pricePerGbToman,
+      )
 
-    const backend = getBackend(owned.backend)
-    await backend.resetUsage(input.username)
-    await backend.updateUser(input.username, {
-      expireAt,
-      dataLimitBytes: nextDataLimitBytes,
-      ...(input.reactivate ? { status: 'active' as const } : {}),
-    })
+      const operationId = await beginVpnOperation({
+        username: input.username,
+        resellerId: owned.resellerId,
+        actorUserId: context.user.id,
+        operation: {
+          kind: 'renew',
+          backend: owned.backend,
+          vpnUserId: owned.id,
+          dataLimitBytes: addedBytes,
+          expireAt: expireAt?.toISOString() ?? null,
+          durationMonths: legacyMonths ?? null,
+          durationDays: durationDays ?? null,
+          pricePerGbToman: profile.pricePerGbToman,
+          reactivate: input.reactivate,
+        },
+      })
 
-    const mirrored = await syncVpnUserFromMarzban(input.username, {
-      resellerId: owned.resellerId,
-    })
+      const backend = getBackend(owned.backend)
+      await backend.resetUsage(input.username)
+      await backend.updateUser(input.username, {
+        expireAt,
+        dataLimitBytes: nextDataLimitBytes,
+        ...(input.reactivate ? { status: 'active' as const } : {}),
+      })
 
-    const dataLimitGb = billingGbFromBytes(addedBytes)
-    const durationMonths = legacyMonths ?? null
-    const billing = await insertBillingEvent({
-      resellerId: owned.resellerId,
-      vpnUserId: owned.id,
-      marzbanUsername: input.username,
-      type: 'renew',
-      dataLimitGb,
-      durationMonths,
-      durationDays,
-      pricePerGbToman: profile.pricePerGbToman,
-      actorUserId: context.user.id,
-    })
+      const mirrored = await syncVpnUserFromMarzban(input.username, {
+        resellerId: owned.resellerId,
+      })
 
-    await writeAuditLog({
-      actorUserId: context.user.id,
-      actorRole: actorRole(context.user.role),
-      action: 'vpn_user.renew',
-      entityType: 'vpn_user',
-      entityId: owned.id,
-      vpnUsername: input.username,
-      resellerId: owned.resellerId,
-      payload: {
+      const dataLimitGb = billingGbFromBytes(addedBytes)
+      const durationMonths = legacyMonths ?? null
+      const billing = await insertBillingEvent({
+        id: operationId,
+        resellerId: owned.resellerId,
+        vpnUserId: owned.id,
+        marzbanUsername: input.username,
+        type: 'renew',
         dataLimitGb,
         durationMonths,
         durationDays,
-        additionalDataLimitGb: billingGbFromBytes(addedBytes),
-        resetUsage: true,
-        amountToman: billing.amountToman,
-        billingEventId: billing.id,
-      },
-    })
+        pricePerGbToman: profile.pricePerGbToman,
+        actorUserId: context.user.id,
+      })
 
-    return mirrored
+      await finishVpnOperation(operationId)
+
+      await writeAuditLog({
+        actorUserId: context.user.id,
+        actorRole: actorRole(context.user.role),
+        action: 'vpn_user.renew',
+        entityType: 'vpn_user',
+        entityId: owned.id,
+        vpnUsername: input.username,
+        resellerId: owned.resellerId,
+        payload: {
+          dataLimitGb,
+          durationMonths,
+          durationDays,
+          additionalDataLimitGb: billingGbFromBytes(addedBytes),
+          resetUsage: true,
+          amountToman: billing.amountToman,
+          billingEventId: billing.id,
+        },
+      })
+
+      return mirrored
+    })
   })
 
 /**
@@ -816,6 +901,13 @@ export const resetVpnUserUsage = authed
     )
     if (!owned) {
       throw new ORPCError('NOT_FOUND', { message: 'کاربر VPN پیدا نشد' })
+    }
+
+    await assertActiveReseller(owned.resellerId)
+    if (await hasPendingVpnOperation(input.username)) {
+      throw new ORPCError('CONFLICT', {
+        message: 'VPN operation recovery is pending',
+      })
     }
 
     await getBackend(owned.backend).resetUsage(input.username)

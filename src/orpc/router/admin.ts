@@ -19,6 +19,8 @@ import {
 } from '#/lib/wallet'
 import { usernameSuffixSchema } from '#/lib/reseller-naming'
 import { getBackend } from '#/lib/backends/registry'
+import { resumeReseller, suspendReseller } from '#/lib/reseller-suspension'
+import { withKeyedLock } from '#/lib/keyed-lock'
 import { adminOnly } from '../middleware'
 import { outputSpec } from '../openapi-response'
 
@@ -236,14 +238,12 @@ export const updateReseller = adminOnly
     }
 
     const profilePatch: {
-      status?: 'active' | 'disabled'
       usernameSuffix?: string
       pricePerGbToman?: number
       allowUnlimitedExpire?: boolean
       notes?: string | null
       creditLimitToman?: number | null
     } = {
-      ...(input.status ? { status: input.status } : {}),
       ...(input.usernameSuffix ? { usernameSuffix: input.usernameSuffix } : {}),
       ...(input.pricePerGbToman != null
         ? { pricePerGbToman: input.pricePerGbToman }
@@ -309,6 +309,19 @@ export const updateReseller = adminOnly
         throw new ORPCError('BAD_REQUEST', {
           message:
             error instanceof Error ? error.message : 'تغییر رمز عبور انجام نشد',
+        })
+      }
+    }
+
+    if (input.status) {
+      const result = await withKeyedLock(input.userId, () =>
+        input.status === 'disabled'
+          ? suspendReseller(input.userId)
+          : resumeReseller(input.userId),
+      )
+      if (result.failed.length) {
+        throw new ORPCError('INTERNAL_SERVER_ERROR', {
+          message: `${result.failed.length} VPN users could not be updated; retry the status change`,
         })
       }
     }

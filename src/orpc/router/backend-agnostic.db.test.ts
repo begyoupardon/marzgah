@@ -128,6 +128,36 @@ it('updates only what changed and keeps the mirror in step', async () => {
   })
 })
 
+it('charges a concurrent quota increase only once', async () => {
+  const parallelSeller = await makeReseller(db, { usernameSuffix: 'pa' })
+  await callAs(
+    vpn.createVpnUser,
+    {
+      username: 'parallel',
+      dataLimitBytes: 10 * GB,
+      durationDays: 30,
+    },
+    parallelSeller.id,
+  )
+  await Promise.all([
+    callAs(
+      vpn.updateVpnUser,
+      { username: 'pa_parallel', dataLimitBytes: 20 * GB },
+      parallelSeller.id,
+    ),
+    callAs(
+      vpn.updateVpnUser,
+      { username: 'pa_parallel', dataLimitBytes: 20 * GB },
+      parallelSeller.id,
+    ),
+  ])
+  const events = await db
+    .select()
+    .from(billingEvents)
+    .where(eq(billingEvents.marzbanUsername, 'pa_parallel'))
+  expect(events.filter((event) => event.type === 'extra_gb')).toHaveLength(1)
+})
+
 it('explains when an account cannot take a password, and applies it when it can', async () => {
   await expect(
     callAs(
@@ -188,6 +218,120 @@ it('suspends and resumes a seller through the interface', async () => {
   expect((await fake.getUser('fk_ali')).status).toBe('disabled')
   await callAs(tools.resumeResellerAccount, { resellerId: seller.id }, admin.id)
   expect((await fake.getUser('fk_ali')).status).toBe('active')
+})
+
+it('editing reseller status suspends remote users and blocks reseller changes', async () => {
+  await callAs(
+    adminApi.updateReseller,
+    { userId: seller.id, status: 'disabled' },
+    admin.id,
+  )
+  expect((await fake.getUser('fk_ali')).status).toBe('disabled')
+  await expect(
+    callAs(
+      vpn.updateVpnUser,
+      { username: 'fk_ali', status: 'active' },
+      seller.id,
+    ),
+  ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+  await expect(
+    callAs(
+      vpn.renewVpnUser,
+      { username: 'fk_ali', durationDays: 30 },
+      seller.id,
+    ),
+  ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+  await callAs(
+    adminApi.updateReseller,
+    { userId: seller.id, status: 'active' },
+    admin.id,
+  )
+  expect((await fake.getUser('fk_ali')).status).toBe('active')
+})
+
+it('retries cleanup when create fails after the remote account exists', async () => {
+  fake.failNext.set('getUser', new BackendError('down', 'UNAVAILABLE', 503))
+  fake.failNext.set('deleteUser', new BackendError('down', 'UNAVAILABLE', 503))
+  await expect(
+    callAs(
+      vpn.createVpnUser,
+      {
+        username: 'orphan',
+        dataLimitBytes: 10 * GB,
+        durationDays: 30,
+      },
+      seller.id,
+    ),
+  ).rejects.toMatchObject({ code: 'INTERNAL_SERVER_ERROR' })
+  expect((await fake.getUser('fk_orphan')).username).toBe('fk_orphan')
+  const [pending] = await db
+    .select()
+    .from(auditLogs)
+    .where(eq(auditLogs.action, 'vpn_user.pending_create_cleanup'))
+  expect(pending).toBeDefined()
+  await db
+    .update(auditLogs)
+    .set({ createdAt: new Date(Date.now() - 31_000) })
+    .where(eq(auditLogs.id, pending.id))
+  const { repairVpnOperations } = await import('#/lib/vpn-operations')
+  await repairVpnOperations()
+  await expect(fake.getUser('fk_orphan')).rejects.toMatchObject({
+    code: 'NOT_FOUND',
+  })
+  const [bill] = await db
+    .select()
+    .from(billingEvents)
+    .where(eq(billingEvents.marzbanUsername, 'fk_orphan'))
+  expect(bill).toBeUndefined()
+})
+
+it('never deletes a remote account when create ownership is uncertain', async () => {
+  fake.seed({ username: 'fk_foreign' })
+  const id = crypto.randomUUID()
+  await db.insert(auditLogs).values({
+    id,
+    actorUserId: seller.id,
+    actorRole: 'system',
+    action: 'vpn_user.pending_create',
+    entityType: 'vpn_operation',
+    vpnUsername: 'fk_foreign',
+    resellerId: seller.id,
+    payloadJson: JSON.stringify({ kind: 'create', backend: 'marzban' }),
+    createdAt: new Date(Date.now() - 31_000),
+  })
+  const { repairVpnOperations } = await import('#/lib/vpn-operations')
+  await repairVpnOperations()
+  expect((await fake.getUser('fk_foreign')).username).toBe('fk_foreign')
+  const [row] = await db.select().from(auditLogs).where(eq(auditLogs.id, id))
+  expect(row.action).toBe('vpn_user.create_review')
+})
+
+it('recovers a renewal after the first remote update fails and bills once', async () => {
+  fake.failNext.set('updateUser', new BackendError('down', 'UNAVAILABLE', 503))
+  await expect(
+    callAs(
+      vpn.renewVpnUser,
+      { username: 'fk_ali', durationDays: 30 },
+      seller.id,
+    ),
+  ).rejects.toMatchObject({ code: 'INTERNAL_SERVER_ERROR' })
+  const [pending] = await db
+    .select()
+    .from(auditLogs)
+    .where(eq(auditLogs.action, 'vpn_user.pending_renew'))
+  expect(pending).toBeDefined()
+  await db
+    .update(auditLogs)
+    .set({ createdAt: new Date(Date.now() - 31_000) })
+    .where(eq(auditLogs.id, pending.id))
+  const { repairVpnOperations } = await import('#/lib/vpn-operations')
+  await repairVpnOperations()
+  await repairVpnOperations()
+  const bills = await db
+    .select()
+    .from(billingEvents)
+    .where(eq(billingEvents.id, pending.id))
+  expect(bills).toHaveLength(1)
 })
 
 it('reports backend health to admins', async () => {

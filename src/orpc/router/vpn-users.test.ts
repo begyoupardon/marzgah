@@ -45,6 +45,12 @@ vi.mock('#/lib/ledger', () => ({
   insertBillingEvent: mocks.bill,
   writeAuditLog: mocks.audit,
 }))
+vi.mock('#/lib/vpn-operations', () => ({
+  beginVpnOperation: async () => 'operation',
+  finishVpnOperation: async () => {},
+  hasPendingVpnOperation: async () => false,
+  markVpnUserCreated: async () => {},
+}))
 const {
   listVpnUsers,
   deleteVpnUser,
@@ -75,6 +81,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.owned.mockResolvedValue(local)
   mocks.profile.mockResolvedValue({
+    status: 'active',
     allowUnlimitedExpire: false,
     pricePerGbToman: 1000,
   })

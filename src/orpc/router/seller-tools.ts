@@ -7,6 +7,7 @@ import { db } from '#/db'
 import { billingEvents, resellerProfiles, vpnUsers } from '#/db/schema'
 import { parseCsv, toCsv } from '#/lib/csv'
 import { writeAuditLog } from '#/lib/ledger'
+import { withKeyedLock } from '#/lib/keyed-lock'
 import { getOwnedVpnUser } from '#/lib/marzban/quotas'
 import { resumeReseller, suspendReseller } from '#/lib/reseller-suspension'
 import { getSetting, setSetting } from '#/lib/settings'
@@ -470,7 +471,9 @@ export const suspendResellerAccount = adminOnly
   })
   .input(z.object({ resellerId: z.string() }))
   .handler(async ({ input, context }) => {
-    const result = await suspendReseller(input.resellerId)
+    const result = await withKeyedLock(input.resellerId, () =>
+      suspendReseller(input.resellerId),
+    )
     await writeAuditLog({
       actorUserId: context.user.id,
       actorRole: 'admin',
@@ -492,7 +495,9 @@ export const resumeResellerAccount = adminOnly
   })
   .input(z.object({ resellerId: z.string() }))
   .handler(async ({ input, context }) => {
-    const result = await resumeReseller(input.resellerId)
+    const result = await withKeyedLock(input.resellerId, () =>
+      resumeReseller(input.resellerId),
+    )
     await writeAuditLog({
       actorUserId: context.user.id,
       actorRole: 'admin',

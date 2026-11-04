@@ -33,6 +33,7 @@ export async function writeAuditLog(input: {
 }
 
 export async function insertBillingEvent(input: {
+  id?: string
   resellerId: string
   vpnUserId: string
   marzbanUsername: string
@@ -43,21 +44,24 @@ export async function insertBillingEvent(input: {
   pricePerGbToman: number
   actorUserId: string
 }) {
-  const id = crypto.randomUUID()
+  const id = input.id ?? crypto.randomUUID()
   const amount = amountToman(input.dataLimitGb, input.pricePerGbToman)
-  await db.insert(billingEvents).values({
-    id,
-    resellerId: input.resellerId,
-    vpnUserId: input.vpnUserId,
-    marzbanUsername: input.marzbanUsername,
-    type: input.type,
-    dataLimitGb: input.dataLimitGb,
-    durationMonths: input.durationMonths ?? null,
-    durationDays: input.durationDays ?? null,
-    pricePerGbToman: input.pricePerGbToman,
-    amountToman: amount,
-    actorUserId: input.actorUserId,
-  })
+  await db
+    .insert(billingEvents)
+    .values({
+      id,
+      resellerId: input.resellerId,
+      vpnUserId: input.vpnUserId,
+      marzbanUsername: input.marzbanUsername,
+      type: input.type,
+      dataLimitGb: input.dataLimitGb,
+      durationMonths: input.durationMonths ?? null,
+      durationDays: input.durationDays ?? null,
+      pricePerGbToman: input.pricePerGbToman,
+      amountToman: amount,
+      actorUserId: input.actorUserId,
+    })
+    .onConflictDoNothing({ target: billingEvents.id })
   // Pay from the wallet when it covers the charge. Best effort: the event is
   // already recorded, so a failure here must not fail the sale.
   try {

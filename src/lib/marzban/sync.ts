@@ -86,11 +86,6 @@ export async function softRemoveMirroredVpnUser(
   return { ...existing, status: 'disabled' as const, removedAt }
 }
 
-/** @deprecated Use softRemoveMirroredVpnUser — hard delete is forbidden for anti-fraud. */
-export async function deleteMirroredVpnUser(username: string) {
-  return softRemoveMirroredVpnUser(username, { reason: 'legacy_delete_alias' })
-}
-
 export async function syncVpnUserFromMarzban(
   username: string,
   options?: {
