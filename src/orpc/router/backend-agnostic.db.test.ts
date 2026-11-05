@@ -160,7 +160,11 @@ it('charges a concurrent quota increase only once', async () => {
 
 it('rejects direct expiry edits by sellers', async () => {
   await expect(
-    callAs(vpn.updateVpnUser, { username: 'fk_ali', expireAt: null }, seller.id),
+    callAs(
+      vpn.updateVpnUser,
+      { username: 'fk_ali', expireAt: null },
+      seller.id,
+    ),
   ).rejects.toMatchObject({ code: 'FORBIDDEN' })
   await expect(
     callAs(
@@ -210,7 +214,11 @@ it('enforces the total data cap on edits and renewals', async () => {
   await expect(
     callAs(
       vpn.renewVpnUser,
-      { username: 'cap_user', durationDays: 30, additionalDataLimitBytes: 20 * GB },
+      {
+        username: 'cap_user',
+        durationDays: 30,
+        additionalDataLimitBytes: 20 * GB,
+      },
       cappedSeller.id,
     ),
   ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
@@ -249,7 +257,10 @@ it('explains when an account cannot take a password, and applies it when it can'
 it('resets usage and revokes subscriptions through the interface', async () => {
   const before = (await mirror('fk_bob')).subscriptionUrl
   fake.addUsage('fk_bob', 2 * GB)
-  await callAs(vpn.resetVpnUserUsage, { username: 'fk_bob' }, seller.id)
+  await expect(
+    callAs(vpn.resetVpnUserUsage, { username: 'fk_bob' }, seller.id),
+  ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+  await callAs(vpn.resetVpnUserUsage, { username: 'fk_bob' }, admin.id)
   expect((await mirror('fk_bob'))?.usedTrafficBytes).toBe(0)
   await callAs(vpn.revokeVpnUserSub, { username: 'fk_bob' }, seller.id)
   const after = (await mirror('fk_bob')).subscriptionUrl
@@ -503,4 +514,114 @@ it('accepts and bills a 0.1 GB plan while rejecting smaller byte limits', async 
     seller.id,
   )
   expect((await mirror('fk_small'))?.dataLimitBytes).toBe(minimum)
+})
+
+it('lets a name be created again after a failed attempt soft-removed it', async () => {
+  const input = { username: 'retry', dataLimitBytes: 10 * GB, durationDays: 30 }
+  await callAs(vpn.createVpnUser, input, seller.id)
+  await db
+    .update(vpnUsers)
+    .set({ removedAt: new Date(), status: 'disabled' })
+    .where(eq(vpnUsers.marzbanUsername, 'fk_retry'))
+  await fake.deleteUser('fk_retry')
+
+  await callAs(vpn.createVpnUser, input, seller.id)
+  expect((await mirror('fk_retry'))?.removedAt).toBeNull()
+  expect(fake.callsTo('createUser').length).toBeGreaterThan(0)
+})
+
+it('removes a user the backend created but failed to confirm', async () => {
+  fake.failNext.set(
+    'createUser',
+    new BackendError('timeout', 'UNAVAILABLE', 503),
+  )
+  // The request "timed out" after the backend had already made the user.
+  const create = fake.createUser.bind(fake)
+  fake.createUser = async (input) => {
+    await create(input)
+    fake.createUser = create
+    throw new BackendError('timeout', 'UNAVAILABLE', 503)
+  }
+  fake.failNext.clear()
+  await expect(
+    callAs(
+      vpn.createVpnUser,
+      { username: 'ghost', dataLimitBytes: 10 * GB, durationDays: 30 },
+      seller.id,
+    ),
+  ).rejects.toThrow()
+  await expect(fake.getUser('fk_ghost')).rejects.toMatchObject({
+    code: 'NOT_FOUND',
+  })
+})
+
+it('closes the pending record when a password change is unsupported, so nothing is billed later', async () => {
+  const current = (await fake.getUser('fk_bob')).dataLimitBytes!
+  const billsBefore = await db.select().from(billingEvents)
+  fake.failNext.set(
+    'updateUser',
+    new BackendError('no password protocol', 'UNSUPPORTED', 400),
+  )
+  await expect(
+    callAs(
+      vpn.updateVpnUser,
+      { username: 'fk_bob', dataLimitBytes: current + 5 * GB, password: 'x' },
+      seller.id,
+    ),
+  ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+  const pending = await db
+    .select()
+    .from(auditLogs)
+    .where(eq(auditLogs.action, 'vpn_user.pending_extra_gb'))
+  expect(pending).toHaveLength(0)
+  const { repairVpnOperations } = await import('#/lib/vpn-operations')
+  await repairVpnOperations()
+  expect((await fake.getUser('fk_bob')).dataLimitBytes).toBe(current)
+  expect(await db.select().from(billingEvents)).toHaveLength(billsBefore.length)
+})
+
+it('refuses to create over a remote account the panel does not know about', async () => {
+  fake.seed({ username: 'fk_manual' })
+  await expect(
+    callAs(
+      vpn.createVpnUser,
+      { username: 'manual', dataLimitBytes: 10 * GB, durationDays: 30 },
+      seller.id,
+    ),
+  ).rejects.toMatchObject({ code: 'CONFLICT' })
+  expect((await fake.getUser('fk_manual')).username).toBe('fk_manual')
+})
+
+it('stops retrying a recovery that keeps failing and takes it out of the queue', async () => {
+  const id = crypto.randomUUID()
+  await db.insert(auditLogs).values({
+    id,
+    actorUserId: seller.id,
+    actorRole: 'system',
+    action: 'vpn_user.pending_renew',
+    entityType: 'vpn_operation',
+    vpnUsername: 'fk_deleted_remotely',
+    resellerId: seller.id,
+    payloadJson: JSON.stringify({
+      kind: 'renew',
+      backend: 'marzban',
+      vpnUserId: 'none',
+      dataLimitBytes: 10 * GB,
+      expireAt: null,
+      durationMonths: null,
+      durationDays: 30,
+      pricePerGbToman: 1000,
+      reactivate: true,
+    }),
+    createdAt: new Date(Date.now() - 31_000),
+  })
+  const { repairVpnOperations, hasPendingVpnOperation } =
+    await import('#/lib/vpn-operations')
+  for (let i = 0; i < 5; i++) await repairVpnOperations()
+  const [row] = await db.select().from(auditLogs).where(eq(auditLogs.id, id))
+  expect(row.action).toBe('vpn_user.operation_failed')
+  expect(await hasPendingVpnOperation('fk_deleted_remotely')).toBe(false)
+  expect(
+    await db.select().from(billingEvents).where(eq(billingEvents.id, id)),
+  ).toHaveLength(0)
 })

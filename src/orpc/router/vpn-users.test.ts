@@ -183,7 +183,13 @@ it('resellers cannot remove users', async () => {
   ).rejects.toMatchObject({ code: 'FORBIDDEN' })
   expect(mocks.remove).not.toHaveBeenCalled()
 })
-it.each([resetVpnUserUsage, revokeVpnUserSub, syncVpnUser])(
+it('resellers cannot reset usage for free', async () => {
+  await expect(
+    call(resetVpnUserUsage, { username }, { context }),
+  ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+  expect(mocks.reset).not.toHaveBeenCalled()
+})
+it.each([revokeVpnUserSub, syncVpnUser])(
   'rejects non-owned users before remote actions',
   async (procedure) => {
     mocks.owned.mockResolvedValue(null)

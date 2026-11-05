@@ -31,6 +31,7 @@ mock.module('#/lib/marzban/client', () => ({
       {}
     ),
     getUser: async () => ({ proxies: {} }),
+    listUsers: async () => ({ users: [], total: 0 }),
   },
 }))
 mock.module('#/lib/marzban/sync', () => ({

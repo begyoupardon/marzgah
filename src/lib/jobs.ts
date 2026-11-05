@@ -11,7 +11,7 @@ import {
 import { backupDatabase, backupFileName, rotateBackups } from '#/lib/backup'
 import { getEnv } from '#/lib/env'
 import { writeAuditLog } from '#/lib/ledger'
-import { refreshVpnUserMirrors } from '#/lib/marzban/sync'
+import { bulkSyncMirrors } from '#/lib/marzban/sync'
 import { runAllScans } from '#/lib/notifications/events'
 import { drainOutbox } from '#/lib/notifications/outbox'
 import {
@@ -22,13 +22,13 @@ import {
 import { createScheduler } from '#/lib/scheduler'
 import { repairVpnOperations } from '#/lib/vpn-operations'
 
-/** Refresh every active mirror from Marzban (rows synced <30s ago are skipped). */
+/** Refresh every active mirror from Marzban with paged list calls. */
 export async function syncAllUsers() {
   const rows = await db
     .select()
     .from(vpnUsers)
     .where(isNull(vpnUsers.removedAt))
-  const { failed } = await refreshVpnUserMirrors(rows)
+  const { failed } = await bulkSyncMirrors(rows)
   if (failed) throw new Error('Marzban sync stopped after an upstream failure')
   return { users: rows.length }
 }

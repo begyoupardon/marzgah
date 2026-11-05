@@ -264,13 +264,25 @@ export const claimBillingPaid = authed
       })
     }
 
-    await db
+    const claimed = await db
       .update(billingEvents)
       .set({
         claimedPaidAt: new Date(),
         claimedByUserId: context.user.id,
       })
-      .where(eq(billingEvents.id, row.id))
+      .where(
+        and(
+          eq(billingEvents.id, row.id),
+          isNull(billingEvents.settledAt),
+          isNull(billingEvents.claimedPaidAt),
+        ),
+      )
+      .returning({ id: billingEvents.id })
+    if (claimed.length === 0) {
+      throw new ORPCError('BAD_REQUEST', {
+        message: 'این ردیف قابل اعلام پرداخت نیست',
+      })
+    }
 
     await writeAuditLog({
       actorUserId: context.user.id,
@@ -322,13 +334,20 @@ export const settleBillingEvent = adminOnly
       })
     }
 
-    await db
+    // Compare-and-set: the wallet auto-settle may have paid it a moment ago.
+    const settled = await db
       .update(billingEvents)
       .set({
         settledAt: new Date(),
         settledByUserId: context.user.id,
       })
-      .where(eq(billingEvents.id, row.id))
+      .where(and(eq(billingEvents.id, row.id), isNull(billingEvents.settledAt)))
+      .returning({ id: billingEvents.id })
+    if (settled.length === 0) {
+      throw new ORPCError('BAD_REQUEST', {
+        message: 'این ردیف قبلاً تسویه شده است',
+      })
+    }
 
     await writeAuditLog({
       actorUserId: context.user.id,

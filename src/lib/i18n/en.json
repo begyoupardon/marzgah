@@ -658,7 +658,7 @@
   "این درخواست قبلاً بررسی شده است": "This request has already been reviewed",
   "فایل CSV معتبر نیست": "Invalid CSV file",
   "فایل خالی است": "The file is empty",
-  "حداکثر ۲۰۰ ردیف در هر بار": "A maximum of 200 rows can be imported at a time",
+  "حداکثر ۵۰ ردیف در هر بار": "A maximum of 50 rows can be imported at a time",
   "بستن اعلان": "Dismiss notification",
   "بازنشانی فیلترها": "Reset filters",
   "۳۰ روز": "30 days",

@@ -55,7 +55,11 @@ export async function resolveApiKey(
 ) {
   if (!TOKEN_PATTERN.test(token)) return null
   const [row] = await db
-    .select({ id: apiKeys.id, userId: apiKeys.userId })
+    .select({
+      id: apiKeys.id,
+      userId: apiKeys.userId,
+      lastUsedAt: apiKeys.lastUsedAt,
+    })
     .from(apiKeys)
     .where(
       and(
@@ -66,11 +70,17 @@ export async function resolveApiKey(
     )
     .limit(1)
   if (!row) return null
-  await db
-    .update(apiKeys)
-    .set({ lastUsedAt: now })
-    .where(eq(apiKeys.id, row.id))
-  return row
+  // Throttled: a polling agent should not cause a database write per call.
+  if (
+    !row.lastUsedAt ||
+    now.getTime() - row.lastUsedAt.getTime() > 5 * 60_000
+  ) {
+    await db
+      .update(apiKeys)
+      .set({ lastUsedAt: now })
+      .where(eq(apiKeys.id, row.id))
+  }
+  return { id: row.id, userId: row.userId }
 }
 
 export async function listApiKeys(userId: string, database: Db = defaultDb) {

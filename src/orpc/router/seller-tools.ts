@@ -350,9 +350,9 @@ export const importUsers = authed
     const [header, ...body] = table
     if (!header || body.length === 0)
       throw new ORPCError('BAD_REQUEST', { message: 'فایل خالی است' })
-    if (body.length > 200)
+    if (body.length > 50)
       throw new ORPCError('BAD_REQUEST', {
-        message: 'حداکثر ۲۰۰ ردیف در هر بار',
+        message: 'حداکثر ۵۰ ردیف در هر بار',
       })
     const cols = header.map((h) => h.trim().toLowerCase())
     for (const required of ['username', 'gb']) {

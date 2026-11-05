@@ -52,7 +52,7 @@ On **کاربران VPN**:
   Every change is audited with before/after values.
 - **CSV export:** your users (respecting the current view). Cells starting with `= + - @` are prefixed with `'` so a
   spreadsheet cannot run them as formulas.
-- **CSV import:** up to 200 rows / 200 KB per file. Header row required.
+- **CSV import:** up to 50 rows / 200 KB per file. Header row required.
 
   | Column                      | Required | Notes                                            |
   | --------------------------- | -------- | ------------------------------------------------ |

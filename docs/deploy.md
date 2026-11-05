@@ -89,6 +89,10 @@ Create the first admin by opening `/login` (it shows the bootstrap form while th
 **Limits on Cloudflare:** the background jobs (periodic Marzban sync, automatic backups, Telegram sending and the
 expiry/traffic/wallet scans) do **not** run, because they live in the Bun server process. Telegram messages are queued
 but never sent until you add cron triggers that call `scanNotifications`/`drainNotifications` from `src/lib/jobs.ts`.
+Also add a cron trigger that calls `repairVpnOperations` (every minute): without it, a create/renew/extra-GB that timed out
+stays pending, blocks that account and is never billed. Cloudflare also runs many isolates, so the per-reseller lock and the
+in-memory rate limiters are per isolate and do not hold across them: concurrent sales can pass the credit-limit check
+together. For selling with credit limits, prefer the Bun/Docker deployment (one instance).
 Use `wrangler d1 export` for backups. The `backup`/`restore` CLI commands are for the SQLite file only.
 
 ## Marzban webhooks
@@ -140,3 +144,9 @@ Migrations apply on start. Take a backup first (`bun run cli backup`). Migration
 | Users out of date                                        | Marzban reachable? `bun run cli doctor`; check the webhook lines in Marzban's `.env`                                     |
 | Blank page in `bun run dev`                              | Vite re-optimizing dependencies; wait and reload                                                                         |
 | Settings/tokens suddenly unreadable                      | `BETTER_AUTH_SECRET` changed; re-enter the bot token and gateway credentials                                             |
+
+## Reverse proxy
+
+The panel must sit behind a proxy that sets `X-Forwarded-For` (Caddy from the generated compose file does). The last entry
+is trusted as the client address for rate limits (customer pages and login). Without a proxy, every client looks the same
+and shares one rate-limit bucket.

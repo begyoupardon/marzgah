@@ -9,7 +9,6 @@ import {
   billingGbFromBytes,
   extraGbDelta,
   settlementStatus,
-  shouldBillForUpdate,
   amountToman,
 } from '#/lib/billing'
 import { insertBillingEvent, writeAuditLog } from '#/lib/ledger'
@@ -81,12 +80,16 @@ async function assertActiveReseller(resellerId: string) {
   }
 }
 
-function escapeLike(value: string) {
-  return value.replace(/[%_\\]/g, '\\$&')
+async function assertNoPendingOperation(username: string) {
+  if (await hasPendingVpnOperation(username)) {
+    throw new ORPCError('CONFLICT', {
+      message: 'VPN operation recovery is pending',
+    })
+  }
 }
 
-function isDuplicateUsernameMessage(message: string) {
-  return /already|exist|duplicate|conflict|unique|تکرار/i.test(message)
+function escapeLike(value: string) {
+  return value.replace(/[%_\\]/g, '\\$&')
 }
 
 const DUPLICATE_USERNAME_MESSAGE =
@@ -270,7 +273,9 @@ export const createVpnUser = authed
         input.durationDays === undefined ? input.durationMonths : undefined
       const durationChoice = input.durationDays ?? legacyMonths
       if (durationChoice === undefined) {
-        throw new ORPCError('BAD_REQUEST', { message: 'مدت اشتراک الزامی است' })
+        throw new ORPCError('BAD_REQUEST', {
+          message: 'مدت اشتراک الزامی است',
+        })
       }
       if (
         isUnlimitedDuration(durationChoice) &&
@@ -317,7 +322,12 @@ export const createVpnUser = authed
       const [existingLocal] = await db
         .select({ id: vpnUsers.id })
         .from(vpnUsers)
-        .where(eq(vpnUsers.marzbanUsername, fullUsername))
+        .where(
+          and(
+            eq(vpnUsers.marzbanUsername, fullUsername),
+            isNull(vpnUsers.removedAt),
+          ),
+        )
         .limit(1)
 
       if (existingLocal) {
@@ -326,6 +336,18 @@ export const createVpnUser = authed
         })
       }
 
+      await assertNoPendingOperation(fullUsername)
+      // A timeout can hide a 409, and cleanup deletes: never delete an account
+      // that existed before us (e.g. made by hand in Marzban).
+      const { users: clashes } = await getBackend().listUsers({
+        username: fullUsername,
+        limit: 20,
+      })
+      if (clashes.some((u) => u.username === fullUsername)) {
+        throw new ORPCError('CONFLICT', {
+          message: DUPLICATE_USERNAME_MESSAGE,
+        })
+      }
       await guardSpend(
         resellerId,
         billingGbFromBytes(dataLimitBytes),
@@ -349,16 +371,33 @@ export const createVpnUser = authed
           note: input.note ?? null,
         })
       } catch (error) {
-        if (
-          error instanceof BackendError &&
-          (error.code === 'CONFLICT' ||
-            isDuplicateUsernameMessage(error.message))
-        ) {
+        if (error instanceof BackendError && error.code === 'CONFLICT') {
           await finishVpnOperation(operationId)
           throw new ORPCError('CONFLICT', {
             message: DUPLICATE_USERNAME_MESSAGE,
           })
         }
+        // A rejected request created nothing. Anything else (timeout, 5xx) may have.
+        if (error instanceof BackendError && error.code !== 'UNAVAILABLE') {
+          await finishVpnOperation(operationId)
+          throw error
+        }
+        // The account did not exist before this call (checked above), so only
+        // this request can have created it: remove it to avoid a free account.
+        try {
+          await getBackend().deleteUser(fullUsername)
+        } catch (probeError) {
+          if (
+            !(
+              probeError instanceof BackendError &&
+              probeError.code === 'NOT_FOUND'
+            )
+          ) {
+            // Outcome unknown: leave the operation pending for the repair job.
+            throw error
+          }
+        }
+        await finishVpnOperation(operationId)
         throw error
       }
 
@@ -386,6 +425,8 @@ export const createVpnUser = authed
         mirrored = await syncVpnUserFromMarzban(created.username, {
           resellerId,
           createIfMissing: true,
+          // A failed earlier attempt leaves a soft-removed row; revive it.
+          reassign: true,
         })
         if (!mirrored) throw new Error('mirror missing')
         billing = await insertBillingEvent({
@@ -405,6 +446,11 @@ export const createVpnUser = authed
           actorUserId: context.user.id,
         })
       } catch (error) {
+        console.error(
+          'VPN create failed after upstream create',
+          fullUsername,
+          error,
+        )
         try {
           await getBackend().deleteUser(created.username)
           await softRemoveMirroredVpnUser(created.username, {
@@ -492,11 +538,7 @@ export const updateVpnUser = authed
 
     return withKeyedLock(owned.resellerId, async () => {
       await assertActiveReseller(owned.resellerId)
-      if (await hasPendingVpnOperation(input.username)) {
-        throw new ORPCError('CONFLICT', {
-          message: 'VPN operation recovery is pending',
-        })
-      }
+      await assertNoPendingOperation(input.username)
 
       const expireAt =
         input.expireAt === undefined
@@ -535,16 +577,38 @@ export const updateVpnUser = authed
         }
         throw error
       }
+      const extraProfile =
+        plannedExtraGb > 0 ? await getResellerProfile(owned.resellerId) : null
       if (plannedExtraGb > 0) {
-        const billingProfile = await getResellerProfile(owned.resellerId)
-        if (billingProfile) {
-          await guardSpend(
-            owned.resellerId,
-            plannedExtraGb,
-            billingProfile.pricePerGbToman,
-          )
+        if (!extraProfile) {
+          throw new ORPCError('BAD_REQUEST', {
+            message: 'پروفایل نماینده یافت نشد',
+          })
         }
+        await guardSpend(
+          owned.resellerId,
+          plannedExtraGb,
+          extraProfile.pricePerGbToman,
+        )
       }
+
+      // Extra GB are billed even if we crash after the upstream change.
+      const operationId =
+        extraProfile && nextBytes != null
+          ? await beginVpnOperation({
+              username: input.username,
+              resellerId: owned.resellerId,
+              actorUserId: context.user.id,
+              operation: {
+                kind: 'extra_gb',
+                backend: owned.backend,
+                vpnUserId: owned.id,
+                dataLimitBytes: nextBytes,
+                deltaGb: plannedExtraGb,
+                pricePerGbToman: extraProfile.pricePerGbToman,
+              },
+            })
+          : null
 
       try {
         await getBackend(owned.backend).updateUser(input.username, {
@@ -557,6 +621,14 @@ export const updateVpnUser = authed
           ...(input.password !== undefined ? { password: input.password } : {}),
         })
       } catch (error) {
+        // A rejected request changed nothing; a timeout or 5xx may have.
+        if (
+          operationId &&
+          error instanceof BackendError &&
+          error.code !== 'UNAVAILABLE'
+        ) {
+          await finishVpnOperation(operationId)
+        }
         if (error instanceof BackendError && error.code === 'UNSUPPORTED') {
           throw new ORPCError('BAD_REQUEST', {
             message:
@@ -570,20 +642,11 @@ export const updateVpnUser = authed
         resellerId: owned.resellerId,
       })
 
-      const billExtra = shouldBillForUpdate({
-        previousBytes,
-        nextBytes,
-      })
-      const deltaGb = extraGbDelta(previousBytes, nextBytes)
-
-      if (billExtra && deltaGb > 0) {
-        const profile = await getResellerProfile(owned.resellerId)
-        if (!profile) {
-          throw new ORPCError('BAD_REQUEST', {
-            message: 'پروفایل نماینده یافت نشد',
-          })
-        }
+      if (operationId && extraProfile) {
+        const deltaGb = plannedExtraGb
+        const profile = extraProfile
         const billing = await insertBillingEvent({
+          id: operationId,
           resellerId: owned.resellerId,
           vpnUserId: owned.id,
           marzbanUsername: input.username,
@@ -593,6 +656,7 @@ export const updateVpnUser = authed
           pricePerGbToman: profile.pricePerGbToman,
           actorUserId: context.user.id,
         })
+        await finishVpnOperation(operationId)
         await writeAuditLog({
           actorUserId: context.user.id,
           actorRole: actorRole(context.user.role),
@@ -789,6 +853,7 @@ export const renewVpnUser = authed
             ? null
             : input.durationDays
 
+      await assertNoPendingOperation(input.username)
       await guardSpend(
         owned.resellerId,
         billingGbFromBytes(addedBytes),
@@ -813,16 +878,31 @@ export const renewVpnUser = authed
       })
 
       const backend = getBackend(owned.backend)
-      await backend.resetUsage(input.username)
-      await backend.updateUser(input.username, {
-        expireAt,
-        dataLimitBytes: nextDataLimitBytes,
-        ...(input.reactivate ? { status: 'active' as const } : {}),
-      })
+      let mirrored
+      try {
+        await backend.resetUsage(input.username)
+        await backend.updateUser(input.username, {
+          expireAt,
+          dataLimitBytes: nextDataLimitBytes,
+          ...(input.reactivate ? { status: 'active' as const } : {}),
+        })
 
-      const mirrored = await syncVpnUserFromMarzban(input.username, {
-        resellerId: owned.resellerId,
-      })
+        mirrored = await syncVpnUserFromMarzban(input.username, {
+          resellerId: owned.resellerId,
+        })
+      } catch (error) {
+        if (error instanceof BackendError && error.code !== 'UNAVAILABLE') {
+          // Marzban said no: nothing to recover, nothing to bill.
+          await finishVpnOperation(operationId)
+          throw error
+        }
+        // The recovery job finishes and bills this renewal; say so, don't just fail.
+        throw new ORPCError('INTERNAL_SERVER_ERROR', {
+          message:
+            'تمدید کامل نشد؛ بازیابی خودکار تا چند دقیقه دیگر آن را تکمیل می‌کند. دوباره تمدید نکنید.',
+          cause: error,
+        })
+      }
 
       const dataLimitGb = billingGbFromBytes(addedBytes)
       const durationMonths = legacyMonths ?? null
@@ -892,8 +972,10 @@ export const deleteVpnUser = authed
       await getBackend(owned.backend).updateUser(input.username, {
         status: 'disabled',
       })
-    } catch {
-      // Remote may already be gone — local soft-remove still applies.
+    } catch (error) {
+      // Remote may already be gone; any other failure must not hide a live user.
+      if (!(error instanceof BackendError && error.code === 'NOT_FOUND'))
+        throw error
     }
 
     await softRemoveMirroredVpnUser(input.username, {
@@ -915,21 +997,19 @@ export const resetVpnUserUsage = authed
   })
   .input(z.object({ username: z.string().min(1) }))
   .handler(async ({ input, context }) => {
-    const owned = await getOwnedVpnUser(
-      input.username,
-      context.user.id,
-      context.user.role === 'admin',
-    )
+    // A free reset refills the data allowance; resellers must renew (billed) instead.
+    if (context.user.role !== 'admin') {
+      throw new ORPCError('FORBIDDEN', {
+        message: 'بازنشانی مصرف فقط برای مدیر مجاز است؛ تمدید کنید',
+      })
+    }
+    const owned = await getOwnedVpnUser(input.username, context.user.id, true)
     if (!owned) {
       throw new ORPCError('NOT_FOUND', { message: 'کاربر VPN پیدا نشد' })
     }
 
     await assertActiveReseller(owned.resellerId)
-    if (await hasPendingVpnOperation(input.username)) {
-      throw new ORPCError('CONFLICT', {
-        message: 'VPN operation recovery is pending',
-      })
-    }
+    await assertNoPendingOperation(input.username)
 
     await getBackend(owned.backend).resetUsage(input.username)
     const mirrored = await syncVpnUserFromMarzban(input.username, {
@@ -969,6 +1049,7 @@ export const revokeVpnUserSub = authed
       throw new ORPCError('NOT_FOUND', { message: 'کاربر VPN پیدا نشد' })
     }
 
+    await assertActiveReseller(owned.resellerId)
     await getBackend(owned.backend).revokeSubscription(input.username)
     const mirrored = await syncVpnUserFromMarzban(input.username, {
       resellerId: owned.resellerId,

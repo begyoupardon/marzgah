@@ -1,4 +1,4 @@
-import { and, eq, inArray, lt } from 'drizzle-orm'
+import { and, asc, eq, inArray, lt } from 'drizzle-orm'
 
 import { db } from '#/db'
 import { auditLogs, billingEvents, resellerProfiles } from '#/db/schema'
@@ -16,6 +16,7 @@ const pendingActions = [
   'vpn_user.pending_create',
   'vpn_user.pending_create_cleanup',
   'vpn_user.pending_renew',
+  'vpn_user.pending_extra_gb',
 ]
 
 type CreateOperation = { kind: 'create'; backend: string }
@@ -30,7 +31,15 @@ type RenewOperation = {
   pricePerGbToman: number
   reactivate: boolean
 }
-type Operation = CreateOperation | RenewOperation
+type ExtraGbOperation = {
+  kind: 'extra_gb'
+  backend: string
+  vpnUserId: string
+  dataLimitBytes: number
+  deltaGb: number
+  pricePerGbToman: number
+}
+type Operation = CreateOperation | RenewOperation | ExtraGbOperation
 
 export async function beginVpnOperation(input: {
   username: string
@@ -91,6 +100,30 @@ export async function markVpnUserCreated(id: string) {
     .where(eq(auditLogs.id, id))
 }
 
+/** Give up after this many failed recovery runs so one bad row cannot block the batch. */
+const MAX_REPAIR_ATTEMPTS = 5
+async function recordFailure(row: typeof auditLogs.$inferSelect) {
+  let payload: Record<string, unknown> = {}
+  try {
+    payload = JSON.parse(row.payloadJson ?? '{}') as Record<string, unknown>
+  } catch {
+    // keep the empty payload; the attempt count still moves forward
+  }
+  const attempts = Number(payload.repairAttempts ?? 0) + 1
+  if (attempts >= MAX_REPAIR_ATTEMPTS) {
+    console.error('VPN operation needs manual review', row.vpnUsername, row.id)
+  }
+  await db
+    .update(auditLogs)
+    .set({
+      payloadJson: JSON.stringify({ ...payload, repairAttempts: attempts }),
+      ...(attempts >= MAX_REPAIR_ATTEMPTS
+        ? { action: 'vpn_user.operation_failed' }
+        : {}),
+    })
+    .where(eq(auditLogs.id, row.id))
+}
+
 async function repair(row: typeof auditLogs.$inferSelect) {
   if (row.action === 'vpn_user.pending_create') {
     // A remote conflict and a successful create look the same without a receipt.
@@ -98,6 +131,7 @@ async function repair(row: typeof auditLogs.$inferSelect) {
       .update(auditLogs)
       .set({ action: 'vpn_user.create_review' })
       .where(eq(auditLogs.id, row.id))
+    console.error('VPN create needs manual review', row.vpnUsername, row.id)
     return
   }
   const operation = JSON.parse(row.payloadJson!) as Operation
@@ -118,6 +152,25 @@ async function repair(row: typeof auditLogs.$inferSelect) {
       }
       await softRemoveMirroredVpnUser(username, { reason: 'create_recovery' })
     }
+  } else if (operation.kind === 'extra_gb') {
+    const remote = await backend.getUser(username)
+    if (remote.dataLimitBytes !== operation.dataLimitBytes) {
+      await backend.updateUser(username, {
+        dataLimitBytes: operation.dataLimitBytes,
+      })
+    }
+    await syncVpnUserFromMarzban(username)
+    await insertBillingEvent({
+      id: row.id,
+      resellerId: row.resellerId!,
+      vpnUserId: operation.vpnUserId,
+      marzbanUsername: username,
+      type: 'extra_gb',
+      dataLimitGb: operation.deltaGb,
+      durationMonths: null,
+      pricePerGbToman: operation.pricePerGbToman,
+      actorUserId: row.actorUserId!,
+    })
   } else {
     const remote = await backend.getUser(username)
     const expireAt = operation.expireAt ? new Date(operation.expireAt) : null
@@ -166,12 +219,14 @@ export async function repairVpnOperations() {
         lt(auditLogs.createdAt, new Date(Date.now() - 30_000)),
       ),
     )
+    .orderBy(asc(auditLogs.createdAt))
     .limit(50)
   for (const row of rows) {
     try {
       await withKeyedLock(row.resellerId!, () => repair(row))
     } catch (error) {
       console.error('VPN operation recovery failed', row.id, error)
+      await recordFailure(row).catch(() => {})
     }
   }
   return rows.length

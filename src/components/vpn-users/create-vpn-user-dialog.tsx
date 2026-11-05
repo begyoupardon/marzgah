@@ -158,9 +158,7 @@ export function CreateVpnUserDialog({
     },
     onError: (err) => {
       const message = t(getErrorMessage(err, 'ایجاد کاربر انجام نشد'))
-      const isDuplicate =
-        isConflictError(err) ||
-        /قبلاً ثبت|already|exist|duplicate|conflict/i.test(message)
+      const isDuplicate = isConflictError(err)
 
       if (isDuplicate) {
         setError('username', {

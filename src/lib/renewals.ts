@@ -68,8 +68,15 @@ export async function requestRenewal(
       durationDays: legacy ? null : input.durationDays!,
       message: cleanMessage(input.message),
     })
-  } catch {
+  } catch (error) {
     // the partial unique index: one open request per customer
+    if (
+      !/unique/i.test(String((error as Error)?.message ?? error)) &&
+      !/unique/i.test(
+        String((error as { cause?: Error })?.cause?.message ?? ''),
+      )
+    )
+      throw error
     throw new RenewalError('A request is already waiting', 'ALREADY_PENDING')
   }
   try {

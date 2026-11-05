@@ -213,3 +213,65 @@ export async function refreshVpnUserMirrors<
   )
   return { rows: refreshed, failed }
 }
+
+const BULK_PAGE = 500
+
+/**
+ * Refresh many mirrors from a few paged list calls instead of one request per
+ * account. Accounts missing from the remote list fall back to the single-user
+ * sync, which also handles soft-removal.
+ */
+export async function bulkSyncMirrors(
+  rows: Array<{ id: string; marzbanUsername: string; backend: string }>,
+) {
+  const byBackend = new Map<string, typeof rows>()
+  for (const row of rows) {
+    byBackend.set(row.backend, [...(byBackend.get(row.backend) ?? []), row])
+  }
+  let failed = false
+  for (const [backendId, group] of byBackend) {
+    const remote = new Map<string, BackendUser>()
+    try {
+      const backend = getBackend(backendId)
+      for (let offset = 0; ; offset += BULK_PAGE) {
+        const page = await backend.listUsers({ offset, limit: BULK_PAGE })
+        for (const u of page.users) remote.set(u.username, u)
+        if (page.users.length < BULK_PAGE) break
+      }
+    } catch {
+      failed = true
+      continue
+    }
+    const missing: typeof rows = []
+    for (const row of group) {
+      const user = remote.get(row.marzbanUsername)
+      if (!user) {
+        missing.push(row)
+        continue
+      }
+      const values = mapBackendUserToMirror(user, '', row.id)
+      await db
+        .update(vpnUsers)
+        .set({
+          status: values.status,
+          dataLimitBytes: values.dataLimitBytes,
+          usedTrafficBytes: values.usedTrafficBytes,
+          expireAt: values.expireAt,
+          subscriptionUrl: values.subscriptionUrl,
+          note: values.note,
+          lastSyncedAt: values.lastSyncedAt,
+        })
+        .where(eq(vpnUsers.id, row.id))
+    }
+    for (const row of missing) {
+      try {
+        await syncVpnUserFromMarzban(row.marzbanUsername, {
+          repairInbounds: false,
+        })
+      } catch {
+        failed = true
+      }
+    }
+  }
+  return { failed }
+}
