@@ -82,7 +82,9 @@ export async function assertCanIncreaseVpnQuota(
       and(eq(vpnUsers.resellerId, resellerUserId), isNull(vpnUsers.removedAt)),
     )
   if (Number(row?.bytes ?? 0) + addBytes > profile.maxTotalGb * GB) {
-    throw new QuotaExceededError(`Total data limit reached (${profile.maxTotalGb} GB)`)
+    throw new QuotaExceededError(
+      `Total data limit reached (${profile.maxTotalGb} GB)`,
+    )
   }
 }
 

@@ -56,7 +56,6 @@ describe('anti-fraud: usage/hide never credits', () => {
       }),
     ).toBe(false)
 
-
     expect(
       shouldBillForUpdate({
         previousBytes: gbToBytes(50),

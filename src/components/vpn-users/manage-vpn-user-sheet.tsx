@@ -404,8 +404,7 @@ export function ManageVpnUserSheet({
                     typeof renewGb === 'number' &&
                     Number.isFinite(renewGb) ? (
                       <p>
-                        {t('سقف جدید:')}{' '}
-                        {renewGb} GB
+                        {t('سقف جدید:')} {renewGb} GB
                       </p>
                     ) : null}
                     <p className="text-muted-foreground">
