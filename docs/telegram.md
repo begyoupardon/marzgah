@@ -91,3 +91,11 @@ On first read after the additive database migration, Marzgah copies the former e
 | Commands work but notifications do not | Confirm the user is linked to an enabled bot and inspect notification outbox health. Background notification jobs depend on the deployment mode. |
 
 For deployment requirements see [deploy.md](deploy.md#telegram). Cloudflare Worker deployments need scheduled jobs for queued notification delivery; see [deploy.md](deploy.md).
+
+## Connection access
+
+User cards include a **Connection access** button. `/access [username]` opens the same editor: use paginated inbound/template choices, select **Done**, review, and confirm. Required/admin-controlled inbounds cannot be deselected. Template choices remain linked; toggling an individual inbound switches to custom access.
+
+Administrators can use `/access_required` to select global requirements, `/access_template [id]` to create or edit a shared template, and `/access_reseller [id]` to edit an allowlist and default template. Policy confirmations preview the affected user count. Use the panel or policy API to delete a template after reassigning references.
+
+Accepted changes return an operation ID. `/access_status operation-id [page]` shows progress and errors; `/access_retry operation-id` requests a confirmed retry of failed users. Confirmations keep revision and idempotency keys, and authorization is checked again when executed. Creation commands and flows automatically honor reseller defaults and global requirements. See [connection access](connection-access.md).

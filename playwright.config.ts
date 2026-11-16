@@ -22,7 +22,7 @@ export default defineConfig({
     command: 'bun run e2e:server',
     url: baseURL,
     reuseExistingServer: false,
-    timeout: 60_000,
+    timeout: 120_000,
     env: { E2E_BASE_URL: baseURL },
   },
 })

@@ -1,3 +1,5 @@
+import { accessSelectionSchema } from '#/lib/access-policy'
+import { prepareCreateAccess, recordCreatedAccess } from '#/lib/access'
 import { ORPCError } from '@orpc/server'
 import { and, count, desc, eq, inArray, sql, or, isNull } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
@@ -251,6 +253,7 @@ export const createVpnUser = authed
         .optional(),
       note: z.string().max(500).nullable().optional(),
       proxies: z.record(z.string(), z.unknown()).optional(),
+      access: accessSelectionSchema.optional(),
     }),
   )
   .handler(async ({ input, context }) => {
@@ -354,6 +357,12 @@ export const createVpnUser = authed
         profile.pricePerGbToman,
       )
 
+      const preparedAccess = await prepareCreateAccess(
+        resellerId,
+        context.user,
+        input.access,
+        input.proxies,
+      )
       const operationId = await beginVpnOperation({
         username: fullUsername,
         resellerId,
@@ -366,6 +375,7 @@ export const createVpnUser = authed
         created = await getBackend().createUser({
           username: fullUsername,
           protocols: input.proxies,
+          ...(preparedAccess ? { inbounds: preparedAccess.effective } : {}),
           dataLimitBytes,
           expireAt,
           note: input.note ?? null,
@@ -429,6 +439,12 @@ export const createVpnUser = authed
           reassign: true,
         })
         if (!mirrored) throw new Error('mirror missing')
+        if (preparedAccess)
+          await recordCreatedAccess(
+            mirrored.id,
+            preparedAccess,
+            context.user.role === 'admin',
+          )
         billing = await insertBillingEvent({
           id: operationId,
           resellerId,

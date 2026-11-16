@@ -1,7 +1,9 @@
 import { useI18n } from '#/components/locale-provider'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
-import { useEffect, useMemo } from 'react'
+import { AccessSelectionField } from '#/components/access/access-selection'
+import type { AccessSelection } from '#/lib/access-policy'
+import { useEffect, useMemo, useState } from 'react'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 
 import { Button } from '#/components/ui/button'
@@ -81,6 +83,7 @@ export function CreateVpnUserDialog({
   onCreated: () => void | Promise<unknown>
 }) {
   const { t, formatDate, formatToman } = useI18n()
+  const [access, setAccess] = useState<AccessSelection>()
 
   const schema = useMemo(() => createVpnUserFormSchema(isAdmin), [isAdmin])
 
@@ -145,7 +148,10 @@ export function CreateVpnUserDialog({
   }, [allowUnlimited, durationDays, setValue])
 
   useEffect(() => {
-    if (open) reset(createVpnUserDefaults)
+    if (open) {
+      reset(createVpnUserDefaults)
+      setAccess(undefined)
+    }
   }, [open, reset])
 
   const createMutation = useMutation({
@@ -176,10 +182,15 @@ export function CreateVpnUserDialog({
     },
   })
 
+  useEffect(() => {
+    setAccess(undefined)
+  }, [selectedResellerId])
+
   const onSubmit = handleSubmit((values) => {
     clearErrors('username')
     createMutation.mutate({
       username: values.username,
+      access,
       note: values.note?.trim() || null,
       dataLimitBytes: gbToBytes(values.dataLimitGb),
       durationDays: values.durationDays,
@@ -308,6 +319,13 @@ export function CreateVpnUserDialog({
                 ) : null}
               </Field>
             )}
+          />
+
+          <AccessSelectionField
+            value={access}
+            onChange={setAccess}
+            resellerId={selectedResellerId || undefined}
+            disabled={pending}
           />
 
           <DataLimitField

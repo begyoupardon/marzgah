@@ -5,6 +5,17 @@ export type BackendUserStatus =
   | 'expired'
   | 'on_hold'
 
+export type InboundRef = { protocol: string; tag: string }
+export type AccessCatalog = {
+  inbounds: Array<
+    InboundRef & {
+      network?: string
+      hosts: Array<{ address: string; remark: string }>
+    }
+  >
+  hostsAvailable: boolean
+}
+
 /** A VPN account as the panel sees it, whatever software hosts it. */
 export type BackendUser = {
   username: string
@@ -17,6 +28,8 @@ export type BackendUser = {
   note: string | null
   /** As reported by the backend; may be a relative path. */
   subscriptionUrl: string
+  /** Observed inbound access; never includes protocol credentials. */
+  inbounds?: InboundRef[]
 }
 
 export type CreateUserInput = {
@@ -26,6 +39,7 @@ export type CreateUserInput = {
   note?: string | null
   /** Backend-specific protocol settings. Omit for the backend's default. */
   protocols?: Record<string, unknown>
+  inbounds?: InboundRef[]
 }
 
 /** Only keys that are present (not undefined) are changed. */
@@ -88,6 +102,9 @@ export class BackendError extends Error {
 export interface VpnBackend {
   readonly id: string
   info: () => BackendInfo
+  /** Optional capability so other providers can explicitly report unsupported. */
+  accessCatalog?: () => Promise<AccessCatalog>
+  setAccess?: (username: string, inbounds: InboundRef[]) => Promise<BackendUser>
   /** `repair` lets a backend heal accounts it knows how to fix; default true. */
   getUser: (
     username: string,

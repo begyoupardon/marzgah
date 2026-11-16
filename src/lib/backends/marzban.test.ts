@@ -121,3 +121,56 @@ it('reports unconfigured when credentials are missing', () => {
     baseUrl: 'https://marzban.test',
   })
 })
+
+it('sets exact access without replacing existing credentials or account state', async () => {
+  server.seed({
+    username: 'selected_user',
+    proxies: {
+      vless: { id: 'keep-id' },
+      trojan: { password: 'keep-password' },
+    },
+    inbounds: { vless: ['VLESS TCP'], trojan: ['TROJAN'] },
+    status: 'disabled',
+    data_limit: 500,
+    expire: 2_000_000_000,
+  })
+  await backend.setAccess!('selected_user', [
+    { protocol: 'trojan', tag: 'TROJAN' },
+  ])
+  expect(server.raw('selected_user')).toMatchObject({
+    proxies: {
+      vless: { id: 'keep-id' },
+      trojan: { password: 'keep-password' },
+    },
+    inbounds: { vless: [], trojan: ['TROJAN'] },
+    status: 'disabled',
+    data_limit: 500,
+    expire: 2_000_000_000,
+  })
+  expect(
+    (await backend.getUser('selected_user', { repair: false })).inbounds,
+  ).toEqual([{ protocol: 'trojan', tag: 'TROJAN' }])
+})
+it('continues catalog discovery when host metadata is denied', async () => {
+  const catalog = await backend.accessCatalog!()
+  expect(catalog.hostsAvailable).toBe(false)
+  expect(catalog.inbounds.map((i) => i.tag)).toEqual(['VLESS TCP', 'TROJAN'])
+})
+it('rejects unavailable and empty assignments before upstream modification', async () => {
+  server.seed({
+    username: 'selected_user',
+    proxies: { vless: {} },
+    inbounds: { vless: ['VLESS TCP'] },
+  })
+  await expect(backend.setAccess!('selected_user', [])).rejects.toMatchObject({
+    code: 'INVALID',
+  })
+  await expect(
+    backend.setAccess!('selected_user', [
+      { protocol: 'trojan', tag: 'VLESS TCP' },
+    ]),
+  ).rejects.toMatchObject({ code: 'INVALID' })
+  expect(server.raw('selected_user')?.inbounds).toEqual({
+    vless: ['VLESS TCP'],
+  })
+})

@@ -1,0 +1,1 @@
+ALTER TABLE `access_assignments` ADD `protected_inbounds` text DEFAULT '[]' NOT NULL;

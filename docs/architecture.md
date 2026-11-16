@@ -106,3 +106,11 @@ the interface is missing something, add it there.
   crash after a remote change can leave the mirror briefly stale until the next sync.
 - In-memory rate limits reset on restart and are per instance.
 - `backend`/`marzban_username`/webhook naming still reflects Marzban being the only implementation.
+
+## Connection access policies
+
+`src/lib/access-policy.ts` resolves normalized inbound sets; `src/lib/access.ts` owns authorization-sensitive assignment, policy validation, durable application and reconciliation. `access_policies` stores one revisioned policy document per backend (shared templates, reseller grants/defaults and global requirements). `access_assignments` separates desired source and last observed/applied access from the VPN mirror.
+
+`access_operations` and `access_tasks` persist request identity and user targets. Conditional insert-select statements in a database batch commit desired changes, operations and tasks together; stale revisions cannot enqueue upstream work. `access_leases` serializes application per account across processes. Workers read current policy rather than replaying an old operation's selection, verify remote application, and persist failures/backoff. Assignment edits/enrollment advance policy revisions to invalidate stale policy previews.
+
+The `apply-connection-access` Bun job drains bounded batches every 15 seconds. Marzban webhooks enqueue reconciliation after mirror refresh; periodic sync also enqueues managed users. Ordinary reads never enforce desired access, and automatic inbound repair is disabled on managed accounts. See [connection access](connection-access.md) for defaults, migration and operator behavior.

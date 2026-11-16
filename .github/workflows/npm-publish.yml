@@ -33,6 +33,7 @@ jobs:
       - run: npm install --global npm@11.5.1
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
+      - run: bun run api:schemas:check
       - run: bun run test
       - run: bun run build:cli
       - run: bun run test:cli-package

@@ -41,7 +41,10 @@ export const enMainMenu = (role: string): Screen => ({
       ? [button('🧾 Billing', 'm:billing'), button('🔄 Renewals', 'm:renewals')]
       : [button('💰 Wallet', 'm:wallet'), button('🧾 Billing', 'm:billing')],
     role === 'admin'
-      ? [button('🏪 Resellers', 'm:resellers:1')]
+      ? [
+          button('🏪 Resellers', 'm:resellers:1'),
+          button('🔌 Required for everyone', 'n:accessRequired'),
+        ]
       : [button('🔄 Renewal requests', 'm:renewals')],
     [button('🌐 Language', 'm:language'), button('❓ Help', 'm:help')],
   ),
@@ -177,6 +180,7 @@ export function enUserCard(u: any, role: string, now = new Date()): Screen {
         button('🔗 Revoke link', `a:rv:${name}`),
         role === 'admin' ? button('🗄 Archive', `a:ar:${name}`) : null,
       ],
+      [button('🔌 Connection access', `n:access:${name}`)],
       [button('‹ Users', 'l:a:1'), home],
     ),
   }

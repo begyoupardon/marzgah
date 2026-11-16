@@ -1,3 +1,4 @@
+import { UserAccessEditor } from '#/components/access/user-access-editor'
 import { useI18n } from '#/components/locale-provider'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
@@ -55,7 +56,7 @@ export type ManageVpnUser = {
   resellerId?: string
 }
 
-type ManageMode = 'edit' | 'renew'
+type ManageMode = 'edit' | 'renew' | 'access'
 
 const EDIT_FORM_ID = 'manage-vpn-edit-form'
 const RENEW_FORM_ID = 'manage-vpn-renew-form'
@@ -204,24 +205,26 @@ export function ManageVpnUserSheet({
             >
               {t('انصراف')}
             </Button>
-            <Button
-              type="submit"
-              form={activeFormId}
-              className="h-11 sm:h-8"
-              disabled={
-                pending ||
-                !user ||
-                (mode === 'renew' && user.dataLimitBytes == null)
-              }
-            >
-              {pending
-                ? mode === 'edit'
-                  ? t('در حال ذخیره…')
-                  : t('در حال تمدید…')
-                : mode === 'edit'
-                  ? t('ذخیره تغییرات')
-                  : t('تأیید تمدید')}
-            </Button>
+            {mode !== 'access' && (
+              <Button
+                type="submit"
+                form={activeFormId}
+                className="h-11 sm:h-8"
+                disabled={
+                  pending ||
+                  !user ||
+                  (mode === 'renew' && user.dataLimitBytes == null)
+                }
+              >
+                {pending
+                  ? mode === 'edit'
+                    ? t('در حال ذخیره…')
+                    : t('در حال تمدید…')
+                  : mode === 'edit'
+                    ? t('ذخیره تغییرات')
+                    : t('تأیید تمدید')}
+              </Button>
+            )}
           </div>
         }
       >
@@ -264,19 +267,44 @@ export function ManageVpnUserSheet({
             <div
               role="tablist"
               aria-label={t('نوع عملیات')}
-              className="grid grid-cols-2 gap-1 rounded-xl border bg-muted/40 p-1"
+              className="grid grid-cols-3 gap-1 rounded-xl border bg-muted/40 p-1"
             >
               {(
                 [
                   { id: 'renew', label: t('تمدید') },
                   { id: 'edit', label: t('ویرایش') },
+                  { id: 'access', label: t('دسترسی اتصال') },
                 ] as const
               ).map((tab) => (
                 <button
                   key={tab.id}
                   type="button"
                   role="tab"
+                  id={`manage-tab-${tab.id}`}
+                  aria-controls={`manage-panel-${tab.id}`}
                   aria-selected={mode === tab.id}
+                  tabIndex={mode === tab.id ? 0 : -1}
+                  onKeyDown={(event) => {
+                    const tabs: ManageMode[] = ['renew', 'edit', 'access']
+                    const index = tabs.indexOf(mode)
+                    const rtl =
+                      event.currentTarget
+                        .closest('[dir]')
+                        ?.getAttribute('dir') === 'rtl' ||
+                      document.documentElement.dir === 'rtl'
+                    let next: ManageMode | undefined
+                    if (event.key === 'Home') next = tabs[0]
+                    if (event.key === 'End') next = tabs[2]
+                    if (event.key === 'ArrowRight')
+                      next = tabs[(index + (rtl ? 2 : 1)) % 3]
+                    if (event.key === 'ArrowLeft')
+                      next = tabs[(index + (rtl ? 1 : 2)) % 3]
+                    if (next) {
+                      event.preventDefault()
+                      setMode(next)
+                      document.getElementById(`manage-tab-${next}`)?.focus()
+                    }
+                  }}
                   className={cn(
                     'h-11 rounded-lg text-sm font-medium transition-colors sm:h-10',
                     mode === tab.id
@@ -294,200 +322,212 @@ export function ManageVpnUserSheet({
               ))}
             </div>
 
-            {mode === 'edit' ? (
-              <form
-                id={EDIT_FORM_ID}
-                onSubmit={editForm.handleSubmit(onEditSubmit)}
-                noValidate
-              >
-                <FieldGroup>
-                  <DataLimitField
-                    control={editForm.control}
-                    name="dataLimitGb"
-                    id={`${EDIT_FORM_ID}-data-limit`}
-                  />
-                  <Controller
-                    control={editForm.control}
-                    name="note"
-                    render={({ field, fieldState }) => (
-                      <Field data-invalid={fieldState.invalid}>
-                        <FieldLabel htmlFor={`${EDIT_FORM_ID}-note`}>
-                          {t('یادداشت')}
-                        </FieldLabel>
-                        <Textarea
-                          {...field}
-                          id={`${EDIT_FORM_ID}-note`}
-                          rows={2}
-                          value={field.value ?? ''}
-                          aria-invalid={fieldState.invalid}
-                        />
-                        {fieldState.invalid ? (
-                          <FieldError errors={[fieldState.error]} />
-                        ) : null}
-                      </Field>
-                    )}
-                  />
-                  <Controller
-                    control={editForm.control}
-                    name="password"
-                    render={({ field, fieldState }) => (
-                      <Field data-invalid={fieldState.invalid}>
-                        <FieldLabel htmlFor={`${EDIT_FORM_ID}-password`}>
-                          {t('رمز عبور جدید')}
-                        </FieldLabel>
-                        <Input
-                          {...field}
-                          id={`${EDIT_FORM_ID}-password`}
-                          type="text"
-                          dir="ltr"
-                          className="h-11 sm:h-8"
-                          autoComplete="off"
-                          placeholder={t('مثلاً 1234 — خالی = بدون تغییر')}
-                          value={field.value ?? ''}
-                          aria-invalid={fieldState.invalid}
-                        />
-                        <FieldDescription>
-                          {t(
-                            'بدون محدودیت طول یا پیچیدگی. فقط برای پروتکل‌های Trojan / Shadowsocks اعمال می‌شود.',
-                          )}
-                        </FieldDescription>
-                        {fieldState.invalid ? (
-                          <FieldError errors={[fieldState.error]} />
-                        ) : null}
-                      </Field>
-                    )}
-                  />
-                  {editForm.formState.errors.root ? (
-                    <FieldError>
-                      {editForm.formState.errors.root.message}
-                    </FieldError>
-                  ) : null}
-                </FieldGroup>
-              </form>
-            ) : (
-              <form
-                id={RENEW_FORM_ID}
-                onSubmit={renewForm.handleSubmit(onRenewSubmit)}
-                noValidate
-              >
-                <FieldGroup>
-                  <DurationDaysField
-                    control={renewForm.control}
-                    name="durationDays"
-                    options={durationOptions}
-                    label={t('مدت تمدید')}
-                    description={
-                      allowUnlimitedExpire
-                        ? t(
-                            'تمدید از امروز آغاز می‌شود؛ نامحدود انقضا را حذف می‌کند',
-                          )
-                        : t(
-                            'تمدید از امروز آغاز می‌شود؛ زمان باقی‌مانده حذف خواهد شد',
-                          )
-                    }
-                  />
-
-                  <div className="rounded-xl border bg-muted/40 p-3 text-sm">
-                    <p>
-                      {t('انقضای فعلی:')}{' '}
-                      {user?.expireAt
-                        ? formatDate(user.expireAt)
-                        : t('بدون انقضا')}
-                    </p>
-                    <p>
-                      {t('انقضای جدید:')}{' '}
-                      {renewPreview
-                        ? formatDate(renewPreview.toISOString())
-                        : t('بدون انقضا')}
-                    </p>
-                    {user?.dataLimitBytes != null &&
-                    typeof renewGb === 'number' &&
-                    Number.isFinite(renewGb) ? (
-                      <p>
-                        {t('سقف جدید:')} {renewGb} GB
-                      </p>
-                    ) : null}
-                    <p className="text-muted-foreground">
-                      {t(
-                        'مصرف صفر می‌شود و حجم انتخابی جایگزین سقف فعلی می‌شود؛ حجم باقی‌مانده منتقل نمی‌شود.',
-                      )}
-                    </p>
-                  </div>
-                  {user?.dataLimitBytes == null ? (
-                    <p
-                      role="alert"
-                      className="rounded-lg border border-destructive/40 p-3 text-sm text-destructive"
-                    >
-                      {t(
-                        'برای حجم نامحدود امکان افزودن حجم از این مسیر وجود ندارد.',
-                      )}
-                    </p>
-                  ) : null}
-
-                  <DataLimitField
-                    control={renewForm.control}
-                    name="additionalDataLimitGb"
-                    id={`${RENEW_FORM_ID}-data-limit`}
-                    label="حجم اضافه‌شونده (گیگابایت)"
-                    description="این مقدار سقف جدید می‌شود و فقط همین مقدار صورتحساب می‌شود. حداقل ۰٫۱ گیگابایت."
-                  />
-
-                  <Controller
-                    control={renewForm.control}
-                    name="reactivate"
-                    render={({ field, fieldState }) => (
-                      <Field
-                        orientation="horizontal"
-                        data-invalid={fieldState.invalid}
-                        className="rounded-xl border p-3"
-                      >
-                        <FieldContent>
-                          <FieldLabel htmlFor={`${RENEW_FORM_ID}-reactivate`}>
-                            {t('فعال‌سازی مجدد')}
+            <div
+              role="tabpanel"
+              id={`manage-panel-${mode}`}
+              aria-labelledby={`manage-tab-${mode}`}
+            >
+              {mode === 'access' ? (
+                <UserAccessEditor
+                  key={user.marzbanUsername}
+                  username={user.marzbanUsername}
+                  resellerId={user.resellerId}
+                />
+              ) : mode === 'edit' ? (
+                <form
+                  id={EDIT_FORM_ID}
+                  onSubmit={editForm.handleSubmit(onEditSubmit)}
+                  noValidate
+                >
+                  <FieldGroup>
+                    <DataLimitField
+                      control={editForm.control}
+                      name="dataLimitGb"
+                      id={`${EDIT_FORM_ID}-data-limit`}
+                    />
+                    <Controller
+                      control={editForm.control}
+                      name="note"
+                      render={({ field, fieldState }) => (
+                        <Field data-invalid={fieldState.invalid}>
+                          <FieldLabel htmlFor={`${EDIT_FORM_ID}-note`}>
+                            {t('یادداشت')}
                           </FieldLabel>
+                          <Textarea
+                            {...field}
+                            id={`${EDIT_FORM_ID}-note`}
+                            rows={2}
+                            value={field.value ?? ''}
+                            aria-invalid={fieldState.invalid}
+                          />
+                          {fieldState.invalid ? (
+                            <FieldError errors={[fieldState.error]} />
+                          ) : null}
+                        </Field>
+                      )}
+                    />
+                    <Controller
+                      control={editForm.control}
+                      name="password"
+                      render={({ field, fieldState }) => (
+                        <Field data-invalid={fieldState.invalid}>
+                          <FieldLabel htmlFor={`${EDIT_FORM_ID}-password`}>
+                            {t('رمز عبور جدید')}
+                          </FieldLabel>
+                          <Input
+                            {...field}
+                            id={`${EDIT_FORM_ID}-password`}
+                            type="text"
+                            dir="ltr"
+                            className="h-11 sm:h-8"
+                            autoComplete="off"
+                            placeholder={t('مثلاً 1234 — خالی = بدون تغییر')}
+                            value={field.value ?? ''}
+                            aria-invalid={fieldState.invalid}
+                          />
                           <FieldDescription>
-                            {t('در صورت غیرفعال/منقضی بودن')}
+                            {t(
+                              'بدون محدودیت طول یا پیچیدگی. فقط برای پروتکل‌های Trojan / Shadowsocks اعمال می‌شود.',
+                            )}
                           </FieldDescription>
-                        </FieldContent>
-                        <Switch
-                          id={`${RENEW_FORM_ID}-reactivate`}
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                          aria-invalid={fieldState.invalid}
-                        />
-                      </Field>
-                    )}
-                  />
+                          {fieldState.invalid ? (
+                            <FieldError errors={[fieldState.error]} />
+                          ) : null}
+                        </Field>
+                      )}
+                    />
+                    {editForm.formState.errors.root ? (
+                      <FieldError>
+                        {editForm.formState.errors.root.message}
+                      </FieldError>
+                    ) : null}
+                  </FieldGroup>
+                </form>
+              ) : (
+                <form
+                  id={RENEW_FORM_ID}
+                  onSubmit={renewForm.handleSubmit(onRenewSubmit)}
+                  noValidate
+                >
+                  <FieldGroup>
+                    <DurationDaysField
+                      control={renewForm.control}
+                      name="durationDays"
+                      options={durationOptions}
+                      label={t('مدت تمدید')}
+                      description={
+                        allowUnlimitedExpire
+                          ? t(
+                              'تمدید از امروز آغاز می‌شود؛ نامحدود انقضا را حذف می‌کند',
+                            )
+                          : t(
+                              'تمدید از امروز آغاز می‌شود؛ زمان باقی‌مانده حذف خواهد شد',
+                            )
+                      }
+                    />
 
-                  <div className="rounded-xl border bg-muted/40 px-3 py-2.5 text-sm">
-                    <p className="font-medium">{t('خلاصه تمدید')}</p>
-                    <p className="mt-1 text-muted-foreground">
-                      {typeof renewGb === 'number' && !Number.isNaN(renewGb)
-                        ? t('{0} گیگابایت', { '0': renewGb })
-                        : '—'}{' '}
-                      · {t(durationLabel(renewDuration))} {t('· انقضای جدید')}{' '}
-                      {renewPreview
-                        ? formatDate(renewPreview.toISOString())
-                        : t('نامحدود')}
-                    </p>
-                    {renewPrice != null ? (
-                      <p className="mt-1 text-muted-foreground">
-                        {t('برآورد قیمت:')}{' '}
-                        <span className="font-medium text-foreground">
-                          {formatToman(renewPrice)}
-                        </span>
+                    <div className="rounded-xl border bg-muted/40 p-3 text-sm">
+                      <p>
+                        {t('انقضای فعلی:')}{' '}
+                        {user?.expireAt
+                          ? formatDate(user.expireAt)
+                          : t('بدون انقضا')}
+                      </p>
+                      <p>
+                        {t('انقضای جدید:')}{' '}
+                        {renewPreview
+                          ? formatDate(renewPreview.toISOString())
+                          : t('بدون انقضا')}
+                      </p>
+                      {user?.dataLimitBytes != null &&
+                      typeof renewGb === 'number' &&
+                      Number.isFinite(renewGb) ? (
+                        <p>
+                          {t('سقف جدید:')} {renewGb} GB
+                        </p>
+                      ) : null}
+                      <p className="text-muted-foreground">
+                        {t(
+                          'مصرف صفر می‌شود و حجم انتخابی جایگزین سقف فعلی می‌شود؛ حجم باقی‌مانده منتقل نمی‌شود.',
+                        )}
+                      </p>
+                    </div>
+                    {user?.dataLimitBytes == null ? (
+                      <p
+                        role="alert"
+                        className="rounded-lg border border-destructive/40 p-3 text-sm text-destructive"
+                      >
+                        {t(
+                          'برای حجم نامحدود امکان افزودن حجم از این مسیر وجود ندارد.',
+                        )}
                       </p>
                     ) : null}
-                  </div>
 
-                  {renewForm.formState.errors.root ? (
-                    <FieldError>
-                      {renewForm.formState.errors.root.message}
-                    </FieldError>
-                  ) : null}
-                </FieldGroup>
-              </form>
-            )}
+                    <DataLimitField
+                      control={renewForm.control}
+                      name="additionalDataLimitGb"
+                      id={`${RENEW_FORM_ID}-data-limit`}
+                      label="حجم اضافه‌شونده (گیگابایت)"
+                      description="این مقدار سقف جدید می‌شود و فقط همین مقدار صورتحساب می‌شود. حداقل ۰٫۱ گیگابایت."
+                    />
+
+                    <Controller
+                      control={renewForm.control}
+                      name="reactivate"
+                      render={({ field, fieldState }) => (
+                        <Field
+                          orientation="horizontal"
+                          data-invalid={fieldState.invalid}
+                          className="rounded-xl border p-3"
+                        >
+                          <FieldContent>
+                            <FieldLabel htmlFor={`${RENEW_FORM_ID}-reactivate`}>
+                              {t('فعال‌سازی مجدد')}
+                            </FieldLabel>
+                            <FieldDescription>
+                              {t('در صورت غیرفعال/منقضی بودن')}
+                            </FieldDescription>
+                          </FieldContent>
+                          <Switch
+                            id={`${RENEW_FORM_ID}-reactivate`}
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            aria-invalid={fieldState.invalid}
+                          />
+                        </Field>
+                      )}
+                    />
+
+                    <div className="rounded-xl border bg-muted/40 px-3 py-2.5 text-sm">
+                      <p className="font-medium">{t('خلاصه تمدید')}</p>
+                      <p className="mt-1 text-muted-foreground">
+                        {typeof renewGb === 'number' && !Number.isNaN(renewGb)
+                          ? t('{0} گیگابایت', { '0': renewGb })
+                          : '—'}{' '}
+                        · {t(durationLabel(renewDuration))} {t('· انقضای جدید')}{' '}
+                        {renewPreview
+                          ? formatDate(renewPreview.toISOString())
+                          : t('نامحدود')}
+                      </p>
+                      {renewPrice != null ? (
+                        <p className="mt-1 text-muted-foreground">
+                          {t('برآورد قیمت:')}{' '}
+                          <span className="font-medium text-foreground">
+                            {formatToman(renewPrice)}
+                          </span>
+                        </p>
+                      ) : null}
+                    </div>
+
+                    {renewForm.formState.errors.root ? (
+                      <FieldError>
+                        {renewForm.formState.errors.root.message}
+                      </FieldError>
+                    ) : null}
+                  </FieldGroup>
+                </form>
+              )}
+            </div>
           </div>
         ) : null}
       </ResponsiveFormShell>

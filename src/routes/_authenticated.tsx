@@ -38,6 +38,7 @@ const pageTitles: Array<[string, string]> = [
   ['/wallet', 'کیف پول'],
   ['/notifications', 'اعلان‌ها'],
   ['/admin/resellers', 'نمایندگان'],
+  ['/admin/access', 'دسترسی اتصال'],
   ['/admin', 'وضعیت سامانه'],
   ['/analytics', 'آمار فروش'],
   ['/sales', 'تسویه و بدهی'],

@@ -17,6 +17,10 @@ function cli(...args: string[]) {
       DATABASE_PATH: dbPath,
       BETTER_AUTH_SECRET: 'x'.repeat(40),
       BETTER_AUTH_URL: 'http://localhost:3000',
+      MARZBAN_BASE_URL: 'https://no-network.example.invalid',
+      MARZBAN_USERNAME: 'test',
+      MARZBAN_PASSWORD: 'test',
+      MARZBAN_WEBHOOK_SECRET: 'test-secret',
     },
   })
   return {
@@ -78,4 +82,12 @@ it('refuses a corrupt restore without changing the database', () => {
 it('exposes the upgrade command', () => {
   expect(cli('--help').out).toContain('upgrade')
   expect(cli('upgrade', '--help').out).toContain('Back up and upgrade')
+})
+
+it('doctor checks the access migrations offline without contacting the backend', () => {
+  const result = cli('doctor', '--offline')
+  expect(result.code).toBe(0)
+  expect(result.out).toContain('Connection access schema')
+  expect(result.out).toContain('0019 and 0020')
+  expect(result.out).toContain('not checked (--offline)')
 })

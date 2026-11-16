@@ -24,6 +24,7 @@ import { Route as ApiSplatRouteImport } from './routes/api.$'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as STokenRouteImport } from './routes/s.$token'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
+import { Route as AuthenticatedAdminAccessRouteImport } from './routes/_authenticated/admin/access'
 import { Route as AuthenticatedAdminResellersRouteImport } from './routes/_authenticated/admin/resellers'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiRpcSplatRouteImport } from './routes/api.rpc.$'
@@ -105,6 +106,12 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAdminAccessRoute =
+  AuthenticatedAdminAccessRouteImport.update({
+    id: '/admin/access',
+    path: '/admin/access',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminResellersRoute =
   AuthenticatedAdminResellersRouteImport.update({
     id: '/admin/resellers',
@@ -146,6 +153,7 @@ export interface FileRoutesByFullPath {
   '/api/$': typeof ApiSplatRoute
   '/api/health': typeof ApiHealthRoute
   '/s/$token': typeof STokenRoute
+  '/admin/access': typeof AuthenticatedAdminAccessRoute
   '/admin/resellers': typeof AuthenticatedAdminResellersRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
@@ -167,6 +175,7 @@ export interface FileRoutesByTo {
   '/api/$': typeof ApiSplatRoute
   '/api/health': typeof ApiHealthRoute
   '/s/$token': typeof STokenRoute
+  '/admin/access': typeof AuthenticatedAdminAccessRoute
   '/admin/resellers': typeof AuthenticatedAdminResellersRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
@@ -190,6 +199,7 @@ export interface FileRoutesById {
   '/api/$': typeof ApiSplatRoute
   '/api/health': typeof ApiHealthRoute
   '/s/$token': typeof STokenRoute
+  '/_authenticated/admin/access': typeof AuthenticatedAdminAccessRoute
   '/_authenticated/admin/resellers': typeof AuthenticatedAdminResellersRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
@@ -213,6 +223,7 @@ export interface FileRouteTypes {
     | '/api/$'
     | '/api/health'
     | '/s/$token'
+    | '/admin/access'
     | '/admin/resellers'
     | '/api/auth/$'
     | '/api/rpc/$'
@@ -234,6 +245,7 @@ export interface FileRouteTypes {
     | '/api/$'
     | '/api/health'
     | '/s/$token'
+    | '/admin/access'
     | '/admin/resellers'
     | '/api/auth/$'
     | '/api/rpc/$'
@@ -256,6 +268,7 @@ export interface FileRouteTypes {
     | '/api/$'
     | '/api/health'
     | '/s/$token'
+    | '/_authenticated/admin/access'
     | '/_authenticated/admin/resellers'
     | '/api/auth/$'
     | '/api/rpc/$'
@@ -384,6 +397,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin/access': {
+      id: '/_authenticated/admin/access'
+      path: '/admin/access'
+      fullPath: '/admin/access'
+      preLoaderRoute: typeof AuthenticatedAdminAccessRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin/resellers': {
       id: '/_authenticated/admin/resellers'
       path: '/admin/resellers'
@@ -431,6 +451,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedSalesRoute: typeof AuthenticatedSalesRoute
   AuthenticatedUsersRoute: typeof AuthenticatedUsersRoute
   AuthenticatedWalletRoute: typeof AuthenticatedWalletRoute
+  AuthenticatedAdminAccessRoute: typeof AuthenticatedAdminAccessRoute
   AuthenticatedAdminResellersRoute: typeof AuthenticatedAdminResellersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
@@ -444,6 +465,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedSalesRoute: AuthenticatedSalesRoute,
   AuthenticatedUsersRoute: AuthenticatedUsersRoute,
   AuthenticatedWalletRoute: AuthenticatedWalletRoute,
+  AuthenticatedAdminAccessRoute: AuthenticatedAdminAccessRoute,
   AuthenticatedAdminResellersRoute: AuthenticatedAdminResellersRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }

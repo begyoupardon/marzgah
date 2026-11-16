@@ -2,7 +2,7 @@
 
 Set up and administer a self-hosted Marzgah VPN reseller panel. Requires **Bun 1.4.4 or newer**; npm distributes this package, but the executable runs on Bun.
 
-This release includes named per-user API keys for agents, the OpenAPI JSON at `/api/spec.json`, a 0.1 GB minimum plan allowance, and a Telegram bot with Persian and English menus. The generated panel includes `docs/api.md` with curl examples and key rotation guidance.
+Version **0.6.0** adds per-user inbound selection, linked shared templates, reseller allowlists/defaults, and **Required for everyone** for existing and future users. API, Telegram, and webhook reconciliation share the same access rules. Migrations through `0020` and `docs/connection-access.md` ship with this release. Existing users retain their access until explicitly managed; upgrading does not automatically activate new inbounds.
 
 ## Create a panel
 
@@ -30,14 +30,27 @@ Run the newest CLI from the panel directory. It backs up the SQLite database and
 
 ```sh
 cd my-panel
-bunx @begyoupardon/marzgah@latest upgrade
+bunx @begyoupardon/marzgah@0.6.0 upgrade --yes
 ```
 
-Stop the running panel service before upgrading, then restart it after the command succeeds. The command prints backup
+Stop the running panel service before upgrading. Run the upgrade as the Unix account that owns the panel, then restart the service only after the command succeeds. The command prints backup
 paths and restores the previous app files automatically if installation, migration, or build fails. App source files
 are refreshed from the release template, so keep custom app code in version control and review it before upgrading.
 For an older project created before version tracking was added, the command asks for confirmation before its first
 upgrade.
+
+After a Bun/systemd upgrade:
+
+```sh
+# From the panel directory, as its service user:
+cat .marzgah-version          # 0.6.0
+bun run cli doctor --offline  # local config and migrations; no backend request
+# Start the service using your process manager, then:
+bun run cli doctor
+curl --fail http://127.0.0.1:3000/api/health
+```
+
+Use your actual service name, project path and port. Keep `SCHEDULER` enabled on one Bun instance so access changes apply automatically. Open **Administration → Connection access**, test one user, then preview/confirm any global requirement. Full release and systemd instructions are in the generated project's `docs/npm-cli.md` and the [source guide](https://github.com/begyoupardon/marzgah/blob/master/docs/npm-cli.md).
 
 ## Administer a panel
 

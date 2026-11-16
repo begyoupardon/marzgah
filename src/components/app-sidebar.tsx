@@ -128,6 +128,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               label={t('مدیریت سامانه')}
               items={[
                 item(t('نمایندگان'), '/admin/resellers', <UsersRoundIcon />),
+                item(t('دسترسی اتصال'), '/admin/access', <KeyRoundIcon />),
                 item(t('وضعیت سامانه'), '/admin', <ActivityIcon />, true),
                 item(t('رویدادها'), '/audit', <ClipboardListIcon />),
               ]}

@@ -605,3 +605,76 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
     references: [user.id],
   }),
 }))
+
+/** Access policy is versioned as a whole so previews and writes use one CAS. */
+export const accessPolicies = sqliteTable('access_policies', {
+  backend: text('backend').primaryKey(),
+  revision: integer('revision').notNull().default(0),
+  document: text('document').notNull(),
+  operationId: text('operation_id'),
+})
+
+export const accessAssignments = sqliteTable('access_assignments', {
+  vpnUserId: text('vpn_user_id')
+    .primaryKey()
+    .references(() => vpnUsers.id, { onDelete: 'cascade' }),
+  selection: text('selection').notNull(),
+  revision: integer('revision').notNull().default(1),
+  adminControlled: integer('admin_controlled', { mode: 'boolean' })
+    .notNull()
+    .default(false),
+  operationId: text('operation_id'),
+  observed: text('observed'),
+  applied: text('applied'),
+  error: text('error'),
+  protectedInbounds: text('protected_inbounds').notNull().default('[]'),
+})
+
+export const accessOperations = sqliteTable('access_operations', {
+  id: text('id').primaryKey(),
+  actorUserId: text('actor_user_id')
+    .notNull()
+    .references(() => user.id),
+  backend: text('backend').notNull(),
+  request: text('request').notNull(),
+  createdAt: integer('created_at').notNull(),
+})
+
+export const accessTasks = sqliteTable(
+  'access_tasks',
+  {
+    id: text('id').primaryKey(),
+    operationId: text('operation_id')
+      .notNull()
+      .references(() => accessOperations.id, { onDelete: 'cascade' }),
+    vpnUserId: text('vpn_user_id')
+      .notNull()
+      .references(() => vpnUsers.id, { onDelete: 'cascade' }),
+    status: text('status', {
+      enum: ['pending', 'applied', 'failed', 'skipped'],
+    })
+      .notNull()
+      .default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    nextAttemptAt: integer('next_attempt_at').notNull().default(0),
+    leaseToken: text('lease_token'),
+    lockedUntil: integer('locked_until'),
+    error: text('error'),
+  },
+  (t) => [
+    uniqueIndex('access_tasks_operation_user_idx').on(
+      t.operationId,
+      t.vpnUserId,
+    ),
+    index('access_tasks_due_idx').on(t.status, t.nextAttemptAt),
+  ],
+)
+
+/** One cross-process lease per account, shared by all access operations. */
+export const accessLeases = sqliteTable('access_leases', {
+  vpnUserId: text('vpn_user_id')
+    .primaryKey()
+    .references(() => vpnUsers.id, { onDelete: 'cascade' }),
+  token: text('token').notNull(),
+  lockedUntil: integer('locked_until').notNull(),
+})

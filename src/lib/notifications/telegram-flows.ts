@@ -4,6 +4,7 @@
  * or as typed text, and the last answer produces a confirmation, never a direct
  * write. State lives in the telegram_flows table so it survives restarts.
  */
+import { ACCESS_FLOWS } from './telegram-access-flows'
 import { localUsernameSchema } from '#/lib/reseller-naming'
 import { gbToBytes, MIN_DATA_LIMIT_GB } from '#/lib/vpn-plans'
 
@@ -20,7 +21,8 @@ export type Ask = {
   text: string
   choices?: Array<{ label: string; value: string }>
 }
-type Step = {
+export type Step = {
+  repeat?: (value: unknown) => boolean
   key: string
   /** Steps that do not apply (e.g. choosing a reseller as a reseller) are skipped. */
   skip?: (data: Data, ctx: FlowCtx) => boolean
@@ -97,6 +99,7 @@ const nullableCap = (label: string) => (raw: string) => {
 }
 
 export const FLOWS: Record<string, FlowDef> = {
+  ...ACCESS_FLOWS,
   create: {
     steps: [
       {
@@ -572,7 +575,9 @@ export async function advanceFlow(
     }
   }
   const next = { ...data, [step.key]: value }
-  const index = await nextStep(def, stepIndex + 1, next, ctx)
+  const index = step.repeat?.(value)
+    ? stepIndex
+    : await nextStep(def, stepIndex + 1, next, ctx)
   if (index >= def.steps.length)
     return {
       kind: 'done',

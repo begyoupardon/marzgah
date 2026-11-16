@@ -31,6 +31,8 @@ mock.module('#/lib/marzban/client', () => ({
       {}
     ),
     getUser: async () => ({ proxies: {} }),
+    getInbounds: async () => ({ vless: [{ tag: 'VLESS TCP' }] }),
+    getHosts: async () => ({}),
     listUsers: async () => ({ users: [], total: 0 }),
   },
 }))

@@ -69,3 +69,9 @@ setBackend('marzban', fake) // routers now use it
 - Only Marzban sends webhooks today. Other backends rely on the periodic sync.
 - `getBackend()` for _new_ users always uses the default backend; choosing a
   backend per reseller is not implemented.
+
+## Inbound management capability
+
+`BackendUser.inbounds` exposes observed `{protocol, tag}` references without credentials. `CreateUserInput.inbounds` accepts an explicit initial selection. Providers supporting access management implement `accessCatalog()` and `setAccess(username, inbounds)`; unsupported providers fail explicitly.
+
+Catalogs include inbound protocol/tag/network and optional host address/remark summaries. A denied host request sets `hostsAvailable:false` without disabling selection. `setAccess` must preserve credentials and unrelated user state, clear deselected protocol assignments explicitly, reject unknown/empty selections, and expose the observed result. Marzban's adapter implements these rules; managed-user reads disable its legacy automatic repair. Policies, assignments and recovery live in the backend-neutral access service. See [connection access](connection-access.md).

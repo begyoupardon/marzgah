@@ -14,6 +14,34 @@ type Stored = BackendUser & { subscriptionToken: number; hasPassword: boolean }
 /** In-memory VpnBackend for tests: no network, deterministic, records calls. */
 export class FakeBackend implements VpnBackend {
   readonly id = 'fake'
+  catalog = {
+    hostsAvailable: true,
+    inbounds: [
+      {
+        protocol: 'vless',
+        tag: 'VLESS TCP',
+        hosts: [] as Array<{ address: string; remark: string }>,
+      },
+      {
+        protocol: 'trojan',
+        tag: 'TROJAN',
+        hosts: [] as Array<{ address: string; remark: string }>,
+      },
+    ],
+  }
+  async accessCatalog() {
+    this.record('accessCatalog')
+    return structuredClone(this.catalog)
+  }
+  async setAccess(
+    username: string,
+    inbounds: import('#/lib/backends/types').InboundRef[],
+  ) {
+    this.record('setAccess', username, inbounds)
+    const u = this.must(username)
+    u.inbounds = structuredClone(inbounds)
+    return this.view(u)
+  }
   readonly calls: Array<{ method: string; args: unknown[] }> = []
   /** Set to make the next call of that method throw. */
   failNext = new Map<string, Error>()
@@ -74,6 +102,7 @@ export class FakeBackend implements VpnBackend {
       throw new BackendError('User already exists', 'CONFLICT', 409)
     const stored: Stored = {
       username: input.username,
+      inbounds: input.inbounds ?? [{ protocol: 'vless', tag: 'VLESS TCP' }],
       status: 'active',
       usedBytes: 0,
       dataLimitBytes: input.dataLimitBytes || null,
@@ -151,6 +180,7 @@ export class FakeBackend implements VpnBackend {
   seed(user: Partial<BackendUser> & { username: string }) {
     const stored: Stored = {
       status: 'active',
+      inbounds: [{ protocol: 'vless', tag: 'VLESS TCP' }],
       usedBytes: 0,
       dataLimitBytes: null,
       expireAt: null,

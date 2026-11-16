@@ -134,6 +134,20 @@
       "when": 1793696211314,
       "tag": "0018_overconfident_overlord",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1794862497649,
+      "tag": "0019_connection_access",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1794864505856,
+      "tag": "0020_protected_access_grants",
+      "breakpoints": true
     }
   ]
 }

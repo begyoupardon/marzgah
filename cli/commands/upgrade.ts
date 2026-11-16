@@ -21,6 +21,7 @@ import { backupDatabase } from '../../src/lib/backup.ts'
 import { databasePath, loadEnvFile } from '../lib.ts'
 import { packagedAsset } from '../paths.ts'
 import { isPanelProject } from '../scaffold.ts'
+import { accessUpgradeSteps } from '../access-status.ts'
 
 const preservedNames = new Set([
   '.env',
@@ -110,11 +111,18 @@ export default defineCommand({
       return
     }
 
+    if (!existsSync(databasePath()))
+      throw new Error(
+        'The configured SQLite database does not exist. Check DATABASE_PATH before upgrading; no empty replacement database will be created.',
+      )
+
     const legacyNotice = oldVersion
       ? `Update template ${oldVersion} → ${targetVersion}.`
       : `Update this older project to template ${targetVersion}. Its app source will be replaced; .env, database, Docker Compose, and Wrangler config are preserved.`
     if (!args.yes) {
-      const proceed = await p.confirm({ message: `${legacyNotice} Continue?` })
+      const proceed = await p.confirm({
+        message: `${legacyNotice} Stop your panel service before continuing. Continue?`,
+      })
       if (p.isCancel(proceed) || !proceed) return p.cancel('Upgrade cancelled.')
     }
 
@@ -140,7 +148,11 @@ export default defineCommand({
       templateFiles.push('.marzgah-version')
       if (
         !templateFiles.includes('package.json') ||
-        !templateFiles.includes('src/db/schema.ts')
+        !templateFiles.includes('src/db/schema.ts') ||
+        !templateFiles.includes('src/lib/access.ts') ||
+        !templateFiles.includes('docs/connection-access.md') ||
+        !templateFiles.includes('drizzle/0019_connection_access.sql') ||
+        !templateFiles.includes('drizzle/0020_protected_access_grants.sql')
       )
         throw new Error('The published project template is incomplete.')
 
@@ -155,7 +167,7 @@ export default defineCommand({
 
       p.log.success(`Panel files upgraded to ${targetVersion}.`)
       p.note(
-        `Database backup: ${dbBackup}\nApp-file backup: ${appBackup}\n\nRestart your panel service to load the new build.`,
+        `Database backup: ${dbBackup}\nApp-file backup: ${appBackup}\n\n${accessUpgradeSteps()}`,
         'Upgrade complete',
       )
     } catch (error) {

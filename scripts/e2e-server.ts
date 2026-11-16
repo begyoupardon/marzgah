@@ -148,8 +148,16 @@ const marzban = createServer(async (req, res) => {
     return json(res, { access_token: 'local-e2e-token', token_type: 'bearer' })
   if (url.pathname === '/api/inbounds')
     return json(res, {
-      vless: [{ tag: 'VLESS TCP', protocol: 'vless', network: 'tcp' }],
+      vless: [
+        { tag: 'VLESS TCP', protocol: 'vless', network: 'tcp' },
+        { tag: 'VLESS WS', protocol: 'vless', network: 'ws' },
+      ],
       trojan: [],
+    })
+  if (url.pathname === '/api/hosts')
+    return json(res, {
+      'VLESS TCP': [{ address: 'tcp.example.test', remark: 'TCP host' }],
+      'VLESS WS': [{ address: 'ws.example.test', remark: 'WS host' }],
     })
   if (url.pathname === '/api/system')
     return json(res, {
@@ -203,27 +211,27 @@ const marzban = createServer(async (req, res) => {
 })
 marzban.listen(marzbanPort, '127.0.0.1')
 
-const vite = spawn(
-  'bun',
-  ['--bun', 'vite', 'dev', '--host', '127.0.0.1', '--port', String(appPort)],
-  {
-    stdio: 'inherit',
-    env: {
-      ...process.env,
-      DATABASE_PATH: dbPath,
-      BETTER_AUTH_URL: base.origin,
-      BETTER_AUTH_SECRET: authSecret,
-      BOOTSTRAP_ADMIN_EMAIL: admin.email,
-      MARZBAN_BASE_URL: `http://127.0.0.1:${marzbanPort}`,
-      MARZBAN_USERNAME: 'e2e',
-      MARZBAN_PASSWORD: 'local-only',
-      SCHEDULER: 'off',
-    },
+const app = spawn('bun', ['run', '.output/server/index.mjs'], {
+  stdio: 'inherit',
+  env: {
+    ...process.env,
+    PORT: String(appPort),
+    HOST: '127.0.0.1',
+    NITRO_PORT: String(appPort),
+    NITRO_HOST: '127.0.0.1',
+    DATABASE_PATH: dbPath,
+    BETTER_AUTH_URL: base.origin,
+    BETTER_AUTH_SECRET: authSecret,
+    BOOTSTRAP_ADMIN_EMAIL: admin.email,
+    MARZBAN_BASE_URL: `http://127.0.0.1:${marzbanPort}`,
+    MARZBAN_USERNAME: 'e2e',
+    MARZBAN_PASSWORD: 'local-only',
+    SCHEDULER: 'off',
   },
-)
+})
 
 function cleanup() {
-  vite.kill('SIGTERM')
+  app.kill('SIGTERM')
   marzban.close()
   rmSync(tempDir, { recursive: true, force: true })
   rmSync(portFile, { force: true })
@@ -231,7 +239,7 @@ function cleanup() {
 process.on('SIGINT', cleanup)
 process.on('SIGTERM', cleanup)
 process.on('exit', cleanup)
-vite.on('exit', (code) => {
+app.on('exit', (code) => {
   cleanup()
   process.exit(code ?? 0)
 })

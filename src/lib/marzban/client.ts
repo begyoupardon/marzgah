@@ -247,6 +247,21 @@ export const marzban = {
     )
   },
 
+  async getHosts(): Promise<
+    Record<string, Array<{ address: string; remark: string }>>
+  > {
+    return request('/api/hosts', { method: 'GET' }, (data) =>
+      z
+        .record(
+          z.string(),
+          z.array(
+            z.object({ address: z.string(), remark: z.string().default('') }),
+          ),
+        )
+        .parse(data),
+    )
+  },
+
   async getSystemStats() {
     return request('/api/system', { method: 'GET' }, (data) =>
       marzbanSystemStatsSchema.parse(data),

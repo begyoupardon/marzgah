@@ -89,7 +89,7 @@ it('retries a previously failed event', async () => {
     { id: 'event', processedAt: null, error: 'upstream down' },
   ])
   expect((await handleWebhook({ request: request() })).status).toBe(200)
-  expect(mocks.sync).toHaveBeenCalledWith('ab_user')
+  expect(mocks.sync).toHaveBeenCalledWith('ab_user', { repairInbounds: false })
 })
 it('acknowledges completed duplicates without syncing', async () => {
   mocks.inserted.mockResolvedValue([])

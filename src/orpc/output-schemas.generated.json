@@ -1,4 +1,766 @@
 {
+  "access.catalog": {
+    "type": "object",
+    "properties": {
+      "inbounds": {
+        "type": "array",
+        "items": {
+          "allOf": [
+            {
+              "type": "object",
+              "properties": {
+                "protocol": {
+                  "type": "string"
+                },
+                "tag": {
+                  "type": "string"
+                }
+              },
+              "required": ["protocol", "tag"]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "network": {
+                  "type": "string"
+                },
+                "hosts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "address": {
+                        "type": "string"
+                      },
+                      "remark": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["address", "remark"]
+                  }
+                }
+              },
+              "required": ["hosts"]
+            }
+          ]
+        }
+      },
+      "required": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "protocol": {
+              "type": "string"
+            },
+            "tag": {
+              "type": "string"
+            }
+          },
+          "required": ["protocol", "tag"]
+        }
+      },
+      "allowed": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "protocol": {
+              "type": "string"
+            },
+            "tag": {
+              "type": "string"
+            }
+          },
+          "required": ["protocol", "tag"]
+        }
+      },
+      "templates": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "inbounds": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "protocol": {
+                    "type": "string"
+                  },
+                  "tag": {
+                    "type": "string"
+                  }
+                },
+                "required": ["protocol", "tag"]
+              }
+            }
+          },
+          "required": ["id", "name", "inbounds"]
+        }
+      },
+      "defaultTemplateId": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "hostsAvailable": {
+        "type": "boolean"
+      },
+      "backend": {
+        "type": "string"
+      },
+      "revision": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "inbounds",
+      "required",
+      "allowed",
+      "templates",
+      "defaultTemplateId",
+      "hostsAvailable",
+      "backend",
+      "revision"
+    ]
+  },
+  "access.user": {
+    "type": "object",
+    "properties": {
+      "username": {
+        "type": "string"
+      },
+      "backend": {
+        "type": "string"
+      },
+      "base": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "protocol": {
+              "type": "string"
+            },
+            "tag": {
+              "type": "string"
+            }
+          },
+          "required": ["protocol", "tag"]
+        }
+      },
+      "templateName": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "revision": {
+        "type": "number"
+      },
+      "policyRevision": {
+        "type": "number"
+      },
+      "managed": {
+        "type": "boolean"
+      },
+      "selection": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "const": "custom"
+              },
+              "inbounds": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "protocol": {
+                      "type": "string"
+                    },
+                    "tag": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["protocol", "tag"]
+                }
+              }
+            },
+            "required": ["mode", "inbounds"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "const": "template"
+              },
+              "templateId": {
+                "type": "string"
+              }
+            },
+            "required": ["mode", "templateId"]
+          }
+        ]
+      },
+      "effective": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "protocol": {
+              "type": "string"
+            },
+            "tag": {
+              "type": "string"
+            }
+          },
+          "required": ["protocol", "tag"]
+        }
+      },
+      "observed": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "protocol": {
+              "type": "string"
+            },
+            "tag": {
+              "type": "string"
+            }
+          },
+          "required": ["protocol", "tag"]
+        }
+      },
+      "required": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "protocol": {
+              "type": "string"
+            },
+            "tag": {
+              "type": "string"
+            }
+          },
+          "required": ["protocol", "tag"]
+        }
+      },
+      "allowed": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "protocol": {
+              "type": "string"
+            },
+            "tag": {
+              "type": "string"
+            }
+          },
+          "required": ["protocol", "tag"]
+        }
+      },
+      "locked": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "protocol": {
+              "type": "string"
+            },
+            "tag": {
+              "type": "string"
+            }
+          },
+          "required": ["protocol", "tag"]
+        }
+      },
+      "adminControlled": {
+        "type": "boolean"
+      },
+      "error": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "pending": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "username",
+      "backend",
+      "base",
+      "templateName",
+      "revision",
+      "policyRevision",
+      "managed",
+      "selection",
+      "effective",
+      "observed",
+      "required",
+      "allowed",
+      "locked",
+      "adminControlled",
+      "error",
+      "pending"
+    ]
+  },
+  "access.assign": {
+    "type": "object",
+    "properties": {
+      "operationId": {
+        "type": "string"
+      }
+    },
+    "required": ["operationId"]
+  },
+  "access.policy": {
+    "type": "object",
+    "properties": {
+      "revision": {
+        "type": "number"
+      },
+      "policy": {
+        "type": "object",
+        "properties": {
+          "required": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "protocol": {
+                  "type": "string"
+                },
+                "tag": {
+                  "type": "string"
+                }
+              },
+              "required": ["protocol", "tag"]
+            }
+          },
+          "approved": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "protocol": {
+                  "type": "string"
+                },
+                "tag": {
+                  "type": "string"
+                }
+              },
+              "required": ["protocol", "tag"]
+            }
+          },
+          "templates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "inbounds": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "protocol": {
+                        "type": "string"
+                      },
+                      "tag": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["protocol", "tag"]
+                  }
+                }
+              },
+              "required": ["id", "name", "inbounds"]
+            }
+          },
+          "resellers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "resellerId": {
+                  "type": "string"
+                },
+                "allowed": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "protocol": {
+                        "type": "string"
+                      },
+                      "tag": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["protocol", "tag"]
+                  }
+                },
+                "defaultTemplateId": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "required": ["resellerId", "allowed", "defaultTemplateId"]
+            }
+          }
+        },
+        "required": ["required", "approved", "templates", "resellers"]
+      }
+    },
+    "required": ["revision", "policy"]
+  },
+  "access.preview": {
+    "type": "object",
+    "properties": {
+      "revision": {
+        "type": "number"
+      },
+      "affected": {
+        "type": "number"
+      },
+      "truncated": {
+        "type": "boolean"
+      },
+      "totalUsers": {
+        "type": "number"
+      },
+      "changes": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "username": {
+              "type": "string"
+            },
+            "before": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "protocol": {
+                        "type": "string"
+                      },
+                      "tag": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["protocol", "tag"]
+                  }
+                }
+              ]
+            },
+            "after": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "protocol": {
+                    "type": "string"
+                  },
+                  "tag": {
+                    "type": "string"
+                  }
+                },
+                "required": ["protocol", "tag"]
+              }
+            },
+            "legacy": {
+              "type": "boolean"
+            }
+          },
+          "required": ["username", "before", "after", "legacy"]
+        }
+      },
+      "policy": {
+        "type": "object",
+        "properties": {
+          "required": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "protocol": {
+                  "type": "string"
+                },
+                "tag": {
+                  "type": "string"
+                }
+              },
+              "required": ["protocol", "tag"]
+            }
+          },
+          "approved": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "protocol": {
+                  "type": "string"
+                },
+                "tag": {
+                  "type": "string"
+                }
+              },
+              "required": ["protocol", "tag"]
+            }
+          },
+          "templates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "inbounds": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "protocol": {
+                        "type": "string"
+                      },
+                      "tag": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["protocol", "tag"]
+                  }
+                }
+              },
+              "required": ["id", "name", "inbounds"]
+            }
+          },
+          "resellers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "resellerId": {
+                  "type": "string"
+                },
+                "allowed": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "protocol": {
+                        "type": "string"
+                      },
+                      "tag": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["protocol", "tag"]
+                  }
+                },
+                "defaultTemplateId": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "required": ["resellerId", "allowed", "defaultTemplateId"]
+            }
+          }
+        },
+        "required": ["required", "approved", "templates", "resellers"]
+      }
+    },
+    "required": [
+      "revision",
+      "affected",
+      "truncated",
+      "totalUsers",
+      "changes",
+      "policy"
+    ]
+  },
+  "access.savePolicy": {
+    "type": "object",
+    "properties": {
+      "operationId": {
+        "type": "string"
+      }
+    },
+    "required": ["operationId"]
+  },
+  "access.operation": {
+    "type": "object",
+    "properties": {
+      "operationId": {
+        "type": "string"
+      },
+      "createdAt": {
+        "type": "number"
+      },
+      "total": {
+        "type": "number"
+      },
+      "applied": {
+        "type": "number"
+      },
+      "failed": {
+        "type": "number"
+      },
+      "pending": {
+        "type": "number"
+      },
+      "skipped": {
+        "type": "number"
+      },
+      "offset": {
+        "type": "number"
+      },
+      "limit": {
+        "type": "number"
+      },
+      "hasMore": {
+        "type": "boolean"
+      },
+      "tasks": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "username": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": ["pending", "skipped", "failed", "applied"]
+            },
+            "attempts": {
+              "type": "number"
+            },
+            "error": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "required": ["id", "username", "status", "attempts", "error"]
+        }
+      }
+    },
+    "required": [
+      "operationId",
+      "createdAt",
+      "total",
+      "applied",
+      "failed",
+      "pending",
+      "skipped",
+      "offset",
+      "limit",
+      "hasMore",
+      "tasks"
+    ]
+  },
+  "access.operations": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "backend": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "number"
+        }
+      },
+      "required": ["id", "backend", "createdAt"]
+    }
+  },
+  "access.retry": {
+    "type": "object",
+    "properties": {
+      "operationId": {
+        "type": "string"
+      }
+    },
+    "required": ["operationId"]
+  },
+  "access.drain": {
+    "type": "object",
+    "properties": {
+      "processed": {
+        "type": "number"
+      },
+      "inspected": {
+        "type": "number"
+      }
+    },
+    "required": ["processed", "inspected"]
+  },
   "admin.listResellers": {
     "type": "array",
     "items": {
@@ -2427,7 +3189,7 @@
             },
             "status": {
               "type": "string",
-              "enum": ["queued", "sent", "dead", "skipped"]
+              "enum": ["skipped", "queued", "sent", "dead"]
             }
           },
           "required": ["id", "event", "lastError", "attempts", "status"]

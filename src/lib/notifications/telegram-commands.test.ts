@@ -220,3 +220,75 @@ it('accepts 0.1 GB in direct Telegram create and renew commands', async () => {
     gbToBytes(0.1),
   )
 })
+it('binds access confirmations to their chat, rechecks reseller status, and does not replay writes', async () => {
+  const owner = await makeReseller(db)
+  const fake = new FakeBackend()
+  const username = 'telegram_access_user'
+  fake.seed({ username })
+  setBackend('marzban', fake)
+  await makeVpnUser(db, owner.id, { marzbanUsername: username })
+  const bot = await saveTelegramBot(
+    {
+      kind: 'reseller',
+      ownerUserId: owner.id,
+      botToken: '123456:ACCESS-TEST',
+      botUsername: 'access_bot',
+    },
+    db,
+  )
+  const actor = {
+    userId: owner.id,
+    botId: bot.id,
+    botOwnerId: owner.id,
+    chatId: 'access-chat',
+    locale: 'en' as const,
+  }
+  let last: { text: string; keyboard?: { text: string; data: string }[][] } = {
+    text: '',
+  }
+  const send = async (
+    text: string,
+    keyboard?: { text: string; data: string }[][],
+  ) => {
+    last = { text, keyboard }
+  }
+  await routeTelegramCommand(`/access ${username}`, actor, bot, { db, send })
+  const toggle = last.keyboard!.flat().find((b) => b.text.includes('TROJAN'))!
+  await handleTelegramCallback(toggle.data, actor, { db, send })
+  const done = last.keyboard!.flat().find((b) => b.text === 'Done')!
+  await handleTelegramCallback(done.data, actor, { db, send })
+  const confirm = last
+    .keyboard!.flat()
+    .find((b) => b.data.startsWith('confirm:'))!
+  expect(fake.callsTo('setAccess')).toHaveLength(0)
+  await handleTelegramCallback(
+    confirm.data,
+    { ...actor, chatId: 'another-chat' },
+    { db, send },
+  )
+  expect(last.text).toContain('invalid')
+  await handleTelegramCallback(confirm.data, actor, { db, send })
+  expect(last.text).toContain('queued')
+  const { drainAccessTasks } = await import('#/lib/access')
+  await drainAccessTasks()
+  expect(fake.callsTo('setAccess')).toHaveLength(1)
+  await handleTelegramCallback(confirm.data, actor, { db, send })
+  expect(last.text).toContain('invalid')
+  await routeTelegramCommand(`/access ${username}`, actor, bot, { db, send })
+  await handleTelegramCallback(
+    last.keyboard!.flat().find((b) => b.text === 'Done')!.data,
+    actor,
+    { db, send },
+  )
+  const denied = last
+    .keyboard!.flat()
+    .find((b) => b.data.startsWith('confirm:'))!.data
+  const { resellerProfiles } = await import('#/db/schema')
+  await db
+    .update(resellerProfiles)
+    .set({ status: 'disabled' })
+    .where(eq(resellerProfiles.userId, owner.id))
+  await expect(
+    handleTelegramCallback(denied, actor, { db, send }),
+  ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+})

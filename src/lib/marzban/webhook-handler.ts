@@ -1,3 +1,4 @@
+import { enqueueAccessReconciliation } from '#/lib/access'
 import { and, eq, isNull, lt, or } from 'drizzle-orm'
 
 import { db } from '#/db'
@@ -102,7 +103,10 @@ export async function handleWebhook({ request }: { request: Request }) {
         reason: 'webhook_user_deleted',
       })
     } else {
-      await syncVpnUserFromMarzban(payload.username)
+      const mirrored = await syncVpnUserFromMarzban(payload.username, {
+        repairInbounds: false,
+      })
+      if (mirrored?.id) await enqueueAccessReconciliation(mirrored.id)
     }
 
     await db

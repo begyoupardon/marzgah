@@ -50,6 +50,14 @@ import {
 } from './telegram-flows'
 
 const commandProcedures: Record<string, any> = {
+  accessCatalog: router.access.catalog,
+  accessUser: router.access.user,
+  accessAssign: router.access.assign,
+  accessPolicy: router.access.policy,
+  accessPreview: router.access.preview,
+  accessSavePolicy: router.access.savePolicy,
+  accessOperation: router.access.operation,
+  accessRetry: router.access.retry,
   dashboard: router.dashboard,
   users: router.vpnUsers.list,
   create: router.vpnUsers.create,
@@ -117,6 +125,24 @@ function parseAction(text: string, role: string) {
   }
   const userInput = (target: string) => ({ username: target })
   switch (command) {
+    case '/access_status':
+      return {
+        read: {
+          command: 'accessOperation',
+          input: {
+            id: args[0] ?? '',
+            offset: Math.max(0, (Number(args[1]) || 1) - 1) * 50,
+          },
+        } as CommandAction,
+      }
+    case '/access_retry':
+      return {
+        action: {
+          command: 'accessRetry',
+          input: { id: args.join(' ') },
+        } as CommandAction,
+        summary: 'Retry failed connection access tasks',
+      }
     case '/help':
       return { help: true as const }
     case '/dashboard':
@@ -369,6 +395,16 @@ export const telegramMenu = (
         '/approve|/reject request-id — Decide renewal',
         '/diag — Diagnose buttons and webhook',
         '/language — Change language',
+        '/access [username] — Select inbounds or a linked template',
+        '/access_status operation-id [page] — Access application progress',
+        '/access_retry operation-id — Retry failed users',
+        ...(role === 'admin'
+          ? [
+              '/access_required — Required inbounds for everyone',
+              '/access_template [id] — Create or edit a template',
+              '/access_reseller [id] — Reseller allowlist and default template',
+            ]
+          : []),
         '/cancel — Cancel current operation',
         '/unlink — Disconnect Telegram',
         ownBot ? 'This bot is connected to your account.' : '',
@@ -402,6 +438,16 @@ export const telegramMenu = (
         '/approve|/reject شناسه‌درخواست — تصمیم تمدید',
         '/diag — تشخیص مشکل دکمه‌ها و وب‌هوک',
         '/language — تغییر زبان',
+        '/access [نام‌کاربری] — انتخاب اینباند یا قالب مرتبط',
+        '/access_status شناسه‌عملیات [صفحه] — وضعیت اعمال دسترسی',
+        '/access_retry شناسه‌عملیات — تکرار موارد ناموفق',
+        ...(role === 'admin'
+          ? [
+              '/access_required — اینباندهای الزامی همه کاربران',
+              '/access_template [شناسه] — ایجاد یا ویرایش قالب',
+              '/access_reseller [شناسه] — اینباندهای مجاز و قالب پیش‌فرض نماینده',
+            ]
+          : []),
         '/cancel — انصراف از عملیات جاری',
         '/unlink — قطع اتصال تلگرام',
         ownBot ? 'این ربات به حساب شما متصل است.' : '',
@@ -434,6 +480,18 @@ function renderRead(
   locale: TelegramLocale = 'fa',
 ): Screen {
   switch (command) {
+    case 'accessOperation':
+      return backHome(
+        `${tl(locale, 'وضعیت اعمال دسترسی', 'Access progress')}: ${result.applied}/${result.total} · ${tl(locale, 'در انتظار', 'Pending')}: ${result.pending} · ${tl(locale, 'ناموفق', 'Failed')}: ${result.failed}\n${(
+          result.tasks ?? []
+        )
+          .filter((t: any) => t.error)
+          .slice(0, 15)
+          .map((t: any) => `${esc(t.username)}: ${esc(t.error)}`)
+          .join('\n')}`,
+        [],
+        locale,
+      )
     case 'dashboard':
       return dashboardScreen(result, locale)
     case 'users': {
@@ -491,7 +549,8 @@ async function askConfirmation(
   actor: Actor,
   { db, send, now = new Date() }: Ctx,
 ) {
-  if (actor.locale === 'en') summary = englishActionSummary(action)
+  if (actor.locale === 'en' && !String(action.command).startsWith('access'))
+    summary = englishActionSummary(action)
   const confirmation = await createTelegramConfirmation(
     {
       ...scope(actor),
@@ -541,6 +600,12 @@ function renderResult(
   role: string,
   locale: TelegramLocale = 'fa',
 ): Screen {
+  if (result?.operationId)
+    return backHome(
+      `${tl(locale, 'در صف اعمال دسترسی', 'Access application queued')}\n<code>${esc(result.operationId)}</code>\n/access_status ${esc(result.operationId)}`,
+      [],
+      locale,
+    )
   if (command === 'create' && result?.marzbanUsername) {
     const card = userCardScreen(result, role, new Date(), locale)
     const link = result.subscriptionUrl
@@ -875,6 +940,20 @@ export async function routeTelegramCommand(
   } else if (word) {
     await clearFlow(scope(actor), db)
   }
+  const accessFlows: Record<string, string> = {
+    '/access': 'access',
+    '/access_required': 'accessRequired',
+    '/access_template': 'accessTemplate',
+    '/access_reseller': 'accessReseller',
+  }
+  if (word && accessFlows[word])
+    return startFlow(
+      accessFlows[word]!,
+      text.trim().split(/\s+/)[1],
+      actor,
+      role,
+      ctx,
+    )
   const parsed = parseAction(text, role)
   if (!parsed) return showScreen(send, mainMenu(role, locale))
   if ('help' in parsed)

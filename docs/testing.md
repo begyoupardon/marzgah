@@ -64,7 +64,7 @@ Conventions:
   404 soft removal, webhook validation and retries, credential creation, real better-auth password verification and
   secure cookies, stale-admin-role override, renewals using live quota.
 
-**Not covered by automated tests:** the UI (no component or browser tests), real Marzban, real Telegram, real Zarinpal,
+**Not covered by automated tests:** real Marzban, real Telegram, real Zarinpal,
 the Docker image build (CI builds it), and Cloudflare runtime behaviour (CI only builds it).
 
 ## Findings addressed over time
@@ -111,3 +111,9 @@ Use disposable accounts and a staging VPN server for anything that mutates.
 9. Webhooks: stop Marzban reachability briefly and confirm a retry succeeds without duplicate audit entries.
 10. `bun run cli backup`, then restore into a scratch copy and open it.
 11. Mobile layout of the users list and the customer page.
+
+## Connection access coverage
+
+`src/lib/access.db.test.ts` uses real migrated SQLite and the fake backend to exercise global activation/removal, preservation of user state, template propagation, custom independence, allowlists, role/ownership checks, stale edits, idempotency, timeout recovery, competing workers, expired leases, archived users, drift and failed-task retry. Marzban adapter tests cover exact clearing of protocol assignments, credential preservation, catalog fallback, and invalid selections. Telegram access-flow tests cover pagination, protected entries, linked-template confirmation payloads and admin-only flows.
+
+`e2e/access.spec.ts` checks global preview/application, locked requirements, keyboard selection, mobile overflow, Persian/English controls, and axe WCAG A/AA checks on the new screens. Run `bun run test:e2e -- e2e/access.spec.ts` with local server/browser permissions. The browser harness builds and serves the production Bun bundle, reuses session credentials in fresh browser contexts to respect login rate limits, and uses disposable databases and a local fake Marzban server. It never contacts the configured production server. CI runs the browser suite with Chromium installed.

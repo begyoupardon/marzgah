@@ -1,3 +1,4 @@
+import { drainAccessTasks, enqueueAccessReconciliation } from '#/lib/access'
 import { and, isNotNull, isNull, lt } from 'drizzle-orm'
 
 import { db } from '#/db'
@@ -30,6 +31,7 @@ export async function syncAllUsers() {
     .where(isNull(vpnUsers.removedAt))
   const { failed } = await bulkSyncMirrors(rows)
   if (failed) throw new Error('Marzban sync stopped after an upstream failure')
+  for (const row of rows) await enqueueAccessReconciliation(row.id)
   return { users: rows.length }
 }
 
@@ -88,6 +90,12 @@ export function buildScheduler(opts: { backups: boolean }) {
         payload: { error: String(error) },
       }).catch(() => {})
     },
+  })
+  scheduler.register({
+    name: 'apply-connection-access',
+    intervalMs: 15_000,
+    initialDelayMs: 5000,
+    run: () => drainAccessTasks(),
   })
   const env = getEnv()
   if (env.MARZBAN_BASE_URL) {

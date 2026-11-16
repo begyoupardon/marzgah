@@ -134,6 +134,8 @@ docs/              guides (below)
 
 ## Documentation
 
+- [Connection access](docs/connection-access.md) – per-user inbounds, linked templates, reseller allowlists and global activation.
+
 - [docs/api.md](docs/api.md) – API keys, OpenAPI, curl examples, and agent access
 - [docs/deploy.md](docs/deploy.md) – Docker, bare Bun, Cloudflare, reverse proxy, backups, upgrades, webhooks
 - [docs/telegram.md](docs/telegram.md) – create the bot, register its webhook, link reseller accounts, commands, and troubleshooting

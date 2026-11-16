@@ -120,3 +120,13 @@ no linked chat is skipped. The notifications page shows queue counts and recent 
 
 Admin → **وضعیت سامانه** → اطلاعیه: a message (info or warning) shown at the top of every page for everyone, until you
 switch it off.
+
+## Connection access
+
+- Per-user inbound selection with associated host summaries, linked shared templates, and custom overrides.
+- Admin-approved reseller allowlists and default templates; newly discovered inbounds require approval.
+- **Required for everyone** adds inbounds to existing and future users while preserving their other choices and account status.
+- Revision-checked previews, durable bulk application, per-user progress, retries and webhook reconciliation.
+- Accessible Persian/English web controls and paginated Telegram pickers using the same API services.
+
+See [connection access](connection-access.md) for the complete operator guide.

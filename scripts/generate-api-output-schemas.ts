@@ -103,6 +103,7 @@ function schemaFor(
 }
 
 const files = [
+  'access',
   'admin',
   'audit',
   'billing',

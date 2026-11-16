@@ -19,6 +19,7 @@ const templateDirectories = [
   'public',
   'server',
   'test',
+  'e2e',
   'docs',
 ]
 const templateFiles = [
@@ -38,6 +39,8 @@ const templateFiles = [
   'vite.config.ts',
   'drizzle.config.ts',
   'scripts/generate-api-output-schemas.ts',
+  'scripts/e2e-server.ts',
+  'playwright.config.ts',
   'wrangler.example.jsonc',
   'worker-configuration.d.ts',
   'components.json',
@@ -106,6 +109,7 @@ export async function buildCli() {
   for (const name of templateFiles) files[name] = Bun.file(join(root, name))
   // Publishing helpers belong to the release repository, not generated applications.
   const app = await Bun.file(join(root, 'package.json')).json()
+  app.version = manifest.version
   for (const key of ['build:cli', 'test:cli-package', 'pack:cli'])
     delete app.scripts[key]
   files['package.json'] = `${JSON.stringify(app, null, 2)}\n`

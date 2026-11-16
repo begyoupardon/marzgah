@@ -150,3 +150,11 @@ Migrations apply on start. Take a backup first (`bun run cli backup`). Migration
 The panel must sit behind a proxy that sets `X-Forwarded-For` (Caddy from the generated compose file does). The last entry
 is trusted as the client address for rate limits (customer pages and login). Without a proxy, every client looks the same
 and shares one rate-limit bucket.
+
+## Connection access worker
+
+The Bun scheduler runs `apply-connection-access` every 15 seconds. Keep `SCHEDULER` enabled on the normal single-instance deployment. Pending operations and account leases survive restart; changes do not become confirmed until tasks report applied.
+
+Cloudflare deployments need an external scheduler to send an authenticated `POST /api/access/drain` with `{"limit":20}` regularly (for example, every minute). Use an administrator API key; protect it like other scheduler secrets. Each call handles at most 50 tasks and can be repeated safely. Administrators can also use **Process a batch** in the Connection access page. Keep periodic user synchronization configured for missed-webhook detection. Large installations may need more frequent drain calls; watch pending/failed operation counts.
+
+Migrations `0019_connection_access.sql` and `0020_protected_access_grants.sql` are additive. Existing users remain unmanaged until explicitly assigned or covered by a global requirement. Back up, migrate, verify a small template change and inspect operation results before enabling global requirements. See [connection access](connection-access.md).

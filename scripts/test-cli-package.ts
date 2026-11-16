@@ -26,10 +26,15 @@ const env: Record<string, string> = {
   NPM_CONFIG_CACHE: join(temporary, 'npm-cache'),
   BUN_INSTALL_CACHE_DIR: join(temporary, 'bun-cache'),
 }
-function run(command: string[], cwd: string, expected = 0) {
+function run(
+  command: string[],
+  cwd: string,
+  expected = 0,
+  overrides: Record<string, string> = {},
+) {
   const result = Bun.spawnSync(command, {
     cwd,
-    env,
+    env: { ...env, ...overrides },
     stdout: 'pipe',
     stderr: 'pipe',
   })
@@ -150,11 +155,25 @@ try {
   assert.ok(
     existsSync(join(project, 'drizzle/0018_overconfident_overlord.sql')),
   )
+  for (const path of [
+    'drizzle/0019_connection_access.sql',
+    'drizzle/0020_protected_access_grants.sql',
+    'src/lib/access.ts',
+    'src/lib/access-store.ts',
+    'src/orpc/router/access.ts',
+    'docs/connection-access.md',
+    'e2e/access.spec.ts',
+    'e2e/auth.ts',
+    'playwright.config.ts',
+    'scripts/e2e-server.ts',
+  ])
+    assert.ok(existsSync(join(project, path)), `Release must include ${path}`)
   assert.ok(!existsSync(join(project, '.env')))
   assert.ok(!existsSync(join(project, '.git')))
   assert.ok(!existsSync(join(project, 'data')))
   const projectManifest = readFileSync(join(project, 'package.json'), 'utf8')
   assert.equal(JSON.parse(projectManifest).private, true)
+  assert.equal(JSON.parse(projectManifest).version, manifest.version)
   assert.ok(
     run([bin, 'upgrade', '--yes'], project).output.includes('already has'),
   )
@@ -183,12 +202,82 @@ try {
       ).some((column) => column.name === 'locale'),
       'Telegram language migration must be included in the CLI package',
     )
+    for (const table of [
+      'access_policies',
+      'access_assignments',
+      'access_operations',
+      'access_tasks',
+      'access_leases',
+    ]) {
+      assert.ok(
+        migrated
+          .query("SELECT name FROM sqlite_master WHERE type='table' AND name=?")
+          .get(table),
+        `Missing access table: ${table}`,
+      )
+    }
+    assert.ok(
+      (
+        migrated.query('PRAGMA table_info(access_assignments)').all() as Array<{
+          name: string
+        }>
+      ).some((c) => c.name === 'protected_inbounds'),
+    )
   } finally {
     migrated.close()
   }
   writeFileSync(join(project, '.marzgah-version'), '0.0.0-test\n')
+  const missingDatabase = join(temporary, 'must-not-be-created.db')
+  const missing = run([bin, 'upgrade', '--yes'], project, 1, {
+    DATABASE_PATH: missingDatabase,
+  })
+  assert.ok(missing.output.includes('does not exist'))
+  assert.ok(!existsSync(missingDatabase))
+  assert.ok(!existsSync(join(project, '.marzgah-backups')))
+  assert.equal(
+    readFileSync(join(project, '.marzgah-version'), 'utf8'),
+    '0.0.0-test\n',
+  )
+  const accessDocument = JSON.stringify({
+    required: [],
+    approved: [],
+    templates: [],
+    resellers: [],
+  })
+  const beforeUpgrade = new Database(env.DATABASE_PATH)
+  beforeUpgrade
+    .query(
+      'INSERT INTO access_policies (backend, revision, document) VALUES (?, ?, ?)',
+    )
+    .run('marzban', 7, accessDocument)
+  beforeUpgrade.close()
+
+  const preservedEnv = 'UPGRADE_SENTINEL=keep-this-value\n'
+  writeFileSync(join(project, '.env'), preservedEnv)
   const upgraded = run([bin, 'upgrade', '--yes'], project)
   assert.ok(upgraded.output.includes('Panel files upgraded'))
+  const upgradeOutput = upgraded.output
+    .replace(/\x1b\[[0-9;]*m/g, '')
+    .replace(/[│┃]/g, '')
+    .replace(/\s+/g, ' ')
+  assert.ok(
+    upgradeOutput.includes('Required for everyone'),
+    upgradeOutput.slice(-2500),
+  )
+  assert.ok(upgradeOutput.includes('SCHEDULER'))
+  const afterUpgrade = new Database(env.DATABASE_PATH, { readonly: true })
+  assert.deepEqual(
+    afterUpgrade
+      .query('SELECT revision, document FROM access_policies WHERE backend=?')
+      .get('marzban'),
+    { revision: 7, document: accessDocument },
+  )
+  afterUpgrade.close()
+  assert.equal(
+    run([process.execPath, 'run', 'cli', '--version'], project).stdout.trim(),
+    manifest.version,
+  )
+  assert.equal(readFileSync(join(project, '.env'), 'utf8'), preservedEnv)
   assert.equal(
     readFileSync(join(project, '.marzgah-version'), 'utf8').trim(),
     manifest.version,

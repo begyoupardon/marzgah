@@ -1,16 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 
-const email = 'reseller.e2e@example.test'
-const password = 'E2E-only-password-12345'
-
-async function signIn(page: import('@playwright/test').Page) {
-  await page.goto('/login')
-  await page.getByLabel('ایمیل').fill(email)
-  await page.getByLabel('رمز عبور').fill(password)
-  await page.getByRole('button', { name: 'ورود' }).click()
-  await expect(page).toHaveURL(/dashboard/)
-}
+import { signIn } from './auth'
 
 test('reseller navigates across sections, history, reload, and mobile layout', async ({
   page,
@@ -46,7 +37,7 @@ test('reseller navigates across sections, history, reload, and mobile layout', a
   expect(mobileWidth).toBeLessThanOrEqual(390)
 })
 
-test('renewal replaces remaining time, adds quota, and preserves traffic', async ({
+test('renewal replaces remaining time and quota and resets usage', async ({
   page,
   request,
 }) => {
@@ -60,7 +51,7 @@ test('renewal replaces remaining time, adds quota, and preserves traffic', async
     .getByRole('button', { name: 'تمدید / ویرایش' })
     .click()
   await expect(page.getByText(/زمان باقی‌مانده حذف خواهد شد/)).toBeVisible()
-  await expect(page.getByText(/مصرف فعلی حفظ می‌شود/)).toBeVisible()
+  await expect(page.getByText(/مصرف صفر می‌شود/)).toBeVisible()
   await page.getByRole('button', { name: 'تأیید تمدید' }).click()
   await expect(page.getByText('کاربر تمدید شد')).toBeVisible()
 
@@ -80,8 +71,8 @@ test('renewal replaces remaining time, adds quota, and preserves traffic', async
   }>
   expect(users[0]).toMatchObject({
     username: 'e2e_qa_customer',
-    data_limit: 20 * 1024 ** 3,
-    used_traffic: 2 * 1024 ** 3,
+    data_limit: 10 * 1024 ** 3,
+    used_traffic: 0,
   })
   expect(users[0]!.expire).toBeGreaterThan(Date.now() / 1000 + 29 * 86_400)
   expect(users[0]!.expire).toBeLessThan(Date.now() / 1000 + 31 * 86_400)

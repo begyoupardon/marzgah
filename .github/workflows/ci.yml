@@ -16,6 +16,8 @@ jobs:
       - run: bun run typecheck
       - run: bun run api:schemas:check
       - run: bun run test
+      - run: bunx playwright install --with-deps chromium
+      - run: bun run test:e2e
       - run: bun run build
       - run: bun run build:cf
       - name: Schema matches migrations

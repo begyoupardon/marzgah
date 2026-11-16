@@ -65,7 +65,10 @@ export const mainMenu = (
             ? [btn('🧾 مالی', 'm:billing'), btn('🔄 تمدیدها', 'm:renewals')]
             : [btn('💰 کیف پول', 'm:wallet'), btn('🧾 مالی', 'm:billing')],
           role === 'admin'
-            ? [btn('🏪 نمایندگان', 'm:resellers:1')]
+            ? [
+                btn('🏪 نمایندگان', 'm:resellers:1'),
+                btn('🔌 الزامی برای همه', 'n:accessRequired'),
+              ]
             : [btn('🔄 درخواست‌های تمدید', 'm:renewals')],
           [btn('🌐 زبان', 'm:language'), btn('❓ راهنمای دستورها', 'm:help')],
         ),
@@ -232,6 +235,7 @@ export function userCardScreen(
         btn('🔗 ابطال لینک', `a:rv:${name}`),
         role === 'admin' ? btn('🗄 آرشیو', `a:ar:${name}`) : null,
       ],
+      [btn('🔌 دسترسی اتصال', `n:access:${name}`)],
       [btn('‹ فهرست کاربران', 'l:a:1'), HOME],
     ),
   }

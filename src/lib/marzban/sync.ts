@@ -1,3 +1,4 @@
+import { getAssignment } from '#/lib/access-store'
 import { eq } from 'drizzle-orm'
 
 import { db } from '#/db'
@@ -109,7 +110,9 @@ export async function syncVpnUserFromMarzban(
   try {
     // The backend heals what it knows how to heal (e.g. missing inbound tags).
     remoteUser = await backend.getUser(username, {
-      repair: options?.repairInbounds !== false,
+      repair:
+        options?.repairInbounds !== false &&
+        !(existing && (await getAssignment(existing.id))),
     })
   } catch (error) {
     if (error instanceof BackendError && error.code === 'NOT_FOUND') {
