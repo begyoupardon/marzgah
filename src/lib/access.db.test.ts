@@ -144,7 +144,7 @@ test('reseller allowlists and cross-reseller ownership are enforced by real midd
   )
   const other = await makeReseller(db)
   await expect(callAs(api.user, { username }, other.id)).rejects.toMatchObject({
-    code: 'NOT_FOUND',
+    code: 'FORBIDDEN',
   })
   await expect(callAs(api.policy, {}, seller.id)).rejects.toMatchObject({
     code: 'FORBIDDEN',
@@ -430,4 +430,177 @@ test('a removed allowlist grant is not presented as a protected template grant',
   await assign({ mode: 'custom', inbounds: [a] })
   await access.drainAccessTasks()
   expect((await backend.getUser(username)).inbounds).toEqual([a])
+})
+test('reseller template assignment binds existing and future users to individual hosts', async () => {
+  const host = {
+    id: 'a'.repeat(64),
+    address: 'one.example.test',
+    remark: 'One',
+    port: 443,
+  }
+  backend.catalog.inbounds[0]!.hosts = [
+    host,
+    { ...host, id: 'b'.repeat(64), address: 'two.example.test', remark: 'Two' },
+  ]
+  const state = await policy()
+  const selection = [{ ...a, hostIds: [host.id] }]
+  const binding = crypto.randomUUID()
+  await save({
+    ...state.policy,
+    templates: [
+      { id: 'host-template', name: 'Host template', inbounds: selection },
+    ],
+    resellers: [
+      {
+        resellerId: seller.id,
+        allowed: selection,
+        defaultTemplateId: 'host-template',
+        assignmentId: binding,
+      },
+    ],
+  })
+  await access.drainAccessTasks()
+  const view = await access.userAccessView(username, admin)
+  expect(view.selection).toEqual({
+    mode: 'template',
+    templateId: 'host-template',
+  })
+  expect(view.effective).toEqual(selection)
+  expect((await backend.getUser(username)).inbounds).toEqual([a])
+  expect(view.pending).toBe(false)
+  expect(
+    (await access.prepareCreateAccess(seller.id, seller)).effective,
+  ).toEqual(selection)
+  expect(
+    (
+      await access.getAssignment(
+        (await access.assertAccessOwner(username, admin)).id,
+      )
+    )?.resellerBinding,
+  ).toBe(binding)
+})
+test('all access endpoints are admin-only and resellers cannot submit access while creating users', async () => {
+  for (const [procedure, input] of [
+    [api.catalog, {}],
+    [api.user, { username }],
+    [api.operations, undefined],
+    [api.operation, { id: 'unknown' }],
+    [api.retry, { id: 'unknown' }],
+  ] as const)
+    await expect(callAs(procedure, input, seller.id)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    })
+  const vpn = await import('#/orpc/router/vpn-users')
+  await expect(
+    callAs(
+      vpn.createVpnUser,
+      {
+        username: 'new',
+        durationDays: 30,
+        dataLimitBytes: 1024 ** 3,
+        access: { mode: 'custom', inbounds: [a] },
+      },
+      seller.id,
+    ),
+  ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+})
+test('managed subscription links filter a sibling host and invalidate after revocation without exposing upstream URLs', async () => {
+  process.env.BETTER_AUTH_URL = 'https://panel.test'
+  process.env.BETTER_AUTH_SECRET = 'test-only-subscription-secret-'.repeat(2)
+  const host = {
+    id: 'a'.repeat(64),
+    address: 'one.example.test',
+    remark: 'One',
+    port: 443,
+  }
+  backend.catalog.inbounds[0]!.hosts = [
+    host,
+    { ...host, id: 'b'.repeat(64), address: 'two.example.test', remark: 'Two' },
+  ]
+  const row = await access.assertAccessOwner(username, admin)
+  const remote = await backend.updateUser(username, { status: 'active' })
+  await db
+    .update(vpnUsers)
+    .set({ subscriptionUrl: remote.subscriptionUrl })
+    .where(eq(vpnUsers.id, row.id))
+  await assign(
+    { mode: 'custom', inbounds: [{ ...a, hostIds: [host.id] }] },
+    admin,
+  )
+  backend.subscriptionBodies.v2ray = Buffer.from(
+    'vless://id@one.example.test:443#One\nvless://id@two.example.test:443#Two',
+  ).toString('base64')
+  const { publicSubscriptionUrl, serveManagedSubscription } =
+    await import('./managed-subscription')
+  const account = await access.assertAccessOwner(username, admin)
+  const url = (await publicSubscriptionUrl(account))!
+  expect(url).toStartWith('https://panel.test/subscription/')
+  expect(url).not.toContain('fake-')
+  const token = new URL(url).pathname.split('/').pop()!
+  const response = await serveManagedSubscription(
+    new Request(url),
+    row.id,
+    token,
+  )
+  expect(response.status).toBe(200)
+  expect(response.headers.get('cache-control')).toContain('no-store')
+  expect(Buffer.from(await response.text(), 'base64').toString()).toBe(
+    'vless://id@one.example.test:443#One',
+  )
+  expect(
+    (await serveManagedSubscription(new Request(url), row.id, 'x'.repeat(43)))
+      .status,
+  ).toBe(404)
+  await backend.revokeSubscription(username)
+  expect(
+    (await serveManagedSubscription(new Request(url), row.id, token)).status,
+  ).toBe(404)
+})
+test('explicit system host defaults can create non-VLESS users and linked reseller templates can grow', async () => {
+  const first = {
+    id: 'c'.repeat(64),
+    address: 'trojan.test',
+    remark: 'Trojan',
+    port: 443,
+  }
+  const second = {
+    id: 'd'.repeat(64),
+    address: 'vless.test',
+    remark: 'VLESS',
+    port: 443,
+  }
+  backend.catalog.inbounds[1]!.hosts = [first]
+  backend.catalog.inbounds[0]!.hosts = [second]
+  const state = await policy()
+  const onlyTrojan = [{ ...b, hostIds: [first.id] }]
+  await save({ ...state.policy, hostDefaults: true, approved: onlyTrojan })
+  expect(
+    (await access.prepareCreateAccess(seller.id, seller)).effective,
+  ).toEqual(onlyTrojan)
+  const current = await policy()
+  const binding = crypto.randomUUID()
+  await save({
+    ...current.policy,
+    templates: [{ id: 'grow', name: 'Growing', inbounds: onlyTrojan }],
+    resellers: [
+      {
+        resellerId: seller.id,
+        allowed: onlyTrojan,
+        defaultTemplateId: 'grow',
+        assignmentId: binding,
+      },
+    ],
+  })
+  await access.drainAccessTasks()
+  const next = await policy()
+  const both = [...onlyTrojan, { ...a, hostIds: [second.id] }]
+  await save({
+    ...next.policy,
+    templates: [{ id: 'grow', name: 'Growing', inbounds: both }],
+  })
+  await access.drainAccessTasks()
+  expect((await access.userAccessView(username, admin)).effective).toEqual(both)
+  expect(
+    (await access.prepareCreateAccess(seller.id, seller)).effective,
+  ).toEqual(both)
 })

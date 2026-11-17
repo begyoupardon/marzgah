@@ -395,9 +395,13 @@ export const telegramMenu = (
         '/approve|/reject request-id — Decide renewal',
         '/diag — Diagnose buttons and webhook',
         '/language — Change language',
-        '/access [username] — Select inbounds or a linked template',
-        '/access_status operation-id [page] — Access application progress',
-        '/access_retry operation-id — Retry failed users',
+        ...(role === 'admin'
+          ? [
+              '/access [username] — Select hosts or a linked template',
+              '/access_status operation-id [page] — Access application progress',
+              '/access_retry operation-id — Retry failed users',
+            ]
+          : []),
         ...(role === 'admin'
           ? [
               '/access_required — Required inbounds for everyone',
@@ -438,9 +442,13 @@ export const telegramMenu = (
         '/approve|/reject شناسه‌درخواست — تصمیم تمدید',
         '/diag — تشخیص مشکل دکمه‌ها و وب‌هوک',
         '/language — تغییر زبان',
-        '/access [نام‌کاربری] — انتخاب اینباند یا قالب مرتبط',
-        '/access_status شناسه‌عملیات [صفحه] — وضعیت اعمال دسترسی',
-        '/access_retry شناسه‌عملیات — تکرار موارد ناموفق',
+        ...(role === 'admin'
+          ? [
+              '/access [نام‌کاربری] — انتخاب میزبان یا قالب مرتبط',
+              '/access_status شناسه‌عملیات [صفحه] — وضعیت اعمال دسترسی',
+              '/access_retry شناسه‌عملیات — تکرار موارد ناموفق',
+            ]
+          : []),
         ...(role === 'admin'
           ? [
               '/access_required — اینباندهای الزامی همه کاربران',
@@ -756,7 +764,15 @@ async function startFlow(
   role: string,
   ctx: Ctx,
 ) {
-  const adminOnly = ['adjust', 'balance', 'limits']
+  const adminOnly = [
+    'adjust',
+    'balance',
+    'limits',
+    'access',
+    'accessRequired',
+    'accessTemplate',
+    'accessReseller',
+  ]
   if (adminOnly.includes(name) && role !== 'admin')
     return showScreen(
       ctx.send,

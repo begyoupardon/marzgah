@@ -1,5 +1,9 @@
 import type { Translator } from '#/lib/i18n/core'
 const messages: Record<string, string> = {
+  'Select at least one host for the system default':
+    'حداقل یک میزبان برای پیش‌فرض سامانه انتخاب کنید.',
+  'Only administrators can configure connection access':
+    'فقط مدیر می‌تواند میزبان‌های اتصال را تنظیم کند.',
   'Select at least one inbound': 'حداقل یک اینباند انتخاب کنید',
   'An inbound is unavailable. Refresh the catalog.':
     'یکی از اینباندها در دسترس نیست؛ فهرست را بازخوانی کنید.',
@@ -28,6 +32,8 @@ const messages: Record<string, string> = {
     'نسخه جدیدتری از دسترسی در انتظار اعمال است.',
   'Backend has not applied the requested selection':
     'سرویس هنوز انتخاب درخواستی را اعمال نکرده است.',
+  'A selected host is unavailable. Refresh the catalog.':
+    'یکی از میزبان‌های انتخاب‌شده در دسترس نیست؛ فهرست را بازخوانی کنید.',
   'Access application failed': 'اعمال دسترسی انجام نشد',
   applied: 'اعمال‌شده',
   pending: 'در انتظار',

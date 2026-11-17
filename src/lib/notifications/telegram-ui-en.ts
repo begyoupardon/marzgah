@@ -180,7 +180,9 @@ export function enUserCard(u: any, role: string, now = new Date()): Screen {
         button('🔗 Revoke link', `a:rv:${name}`),
         role === 'admin' ? button('🗄 Archive', `a:ar:${name}`) : null,
       ],
-      [button('🔌 Connection access', `n:access:${name}`)],
+      role === 'admin'
+        ? [button('🔌 Connection access', `n:access:${name}`)]
+        : [],
       [button('‹ Users', 'l:a:1'), home],
     ),
   }

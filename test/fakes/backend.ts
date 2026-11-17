@@ -1,5 +1,7 @@
 import { BackendError } from '#/lib/backends/types'
 import type {
+  AccessCatalog,
+  SubscriptionFormat,
   BackendHealth,
   BackendInfo,
   BackendUser,
@@ -14,7 +16,7 @@ type Stored = BackendUser & { subscriptionToken: number; hasPassword: boolean }
 /** In-memory VpnBackend for tests: no network, deterministic, records calls. */
 export class FakeBackend implements VpnBackend {
   readonly id = 'fake'
-  catalog = {
+  catalog: AccessCatalog = {
     hostsAvailable: true,
     inbounds: [
       {
@@ -32,6 +34,15 @@ export class FakeBackend implements VpnBackend {
   async accessCatalog() {
     this.record('accessCatalog')
     return structuredClone(this.catalog)
+  }
+  subscriptionBodies: Partial<Record<SubscriptionFormat, string>> = {}
+  async getSubscription(username: string, format: SubscriptionFormat) {
+    this.record('getSubscription', username, format)
+    this.must(username)
+    return {
+      body: this.subscriptionBodies[format] ?? '',
+      contentType: format === 'v2ray' ? 'text/plain' : 'application/json',
+    }
   }
   async setAccess(
     username: string,

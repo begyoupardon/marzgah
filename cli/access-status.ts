@@ -41,9 +41,16 @@ export function inspectAccessSchema(path: string) {
         detail:
           'Protected inbound grants migration (0020) is missing. Run the matching CLI upgrade/migrate command.',
       }
+    if (!columns.some((column) => column.name === 'reseller_binding'))
+      return {
+        ok: false,
+        detail:
+          'Host assignment migration (0021) is missing. Run the matching CLI upgrade/migrate command.',
+      }
     return {
       ok: true,
-      detail: 'Connection access migrations 0019 and 0020 are installed.',
+      detail:
+        'Connection access migrations 0019 and 0020, plus host assignments 0021, are installed.',
     }
   } catch {
     return {

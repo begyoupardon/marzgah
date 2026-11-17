@@ -63,13 +63,14 @@
     "cn": "^0.4.0",
     "drizzle-orm": "^0.45.1",
     "lucide-react": "^0.577.0",
-    "nitro": "^3.0.260903-beta",
+    "nitro": "^3.0.261103-rc",
     "qrcode": "^1.5.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.89.0",
     "recharts": "3.8.0",
     "tailwindcss": "^4.1.18",
+    "yaml": "^2.9.1",
     "zod": "^4.3.6"
   },
   "devDependencies": {

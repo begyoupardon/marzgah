@@ -1,7 +1,7 @@
 import { UserAccessEditor } from '#/components/access/user-access-editor'
 import { useI18n } from '#/components/locale-provider'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { cn } from 'cn'
 import { useEffect, useMemo, useState } from 'react'
 import { Controller, useForm, useWatch } from 'react-hook-form'
@@ -77,6 +77,8 @@ export function ManageVpnUserSheet({
   onSuccess: () => void | Promise<unknown>
 }) {
   const { t, formatBytes, formatDate, formatToman } = useI18n()
+  const me = useQuery(orpc.me.queryOptions())
+  const isAdmin = me.data?.user.role === 'admin'
 
   const [mode, setMode] = useState<ManageMode>('renew')
   const [shareOpen, setShareOpen] = useState(false)
@@ -267,7 +269,7 @@ export function ManageVpnUserSheet({
             <div
               role="tablist"
               aria-label={t('نوع عملیات')}
-              className="grid grid-cols-3 gap-1 rounded-xl border bg-muted/40 p-1"
+              className={`grid gap-1 rounded-xl border bg-muted/40 p-1 ${isAdmin ? 'grid-cols-3' : 'grid-cols-2'}`}
             >
               {(
                 [
@@ -275,51 +277,61 @@ export function ManageVpnUserSheet({
                   { id: 'edit', label: t('ویرایش') },
                   { id: 'access', label: t('دسترسی اتصال') },
                 ] as const
-              ).map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  role="tab"
-                  id={`manage-tab-${tab.id}`}
-                  aria-controls={`manage-panel-${tab.id}`}
-                  aria-selected={mode === tab.id}
-                  tabIndex={mode === tab.id ? 0 : -1}
-                  onKeyDown={(event) => {
-                    const tabs: ManageMode[] = ['renew', 'edit', 'access']
-                    const index = tabs.indexOf(mode)
-                    const rtl =
-                      event.currentTarget
-                        .closest('[dir]')
-                        ?.getAttribute('dir') === 'rtl' ||
-                      document.documentElement.dir === 'rtl'
-                    let next: ManageMode | undefined
-                    if (event.key === 'Home') next = tabs[0]
-                    if (event.key === 'End') next = tabs[2]
-                    if (event.key === 'ArrowRight')
-                      next = tabs[(index + (rtl ? 2 : 1)) % 3]
-                    if (event.key === 'ArrowLeft')
-                      next = tabs[(index + (rtl ? 1 : 2)) % 3]
-                    if (next) {
-                      event.preventDefault()
-                      setMode(next)
-                      document.getElementById(`manage-tab-${next}`)?.focus()
-                    }
-                  }}
-                  className={cn(
-                    'h-11 rounded-lg text-sm font-medium transition-colors sm:h-10',
-                    mode === tab.id
-                      ? 'bg-background text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground',
-                  )}
-                  onClick={() => {
-                    setMode(tab.id)
-                    editForm.clearErrors('root')
-                    renewForm.clearErrors('root')
-                  }}
-                >
-                  {t(tab.label)}
-                </button>
-              ))}
+              )
+                .filter((tab) => tab.id !== 'access' || isAdmin)
+                .map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    id={`manage-tab-${tab.id}`}
+                    aria-controls={`manage-panel-${tab.id}`}
+                    aria-selected={mode === tab.id}
+                    tabIndex={mode === tab.id ? 0 : -1}
+                    onKeyDown={(event) => {
+                      const tabs: ManageMode[] = isAdmin
+                        ? ['renew', 'edit', 'access']
+                        : ['renew', 'edit']
+                      const index = tabs.indexOf(mode)
+                      const rtl =
+                        event.currentTarget
+                          .closest('[dir]')
+                          ?.getAttribute('dir') === 'rtl' ||
+                        document.documentElement.dir === 'rtl'
+                      let next: ManageMode | undefined
+                      if (event.key === 'Home') next = tabs[0]
+                      if (event.key === 'End') next = tabs[tabs.length - 1]
+                      if (event.key === 'ArrowRight')
+                        next =
+                          tabs[
+                            (index + (rtl ? tabs.length - 1 : 1)) % tabs.length
+                          ]
+                      if (event.key === 'ArrowLeft')
+                        next =
+                          tabs[
+                            (index + (rtl ? 1 : tabs.length - 1)) % tabs.length
+                          ]
+                      if (next) {
+                        event.preventDefault()
+                        setMode(next)
+                        document.getElementById(`manage-tab-${next}`)?.focus()
+                      }
+                    }}
+                    className={cn(
+                      'h-11 rounded-lg text-sm font-medium transition-colors sm:h-10',
+                      mode === tab.id
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                    onClick={() => {
+                      setMode(tab.id)
+                      editForm.clearErrors('root')
+                      renewForm.clearErrors('root')
+                    }}
+                  >
+                    {t(tab.label)}
+                  </button>
+                ))}
             </div>
 
             <div
@@ -327,7 +339,7 @@ export function ManageVpnUserSheet({
               id={`manage-panel-${mode}`}
               aria-labelledby={`manage-tab-${mode}`}
             >
-              {mode === 'access' ? (
+              {mode === 'access' && isAdmin ? (
                 <UserAccessEditor
                   key={user.marzbanUsername}
                   username={user.marzbanUsername}

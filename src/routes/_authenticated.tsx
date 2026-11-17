@@ -52,6 +52,7 @@ function AuthenticatedLayout() {
 
   const { session } = Route.useRouteContext()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const fullWidth = /^(?:\/(?:en|fa))?\/admin\/access\/?$/.test(pathname)
   const announcement = useQuery({
     ...orpc.tools.announcement.queryOptions(),
     refetchInterval: 5 * 60_000,
@@ -73,7 +74,9 @@ function AuthenticatedLayout() {
         <AppSidebar user={user} />
         <SidebarInset className="min-w-0">
           <header className="flex h-14 shrink-0 items-center border-b bg-card">
-            <div className="mx-auto flex w-full max-w-[1440px] items-center gap-2 px-4 sm:px-6 lg:px-8">
+            <div
+              className={`mx-auto flex w-full ${fullWidth ? '' : 'max-w-[1440px]'} items-center gap-2 px-4 sm:px-6 lg:px-8`}
+            >
               <SidebarTrigger className="-ms-1 md:hidden" />
               <Separator
                 orientation="vertical"
@@ -88,7 +91,9 @@ function AuthenticatedLayout() {
               </Breadcrumb>
             </div>
           </header>
-          <div className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          <div
+            className={`mx-auto flex w-full ${fullWidth ? '' : 'max-w-[1440px]'} flex-1 flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8`}
+          >
             {announcement ? (
               <div
                 role="status"

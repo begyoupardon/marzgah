@@ -3,7 +3,7 @@ import { useId } from 'react'
 import { useI18n } from '#/components/locale-provider'
 import { Button } from '#/components/ui/button'
 import { orpc } from '#/orpc/client'
-import { InboundPicker } from './inbound-picker'
+import { HostPicker } from './host-picker'
 import type { AccessSelection } from '#/lib/access-policy'
 import type { InboundRef } from '#/lib/backends/types'
 
@@ -12,7 +12,6 @@ export function AccessSelectionField({
   onChange,
   resellerId,
   backend = 'marzban',
-  locked = [],
   disabled = false,
   allowDefault = true,
   fallbackInbounds,
@@ -61,7 +60,9 @@ export function AccessSelectionField({
               : data.defaultTemplateId),
         )?.inbounds ??
         fallbackInbounds ??
-        data.allowed.filter((i) => i.protocol === 'vless'))
+        (data.defaultSelection.mode === 'custom'
+          ? data.defaultSelection.inbounds
+          : []))
   return (
     <div className="space-y-3">
       <label className="block space-y-1 text-sm" htmlFor={id}>
@@ -108,12 +109,11 @@ export function AccessSelectionField({
           {t('جزئیات میزبان‌ها در دسترس نیست؛ انتخاب اینباند فعال است.')}
         </p>
       )}
-      <InboundPicker
-        label={t('اینباندهای اتصال')}
+      <HostPicker
+        label={t('میزبان‌های اتصال')}
         catalog={data.inbounds}
         value={selected}
         required={data.required}
-        locked={locked}
         disabled={disabled || mode !== 'custom'}
         onChange={(inbounds) => onChange({ mode: 'custom', inbounds })}
       />

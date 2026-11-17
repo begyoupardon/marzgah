@@ -152,7 +152,9 @@ export default defineCommand({
         !templateFiles.includes('src/lib/access.ts') ||
         !templateFiles.includes('docs/connection-access.md') ||
         !templateFiles.includes('drizzle/0019_connection_access.sql') ||
-        !templateFiles.includes('drizzle/0020_protected_access_grants.sql')
+        !templateFiles.includes('drizzle/0020_protected_access_grants.sql') ||
+        !templateFiles.includes('drizzle/0021_reseller_host_assignments.sql') ||
+        !templateFiles.includes('src/lib/managed-subscription.ts')
       )
         throw new Error('The published project template is incomplete.')
 

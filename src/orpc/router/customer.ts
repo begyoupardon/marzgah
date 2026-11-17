@@ -6,7 +6,7 @@ import { db } from '#/db'
 import { resellerProfiles } from '#/db/schema'
 import { getEnv } from '#/lib/env'
 import { writeAuditLog } from '#/lib/ledger'
-import { resolveSubscriptionUrl } from '#/lib/marzban/subscription-url'
+import { publicSubscriptionUrl } from '#/lib/managed-subscription'
 import { getOwnedVpnUser } from '#/lib/marzban/quotas'
 import { createLink, resolveToken, revokeLinks } from '#/lib/public-links'
 import { clientIp, createRateLimiter } from '#/lib/rate-limit'
@@ -66,9 +66,7 @@ export const publicView = base
       limitBytes: u.dataLimitBytes,
       expireAt: u.expireAt?.toISOString() ?? null,
       subscriptionUrl:
-        u.status === 'active'
-          ? resolveSubscriptionUrl(u.subscriptionUrl)
-          : null,
+        u.status === 'active' ? await publicSubscriptionUrl(u) : null,
       updatedAt: u.lastSyncedAt?.toISOString() ?? null,
       seller: {
         name: link.publicName ?? null,

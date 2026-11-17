@@ -628,6 +628,7 @@ export const accessAssignments = sqliteTable('access_assignments', {
   applied: text('applied'),
   error: text('error'),
   protectedInbounds: text('protected_inbounds').notNull().default('[]'),
+  resellerBinding: text('reseller_binding'),
 })
 
 export const accessOperations = sqliteTable('access_operations', {

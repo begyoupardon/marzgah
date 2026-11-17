@@ -2,7 +2,7 @@
 
 Set up and administer a self-hosted Marzgah VPN reseller panel. Requires **Bun 1.4.4 or newer**; npm distributes this package, but the executable runs on Bun.
 
-Version **0.6.0** adds per-user inbound selection, linked shared templates, reseller allowlists/defaults, and **Required for everyone** for existing and future users. API, Telegram, and webhook reconciliation share the same access rules. Migrations through `0020` and `docs/connection-access.md` ship with this release. Existing users retain their access until explicitly managed; upgrading does not automatically activate new inbounds.
+Version **0.7.0** adds individual host selection, linked shared templates, admin-managed reseller host assignments, and **Required for everyone** for existing and future users. API, Telegram, and webhook reconciliation share the same access rules. Migrations through `0021` and `docs/connection-access.md` ship with this release. All host settings are administrator-only. Individual hosts sharing an inbound can be selected separately for subscription output. Existing users must import the new panel subscription link to receive filtered configs. Upgrading alone preserves existing access.
 
 ## Create a panel
 
@@ -30,7 +30,7 @@ Run the newest CLI from the panel directory. It backs up the SQLite database and
 
 ```sh
 cd my-panel
-bunx @begyoupardon/marzgah@0.6.0 upgrade --yes
+bunx @begyoupardon/marzgah@0.7.0 upgrade --yes
 ```
 
 Stop the running panel service before upgrading. Run the upgrade as the Unix account that owns the panel, then restart the service only after the command succeeds. The command prints backup
@@ -43,7 +43,7 @@ After a Bun/systemd upgrade:
 
 ```sh
 # From the panel directory, as its service user:
-cat .marzgah-version          # 0.6.0
+cat .marzgah-version          # 0.7.0
 bun run cli doctor --offline  # local config and migrations; no backend request
 # Start the service using your process manager, then:
 bun run cli doctor

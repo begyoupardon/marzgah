@@ -220,9 +220,17 @@ it('accepts 0.1 GB in direct Telegram create and renew commands', async () => {
     gbToBytes(0.1),
   )
 })
-it('binds access confirmations to their chat, rechecks reseller status, and does not replay writes', async () => {
+it('binds admin access confirmations to their chat, rechecks reseller status, and does not replay writes', async () => {
   const owner = await makeReseller(db)
+  const { user } = await import('#/db/schema')
+  await db.update(user).set({ role: 'admin' }).where(eq(user.id, owner.id))
   const fake = new FakeBackend()
+  fake.catalog.inbounds[0]!.hosts = [
+    { id: 'a'.repeat(64), address: 'vless.test', remark: 'VLESS host' },
+  ]
+  fake.catalog.inbounds[1]!.hosts = [
+    { id: 'b'.repeat(64), address: 'trojan.test', remark: 'TROJAN host' },
+  ]
   const username = 'telegram_access_user'
   fake.seed({ username })
   setBackend('marzban', fake)
@@ -291,4 +299,37 @@ it('binds access confirmations to their chat, rechecks reseller status, and does
   await expect(
     handleTelegramCallback(denied, actor, { db, send }),
   ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+})
+it('hides host management from reseller menus and rejects forged access flows', async () => {
+  const owner = await makeReseller(db)
+  const bot = await saveTelegramBot(
+    {
+      kind: 'reseller',
+      ownerUserId: owner.id,
+      botToken: '123456:HIDDEN-ACCESS',
+      botUsername: 'hidden_access_bot',
+    },
+    db,
+  )
+  const actor = {
+    userId: owner.id,
+    botId: bot.id,
+    botOwnerId: owner.id,
+    chatId: 'hidden-access-chat',
+    locale: 'en' as const,
+  }
+  let text = ''
+  let buttons: string[] = []
+  const send = async (
+    value: string,
+    keyboard?: { text: string; data: string }[][],
+  ) => {
+    text = value
+    buttons = (keyboard ?? []).flat().map((b) => b.data)
+  }
+  await routeTelegramCommand('/help', actor, bot, { db, send })
+  expect(text).not.toContain('/access')
+  await handleTelegramCallback('n:accessRequired', actor, { db, send })
+  expect(text).toContain('Admins only')
+  expect(buttons.some((b) => b.startsWith('f:'))).toBe(false)
 })

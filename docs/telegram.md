@@ -92,10 +92,10 @@ On first read after the additive database migration, Marzgah copies the former e
 
 For deployment requirements see [deploy.md](deploy.md#telegram). Cloudflare Worker deployments need scheduled jobs for queued notification delivery; see [deploy.md](deploy.md).
 
-## Connection access
+## Connection access (administrators only)
 
-User cards include a **Connection access** button. `/access [username]` opens the same editor: use paginated inbound/template choices, select **Done**, review, and confirm. Required/admin-controlled inbounds cannot be deselected. Template choices remain linked; toggling an individual inbound switches to custom access.
+Only administrator menus and user cards include Connection access. Reseller menus/help omit these commands; forged callbacks and direct API invocations are rejected by the same current-role checks.
 
-Administrators can use `/access_required` to select global requirements, `/access_template [id]` to create or edit a shared template, and `/access_reseller [id]` to edit an allowlist and default template. Policy confirmations preview the affected user count. Use the panel or policy API to delete a template after reassigning references.
+Administrators can use `/access [username]` for paginated individual-host/template selection, `/access_required` for global requirements, `/access_template [id]` for templates, and `/access_reseller [id]` for reseller assignments. Confirmations retain revisions and idempotency keys. A new reseller assignment applies to existing and future accounts; template edits propagate to linked users. `/access_status operation-id [page]` and `/access_retry operation-id` expose application progress/retry only to administrators.
 
-Accepted changes return an operation ID. `/access_status operation-id [page]` shows progress and errors; `/access_retry operation-id` requests a confirmed retry of failed users. Confirmations keep revision and idempotency keys, and authorization is checked again when executed. Creation commands and flows automatically honor reseller defaults and global requirements. See [connection access](connection-access.md).
+Regular reseller creation and sharing automatically use the administrator's assigned settings and managed subscription link without exposing the controls. Existing clients must import that new panel link for host filtering. See [host management](connection-access.md).

@@ -123,10 +123,10 @@ switch it off.
 
 ## Connection access
 
-- Per-user inbound selection with associated host summaries, linked shared templates, and custom overrides.
-- Admin-approved reseller allowlists and default templates; newly discovered inbounds require approval.
-- **Required for everyone** adds inbounds to existing and future users while preserving their other choices and account status.
-- Revision-checked previews, durable bulk application, per-user progress, retries and webhook reconciliation.
-- Accessible Persian/English web controls and paginated Telegram pickers using the same API services.
+- Full-width, administrator-only host management with searchable individual host rows, select-all and protocol filters.
+- Reusable host templates and bulk assignment to existing/future users of selected resellers; resellers cannot see or edit policies.
+- Global required hosts, per-user administrator overrides, durable application, previews, progress and retries.
+- Signed panel subscriptions filter individual hosts even when they share an inbound; underlying inbound connection authorization remains separate.
+- Accessible Persian/English desktop/mobile controls and admin-only Telegram flows using the same domain services.
 
-See [connection access](connection-access.md) for the complete operator guide.
+See [host management](connection-access.md) for inheritance and existing-client rollout.

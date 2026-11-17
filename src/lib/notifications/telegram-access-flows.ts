@@ -6,6 +6,14 @@ import type { InboundRef } from '#/lib/backends/types'
 const text = (c: FlowCtx, fa: string, en: string) =>
   c.locale === 'en' ? en : fa
 const refs = (d: Data): InboundRef[] => (d.pick as any)?.inbounds ?? []
+function sameHost(ref: InboundRef, entry: InboundRef) {
+  return (
+    inboundKey(ref) === inboundKey(entry) &&
+    (!entry.hostIds ||
+      !ref.hostIds ||
+      entry.hostIds.some((id) => ref.hostIds!.includes(id)))
+  )
+}
 const picker: Step = {
   key: 'pick',
   ask: (d, c) => {
@@ -13,7 +21,18 @@ const picker: Step = {
     const templates = d.kind === 'user' ? catalog.templates : []
     const entries = [
       ...templates.map((t: any) => ({ templateId: t.id, name: t.name })),
-      ...catalog.inbounds,
+      ...catalog.inbounds.flatMap((i: any) =>
+        i.hosts
+          ? i.hosts
+              .filter((h: any) => h.id && !h.disabled)
+              .map((h: any) => ({
+                protocol: i.protocol,
+                tag: i.tag,
+                hostIds: [h.id],
+                name: `${h.remark || h.address} · ${i.tag}`,
+              }))
+          : [i],
+      ),
     ]
     d.entries = entries
     const pick = (d.pick as any) ?? {
@@ -28,7 +47,7 @@ const picker: Step = {
     )
     const fixed = (d.fixed as InboundRef[]) ?? []
     return {
-      text: `${text(c, 'دسترسی اتصال؛ موارد را انتخاب کنید و سپس تأیید را بزنید.', 'Connection access: select entries, then choose Done.')}\n${text(c, 'انتخاب‌شده', 'Selected')}: ${esc(
+      text: `${text(c, 'میزبان‌ها را انتخاب کنید و سپس تأیید را بزنید.', 'Select individual hosts, then choose Done.')}\n${text(c, 'انتخاب‌شده', 'Selected')}: ${esc(
         refs(d)
           .map((i) => i.tag)
           .join(', ')
@@ -43,7 +62,7 @@ const picker: Step = {
         ...entries
           .slice(page * 6, page * 6 + 6)
           .map((i: any, offset: number) => ({
-            label: `${i.templateId ? (pick.templateId === i.templateId ? '✓ ' : '▣ ') : refs(d).some((r) => inboundKey(r) === inboundKey(i)) || fixed.some((r) => inboundKey(r) === inboundKey(i)) ? '✓ ' : '□ '}${String(i.name ?? i.tag).slice(0, 70)}`,
+            label: `${i.templateId ? (pick.templateId === i.templateId ? '✓ ' : '▣ ') : refs(d).some((r) => sameHost(r, i)) || fixed.some((r) => sameHost(r, i)) ? '✓ ' : '□ '}${String(i.name ?? i.tag).slice(0, 70)}`,
             value: `toggle:${page * 6 + offset}`,
           })),
         ...(page
@@ -72,12 +91,37 @@ const picker: Step = {
         inbounds: template.inbounds,
       }
     }
-    if (
-      ((d.fixed as InboundRef[]) ?? []).some(
-        (i) => inboundKey(i) === inboundKey(entry),
-      )
-    )
+    if (((d.fixed as InboundRef[]) ?? []).some((i) => sameHost(i, entry)))
       throw new Error('This inbound is controlled by the administrator')
+    if (entry.hostIds) {
+      const expanded = refs(d).map((ref) => ({
+        ...ref,
+        hostIds:
+          ref.hostIds ??
+          (d.catalog as any).inbounds
+            .find((i: any) => inboundKey(i) === inboundKey(ref))
+            ?.hosts?.filter((h: any) => !h.disabled && h.id)
+            .map((h: any) => h.id) ??
+          [],
+      }))
+      const current = expanded.find(
+        (ref) => inboundKey(ref) === inboundKey(entry),
+      )
+      const id = entry.hostIds[0]
+      const hostIds = current?.hostIds.includes(id)
+        ? current.hostIds.filter((value: string) => value !== id)
+        : [...(current?.hostIds ?? []), id]
+      return {
+        ...prior,
+        templateId: null,
+        inbounds: normalizeInbounds([
+          ...expanded.filter((ref) => inboundKey(ref) !== inboundKey(entry)),
+          ...(hostIds.length
+            ? [{ protocol: entry.protocol, tag: entry.tag, hostIds }]
+            : []),
+        ]),
+      }
+    }
     const has = refs(d).some((i) => inboundKey(i) === inboundKey(entry))
     return {
       ...prior,
@@ -268,6 +312,7 @@ export const ACCESS_FLOWS: Record<string, FlowDef> = {
             resellerId: String(d.resellerId),
             allowed: refs(d),
             defaultTemplateId: d.defaultTemplateId as string | null,
+            assignmentId: crypto.randomUUID(),
           },
         ],
       })

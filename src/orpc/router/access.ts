@@ -2,13 +2,14 @@ import * as z from 'zod'
 import { db } from '#/db'
 import { accessOperations } from '#/db/schema'
 import { desc, eq } from 'drizzle-orm'
-import { adminOnly, authed } from '../middleware'
+import { adminOnly } from '../middleware'
 import { outputSpec } from '../openapi-response'
 import {
   accessPolicySchema,
   accessSelectionSchema,
   allowedInbounds,
   inboundKey,
+  defaultSelection,
 } from '#/lib/access-policy'
 import {
   ensureAccessPolicy,
@@ -24,7 +25,7 @@ import {
 
 const backendSchema = z.string().min(1).max(80).default('marzban')
 const keySchema = z.string().uuid()
-export const catalog = authed
+export const catalog = adminOnly
   .route({
     tags: ['Connection access'],
     summary: 'Discover permitted inbounds and shared templates',
@@ -53,6 +54,7 @@ export const catalog = authed
       ),
       required: state.policy.required,
       allowed,
+      defaultSelection: defaultSelection(state.policy, resellerId),
       templates: state.policy.templates.filter(
         (t) =>
           context.user.role === 'admin' ||
@@ -63,7 +65,7 @@ export const catalog = authed
           ?.defaultTemplateId ?? null,
     }
   })
-export const user = authed
+export const user = adminOnly
   .route({
     tags: ['Connection access'],
     summary: 'Read user desired and observed access',
@@ -71,7 +73,7 @@ export const user = authed
   })
   .input(z.object({ username: z.string().min(1) }))
   .handler(({ input, context }) => userAccessView(input.username, context.user))
-export const assign = authed
+export const assign = adminOnly
   .route({
     tags: ['Connection access'],
     summary: 'Assign a linked template or custom inbound selection',
@@ -118,7 +120,7 @@ export const savePolicy = adminOnly
     }),
   )
   .handler(({ input, context }) => saveAccessPolicy(input, context.user))
-export const operation = authed
+export const operation = adminOnly
   .route({
     tags: ['Connection access'],
     summary: 'Read connection access operation progress',
@@ -134,7 +136,7 @@ export const operation = authed
   .handler(({ input, context }) =>
     getAccessOperation(input.id, context.user, input.offset, input.limit),
   )
-export const operations = authed
+export const operations = adminOnly
   .route({
     tags: ['Connection access'],
     summary: 'List recent connection access operations',
@@ -156,7 +158,7 @@ export const operations = authed
       .orderBy(desc(accessOperations.createdAt))
       .limit(30),
   )
-export const retry = authed
+export const retry = adminOnly
   .route({
     tags: ['Connection access'],
     summary: 'Retry failed access application tasks',

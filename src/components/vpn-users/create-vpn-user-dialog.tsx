@@ -321,12 +321,14 @@ export function CreateVpnUserDialog({
             )}
           />
 
-          <AccessSelectionField
-            value={access}
-            onChange={setAccess}
-            resellerId={selectedResellerId || undefined}
-            disabled={pending}
-          />
+          {isAdmin && (
+            <AccessSelectionField
+              value={access}
+              onChange={setAccess}
+              resellerId={selectedResellerId || undefined}
+              disabled={pending}
+            />
+          )}
 
           <DataLimitField
             control={control}

@@ -1,0 +1,1 @@
+ALTER TABLE `access_assignments` ADD `reseller_binding` text;

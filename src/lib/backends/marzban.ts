@@ -1,3 +1,4 @@
+import { hostIdentity } from '#/lib/host-identity'
 import { MarzbanApiError, marzban } from '#/lib/marzban/client'
 import {
   buildInboundsForProxies,
@@ -58,10 +59,7 @@ export function createMarzbanBackend(): VpnBackend {
     accessCatalog() {
       return guard(async () => {
         const catalog = await marzban.getInbounds()
-        let hosts: Record<
-          string,
-          Array<{ address: string; remark: string }>
-        > = {}
+        let hosts: Awaited<ReturnType<typeof marzban.getHosts>> = {}
         let hostsAvailable = true
         try {
           hosts = await marzban.getHosts()
@@ -70,16 +68,33 @@ export function createMarzbanBackend(): VpnBackend {
         }
         return {
           hostsAvailable,
-          inbounds: Object.entries(catalog).flatMap(([protocol, values]) =>
-            values.map((item) => ({
-              protocol,
-              tag: item.tag,
-              network: item.network,
-              hosts: hosts[item.tag] ?? [],
-            })),
+          inbounds: await Promise.all(
+            Object.entries(catalog).flatMap(([protocol, values]) =>
+              values.map(async (item) => ({
+                protocol,
+                tag: item.tag,
+                network: item.network,
+                port:
+                  typeof item.port === 'string' || typeof item.port === 'number'
+                    ? item.port
+                    : undefined,
+                hosts: await Promise.all(
+                  (hosts[item.tag] ?? []).map(async (host) => ({
+                    id: await hostIdentity(host),
+                    address: host.address,
+                    remark: host.remark,
+                    port: host.port ?? null,
+                    disabled: host.is_disabled ?? false,
+                  })),
+                ),
+              })),
+            ),
           ),
         }
       })
+    },
+    getSubscription(username, format) {
+      return guard(() => marzban.getSubscription(username, format))
     },
 
     setAccess(username, inbounds) {

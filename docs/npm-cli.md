@@ -45,9 +45,9 @@ Trusted publishing currently requires npm >=11.5.1 and Node >=22.14.0; this work
 
 Publishing guidance: https://docs.npmjs.com/trusted-publishers/
 
-## Release 0.6.0: connection access
+## Release 0.7.0: connection access
 
-Version **0.6.0** includes per-user inbound selection, linked access templates, reseller allowlists/default templates, global required inbounds, Telegram access flows, and durable application/reconciliation. It ships migrations `0019_connection_access.sql` and `0020_protected_access_grants.sql`, the operator guide, and the production browser/accessibility test harness in generated projects.
+Version **0.7.0** includes individual host selection, linked access templates, admin-managed reseller host assignments, global required inbounds, Telegram access flows, and durable application/reconciliation. It ships migrations `0019_connection_access.sql`, `0020_protected_access_grants.sql`, and `0021_reseller_host_assignments.sql`, the operator guide, and the production browser/accessibility test harness in generated projects.
 
 The upgrade preserves existing user selections. It does not automatically enable inbounds for everyone. Configure that explicitly in **Administration → Connection access**, preview, then confirm.
 
@@ -67,19 +67,19 @@ bun run test:cli-package
 bun run pack:cli
 ```
 
-Review `git diff`, the npm tarball contents, and the generated template. Version `0.6.0` and tag `cli-v0.6.0` must match. Commit the complete application/CLI changes with an allowed identity, then push:
+Review `git diff`, the npm tarball contents, and the generated template. Version `0.7.0` and tag `cli-v0.7.0` must match. Commit the complete application/CLI changes with an allowed identity, then push:
 
 ```sh
 git add -A
-git commit -m "feat(access): release connection access management with CLI 0.6.0"
+git commit -m "feat(access): release connection access management with CLI 0.7.0"
 git push origin master
 ```
 
 Wait for the **CI** workflow on that commit to pass. Then tag the reviewed commit and push the tag:
 
 ```sh
-git tag -a cli-v0.6.0 -m "Marzgah CLI v0.6.0"
-git push origin cli-v0.6.0
+git tag -a cli-v0.7.0 -m "Marzgah CLI v0.7.0"
+git push origin cli-v0.7.0
 ```
 
 The tag triggers **Publish CLI to npm**. Complete any configured approval for the GitHub `npm` environment and wait for success. Do not reuse or move an already published version tag; use the next package version if a correction is needed.
@@ -87,11 +87,11 @@ The tag triggers **Publish CLI to npm**. Complete any configured approval for th
 Verify publication before upgrading a server:
 
 ```sh
-npm view @begyoupardon/marzgah@0.6.0 version
-bunx @begyoupardon/marzgah@0.6.0 --version
+npm view @begyoupardon/marzgah@0.7.0 version
+bunx @begyoupardon/marzgah@0.7.0 --version
 ```
 
-Both should report `0.6.0`. If publishing fails, inspect the Actions log first: common causes are a missing/mismatched trusted publisher, an unapproved Git identity, a tag/package version mismatch, or an already published version. Do not bypass the release checks.
+Both should report `0.7.0`. If publishing fails, inspect the Actions log first: common causes are a missing/mismatched trusted publisher, an unapproved Git identity, a tag/package version mismatch, or an already published version. Do not bypass the release checks.
 
 ### Operator: upgrade Bun with systemd
 
@@ -116,10 +116,10 @@ The following examples assume project `/opt/vpn-panel`, service `marzgah`, and s
 
    ```sh
    cd /opt/vpn-panel
-   bunx @begyoupardon/marzgah@0.6.0 upgrade --yes
+   bunx @begyoupardon/marzgah@0.7.0 upgrade --yes
    ```
 
-   The command backs up SQLite and app files under `.marzgah-backups/upgrade-…`, preserves `.env` and `data/`, installs the frozen dependencies, applies migrations, and builds. Save the printed backup paths. Wait for **Panel files upgraded to 0.6.0** before continuing. Do not run the setup wizard or create a replacement administrator.
+   The command backs up SQLite and app files under `.marzgah-backups/upgrade-…`, preserves `.env` and `data/`, installs the frozen dependencies, applies migrations, and builds. Save the printed backup paths. Wait for **Panel files upgraded to 0.7.0** before continuing. Do not run the setup wizard or create a replacement administrator.
 
 4. Still as the service user, verify the local installation before restarting:
 
@@ -128,7 +128,7 @@ The following examples assume project `/opt/vpn-panel`, service `marzgah`, and s
    bun run cli doctor --offline
    ```
 
-   The marker should be `0.6.0`, and **Connection access schema** should report migrations 0019 and 0020 installed. `--offline` intentionally does not test connectivity or prove that the worker is running. Ensure `SCHEDULER=off` is not set in `.env`, the systemd unit, or its overrides; keep one scheduler-enabled instance.
+   The marker should be `0.7.0`, and **Connection access schema** should report migrations 0019, 0020, and 0021 installed. `--offline` intentionally does not test connectivity or prove that the worker is running. Ensure `SCHEDULER=off` is not set in `.env`, the systemd unit, or its overrides; keep one scheduler-enabled instance.
 
 5. Start the service and inspect its logs:
 

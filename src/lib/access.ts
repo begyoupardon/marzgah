@@ -29,6 +29,10 @@ import {
   inboundKey,
   normalizeInbounds,
   sameInbounds,
+  sameBackendInbounds,
+  backendInbounds,
+  effectiveUserSelection,
+  resellerSelection,
 } from './access-policy'
 import type { AccessPolicy, AccessSelection } from './access-policy'
 export type AccessActor = { id: string; role: string }
@@ -149,9 +153,12 @@ export async function userAccessView(username: string, actor: AccessActor) {
   const remote = await getBackend(user.backend).getUser(username, {
     repair: false,
   })
-  const selection = assignment
-    ? accessSelectionSchema.parse(JSON.parse(assignment.selection))
-    : { mode: 'custom' as const, inbounds: remote.inbounds ?? [] }
+  const selection = effectiveUserSelection(
+    state.policy,
+    user.resellerId,
+    assignment,
+    remote.inbounds ?? [],
+  )
   const editable = restrictSelection(
     state.policy,
     selection,
@@ -189,7 +196,7 @@ export async function userAccessView(username: string, actor: AccessActor) {
     locked,
     adminControlled: assignment?.adminControlled ?? false,
     error: assignment?.error ?? null,
-    pending: !sameInbounds(effective, remote.inbounds ?? []),
+    pending: !sameBackendInbounds(effective, remote.inbounds ?? []),
   }
 }
 function validateSelection(
@@ -320,6 +327,9 @@ export async function setUserAccess(
           revision: input.revision + 1,
           adminControlled: actor.role === 'admin',
           protectedInbounds: JSON.stringify(protectedRefs),
+          resellerBinding:
+            state.policy.resellers.find((r) => r.resellerId === user.resellerId)
+              ?.assignmentId ?? null,
           operationId: id,
           error: null,
         })
@@ -352,6 +362,11 @@ export async function setUserAccess(
                 sql<string>`${JSON.stringify(protectedRefs)}`.as(
                   'protectedInbounds',
                 ),
+              resellerBinding: sql<
+                string | null
+              >`${state.policy.resellers.find((r) => r.resellerId === user.resellerId)?.assignmentId ?? null}`.as(
+                'resellerBinding',
+              ),
             })
             .from(accessPolicies)
             .where(
@@ -428,6 +443,8 @@ export async function previewAccessPolicy(
   backend = DEFAULT_BACKEND_ID,
 ) {
   const current = await ensureAccessPolicy(backend)
+  if (policy.hostDefaults && !policy.approved.length && !policy.required.length)
+    fail('Select at least one host for the system default')
   const catalog = await getAccessCatalog(backend)
   assertCatalogSelection(
     [
@@ -459,7 +476,7 @@ export async function previewAccessPolicy(
         selection,
         catalog.inbounds,
         r.resellerId,
-        false,
+        Boolean(r.assignmentId),
       )
     }
   }
@@ -482,7 +499,20 @@ export async function previewAccessPolicy(
   }
   for (const user of users) {
     const assignment = byUser.get(user.id)
+    const inherited = resellerSelection(policy, user.resellerId)
     if (!assignment) {
+      if (inherited) {
+        const after = effectiveInbounds(policy, inherited)
+        if (!after.length)
+          fail(`Policy would remove all access from ${user.marzbanUsername}`)
+        addChange({
+          username: user.marzbanUsername,
+          before: null,
+          after,
+          legacy: true,
+        })
+        continue
+      }
       if (policy.required.length)
         addChange({
           username: user.marzbanUsername,
@@ -497,9 +527,10 @@ export async function previewAccessPolicy(
     )
     // A referenced template must remain available. Explicit overrides survive policy changes.
     const before = effectiveInbounds(current.policy, selection)
+    const resolved = effectiveUserSelection(policy, user.resellerId, assignment)
     const nextSelection = restrictSelection(
       policy,
-      selection,
+      resolved,
       user.resellerId,
       assignment.adminControlled,
       protectedInbounds(assignment),
@@ -508,7 +539,13 @@ export async function previewAccessPolicy(
     if (!after.length)
       fail(`Policy would remove all access from ${user.marzbanUsername}`)
     assertCatalogSelection(after, catalog.inbounds)
-    if (!sameInbounds(before, after))
+    if (
+      !sameInbounds(before, after) ||
+      policy.resellers.find((r) => r.resellerId === user.resellerId)
+        ?.assignmentId !==
+        current.policy.resellers.find((r) => r.resellerId === user.resellerId)
+          ?.assignmentId
+    )
       addChange({
         username: user.marzbanUsername,
         before,
@@ -533,7 +570,11 @@ function restrictSelection(
   adminControlled: boolean,
   protectedRefs: InboundRef[] = [],
 ): AccessSelection {
-  if (adminControlled) return selection
+  if (
+    adminControlled ||
+    policy.resellers.some((r) => r.resellerId === resellerId && r.assignmentId)
+  )
+    return selection
   const keys = new Set(
     [
       ...allowedInbounds(policy, resellerId),
@@ -620,7 +661,8 @@ export async function saveAccessPolicy(
               eq(vpnUsers.backend, input.backend),
               isNull(vpnUsers.removedAt),
               sql`exists (select 1 from access_operations where id = ${id})`,
-              input.policy.required.length
+              input.policy.required.length ||
+                input.policy.resellers.some((r) => r.assignmentId)
                 ? undefined
                 : sql`exists (select 1 from access_assignments where vpn_user_id = ${vpnUsers.id})`,
             ),
@@ -766,13 +808,25 @@ export async function prepareCreateAccess(
     chosen,
     catalog.inbounds,
     resellerId,
-    actor.role === 'admin',
+    actor.role === 'admin' || selection === undefined,
   )
-  return { selection: chosen, effective, policyRevision: state.revision }
+  return {
+    selection: chosen,
+    effective,
+    policyRevision: state.revision,
+    resellerBinding:
+      state.policy.resellers.find((r) => r.resellerId === resellerId)
+        ?.assignmentId ?? null,
+  }
 }
 export async function recordCreatedAccess(
   vpnUserId: string,
-  prepared: NonNullable<Awaited<ReturnType<typeof prepareCreateAccess>>>,
+  prepared: {
+    selection: AccessSelection
+    effective: InboundRef[]
+    policyRevision: number
+    resellerBinding?: string | null
+  },
   adminControlled: boolean,
 ) {
   const token = crypto.randomUUID()
@@ -809,6 +863,9 @@ export async function recordCreatedAccess(
             applied: sql<string | null>`${effective}`.as('applied'),
             error: sql<string | null>`null`.as('error'),
             protectedInbounds: sql<string>`${'[]'}`.as('protectedInbounds'),
+            resellerBinding: sql<
+              string | null
+            >`${prepared.resellerBinding ?? null}`.as('resellerBinding'),
           })
           .from(accessPolicies)
           .where(
@@ -825,6 +882,7 @@ export async function recordCreatedAccess(
           revision: sql`${accessAssignments.revision} + 1`,
           adminControlled,
           protectedInbounds: '[]',
+          resellerBinding: prepared.resellerBinding ?? null,
           operationId: token,
           observed: effective,
           applied: effective,
@@ -844,7 +902,13 @@ export async function enqueueAccessReconciliation(vpnUserId: string) {
   if (!user || user.removedAt) return
   const state = await readAccessPolicy(user.backend)
   const assignment = await getAssignment(user.id)
-  if (!state || (!assignment && !state.policy.required.length)) return
+  if (
+    !state ||
+    (!assignment &&
+      !state.policy.required.length &&
+      !resellerSelection(state.policy, user.resellerId))
+  )
+    return
   const operationId = `reconcile:${user.backend}:${user.resellerId}`
   await db
     .insert(accessOperations)
@@ -944,15 +1008,31 @@ export async function drainAccessTasks(limit = 20, now = Date.now()) {
           repair: false,
         })
         let assignment = await getAssignment(user.id)
-        if (!assignment && !state.policy.required.length) {
+        if (
+          !assignment &&
+          !state.policy.required.length &&
+          !resellerSelection(state.policy, user.resellerId)
+        ) {
           await finishTask(task.id, token, 'skipped')
           return
         }
-        if (!assignment) {
+        const binding =
+          state.policy.resellers.find((r) => r.resellerId === user.resellerId)
+            ?.assignmentId ?? null
+        if (
+          !assignment ||
+          (binding && binding !== assignment.resellerBinding)
+        ) {
           await recordCreatedAccess(
             user.id,
             {
-              selection: { mode: 'custom', inbounds: remote.inbounds ?? [] },
+              selection: effectiveUserSelection(
+                state.policy,
+                user.resellerId,
+                assignment,
+                remote.inbounds ?? [],
+              ),
+              resellerBinding: binding,
               effective: remote.inbounds ?? [],
               policyRevision: state.revision,
             },
@@ -988,12 +1068,16 @@ export async function drainAccessTasks(limit = 20, now = Date.now()) {
             'Access changed during application',
             'UNAVAILABLE',
           )
-        const changed = !sameInbounds(effective, remote.inbounds ?? [])
-        if (changed) await provider.setAccess!(user.marzbanUsername, effective)
+        const changed = !sameBackendInbounds(effective, remote.inbounds ?? [])
+        if (changed)
+          await provider.setAccess!(
+            user.marzbanUsername,
+            backendInbounds(effective),
+          )
         const observed = await provider.getUser(user.marzbanUsername, {
           repair: false,
         })
-        if (!sameInbounds(effective, observed.inbounds ?? []))
+        if (!sameBackendInbounds(effective, observed.inbounds ?? []))
           throw new BackendError(
             'Backend has not applied the requested selection',
             'UNAVAILABLE',

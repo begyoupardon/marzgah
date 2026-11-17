@@ -235,7 +235,7 @@ export function userCardScreen(
         btn('🔗 ابطال لینک', `a:rv:${name}`),
         role === 'admin' ? btn('🗄 آرشیو', `a:ar:${name}`) : null,
       ],
-      [btn('🔌 دسترسی اتصال', `n:access:${name}`)],
+      role === 'admin' ? [btn('🔌 دسترسی اتصال', `n:access:${name}`)] : [],
       [btn('‹ فهرست کاربران', 'l:a:1'), HOME],
     ),
   }

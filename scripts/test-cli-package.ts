@@ -58,7 +58,7 @@ function countUsers() {
 }
 try {
   run([process.execPath, join(root, 'scripts/check-cli-release.ts')], root)
-  const packed = JSON.parse(
+  const packResult = JSON.parse(
     run(
       [
         'npm',
@@ -71,7 +71,15 @@ try {
       ],
       temporary,
     ).stdout,
-  )[0]
+  )
+  // npm 11 returns an array; npm 12 keys the result by package name.
+  const packed = Array.isArray(packResult)
+    ? packResult[0]
+    : (Object.values(packResult)[0] as { filename?: string } | undefined)
+  assert.ok(
+    packed && typeof packed.filename === 'string',
+    'npm pack did not return a package filename',
+  )
   const tarball = join(temporary, packed.filename)
   const archive = new Bun.Archive(await Bun.file(tarball).bytes())
   const entries = await archive.files()
@@ -158,6 +166,9 @@ try {
   for (const path of [
     'drizzle/0019_connection_access.sql',
     'drizzle/0020_protected_access_grants.sql',
+    'drizzle/0021_reseller_host_assignments.sql',
+    'src/lib/managed-subscription.ts',
+    'src/lib/subscription-filter.ts',
     'src/lib/access.ts',
     'src/lib/access-store.ts',
     'src/orpc/router/access.ts',

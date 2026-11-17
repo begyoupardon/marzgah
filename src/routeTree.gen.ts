@@ -30,6 +30,7 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiRpcSplatRouteImport } from './routes/api.rpc.$'
 import { Route as ApiTelegramWebhookRouteImport } from './routes/api/telegram/webhook'
 import { Route as ApiWebhooksMarzbanRouteImport } from './routes/api/webhooks/marzban'
+import { Route as SubscriptionIdTokenRouteImport } from './routes/subscription.$id.$token'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -138,6 +139,11 @@ const ApiWebhooksMarzbanRoute = ApiWebhooksMarzbanRouteImport.update({
   path: '/api/webhooks/marzban',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SubscriptionIdTokenRoute = SubscriptionIdTokenRouteImport.update({
+  id: '/subscription/$id/$token',
+  path: '/subscription/$id/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -159,6 +165,7 @@ export interface FileRoutesByFullPath {
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/api/telegram/webhook': typeof ApiTelegramWebhookRoute
   '/api/webhooks/marzban': typeof ApiWebhooksMarzbanRoute
+  '/subscription/$id/$token': typeof SubscriptionIdTokenRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRoutesByTo {
@@ -181,6 +188,7 @@ export interface FileRoutesByTo {
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/api/telegram/webhook': typeof ApiTelegramWebhookRoute
   '/api/webhooks/marzban': typeof ApiWebhooksMarzbanRoute
+  '/subscription/$id/$token': typeof SubscriptionIdTokenRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRoutesById {
@@ -205,6 +213,7 @@ export interface FileRoutesById {
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/api/telegram/webhook': typeof ApiTelegramWebhookRoute
   '/api/webhooks/marzban': typeof ApiWebhooksMarzbanRoute
+  '/subscription/$id/$token': typeof SubscriptionIdTokenRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRouteTypes {
@@ -229,6 +238,7 @@ export interface FileRouteTypes {
     | '/api/rpc/$'
     | '/api/telegram/webhook'
     | '/api/webhooks/marzban'
+    | '/subscription/$id/$token'
     | '/admin/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -251,6 +261,7 @@ export interface FileRouteTypes {
     | '/api/rpc/$'
     | '/api/telegram/webhook'
     | '/api/webhooks/marzban'
+    | '/subscription/$id/$token'
     | '/admin'
   id:
     | '__root__'
@@ -274,6 +285,7 @@ export interface FileRouteTypes {
     | '/api/rpc/$'
     | '/api/telegram/webhook'
     | '/api/webhooks/marzban'
+    | '/subscription/$id/$token'
     | '/_authenticated/admin/'
   fileRoutesById: FileRoutesById
 }
@@ -288,6 +300,7 @@ export interface RootRouteChildren {
   ApiRpcSplatRoute: typeof ApiRpcSplatRoute
   ApiTelegramWebhookRoute: typeof ApiTelegramWebhookRoute
   ApiWebhooksMarzbanRoute: typeof ApiWebhooksMarzbanRoute
+  SubscriptionIdTokenRoute: typeof SubscriptionIdTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -439,6 +452,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWebhooksMarzbanRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/subscription/$id/$token': {
+      id: '/subscription/$id/$token'
+      path: '/subscription/$id/$token'
+      fullPath: '/subscription/$id/$token'
+      preLoaderRoute: typeof SubscriptionIdTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -485,6 +505,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiRpcSplatRoute: ApiRpcSplatRoute,
   ApiTelegramWebhookRoute: ApiTelegramWebhookRoute,
   ApiWebhooksMarzbanRoute: ApiWebhooksMarzbanRoute,
+  SubscriptionIdTokenRoute: SubscriptionIdTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

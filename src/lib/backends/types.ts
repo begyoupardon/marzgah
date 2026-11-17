@@ -5,12 +5,28 @@ export type BackendUserStatus =
   | 'expired'
   | 'on_hold'
 
-export type InboundRef = { protocol: string; tag: string }
+export type InboundRef = { protocol: string; tag: string; hostIds?: string[] }
+export type AccessHost = {
+  id?: string
+  address: string
+  remark: string
+  port?: number | null
+  disabled?: boolean
+}
+export type SubscriptionFormat =
+  | 'v2ray'
+  | 'clash'
+  | 'clash-meta'
+  | 'sing-box'
+  | 'v2ray-json'
+  | 'outline'
+export type BackendSubscription = { body: string; contentType: string }
 export type AccessCatalog = {
   inbounds: Array<
     InboundRef & {
       network?: string
-      hosts: Array<{ address: string; remark: string }>
+      port?: number | string
+      hosts: AccessHost[]
     }
   >
   hostsAvailable: boolean
@@ -104,6 +120,10 @@ export interface VpnBackend {
   info: () => BackendInfo
   /** Optional capability so other providers can explicitly report unsupported. */
   accessCatalog?: () => Promise<AccessCatalog>
+  getSubscription?: (
+    username: string,
+    format: SubscriptionFormat,
+  ) => Promise<BackendSubscription>
   setAccess?: (username: string, inbounds: InboundRef[]) => Promise<BackendUser>
   /** `repair` lets a backend heal accounts it knows how to fix; default true. */
   getUser: (

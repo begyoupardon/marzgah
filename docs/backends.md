@@ -75,3 +75,7 @@ setBackend('marzban', fake) // routers now use it
 `BackendUser.inbounds` exposes observed `{protocol, tag}` references without credentials. `CreateUserInput.inbounds` accepts an explicit initial selection. Providers supporting access management implement `accessCatalog()` and `setAccess(username, inbounds)`; unsupported providers fail explicitly.
 
 Catalogs include inbound protocol/tag/network and optional host address/remark summaries. A denied host request sets `hostsAvailable:false` without disabling selection. `setAccess` must preserve credentials and unrelated user state, clear deselected protocol assignments explicitly, reject unknown/empty selections, and expose the observed result. Marzban's adapter implements these rules; managed-user reads disable its legacy automatic repair. Policies, assignments and recovery live in the backend-neutral access service. See [connection access](connection-access.md).
+
+## Individual host subscriptions
+
+`InboundRef.hostIds` optionally limits subscription configs inside an inbound. Omission retains legacy all-host behavior. Catalog hosts include a stable content ID, address, remark, port and disabled state; list reordering does not change IDs. `getSubscription(username, format)` retrieves the backend-generated payload from a configured trusted origin without following redirects or forwarding backend credentials. Payload size/time are bounded. The panel filters native configs and group references before serving a signed, uncached subscription. `setAccess` still receives parent inbound references only.

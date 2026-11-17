@@ -14,6 +14,12 @@
                 },
                 "tag": {
                   "type": "string"
+                },
+                "hostIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
                 }
               },
               "required": ["protocol", "tag"]
@@ -24,16 +30,51 @@
                 "network": {
                   "type": "string"
                 },
+                "port": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
                 "hosts": {
                   "type": "array",
                   "items": {
                     "type": "object",
                     "properties": {
+                      "id": {
+                        "type": "string"
+                      },
                       "address": {
                         "type": "string"
                       },
                       "remark": {
                         "type": "string"
+                      },
+                      "port": {
+                        "anyOf": [
+                          {
+                            "type": "null"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      },
+                      "disabled": {
+                        "anyOf": [
+                          {
+                            "type": "boolean",
+                            "const": false
+                          },
+                          {
+                            "type": "boolean",
+                            "const": true
+                          }
+                        ]
                       }
                     },
                     "required": ["address", "remark"]
@@ -55,6 +96,12 @@
             },
             "tag": {
               "type": "string"
+            },
+            "hostIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           },
           "required": ["protocol", "tag"]
@@ -70,10 +117,64 @@
             },
             "tag": {
               "type": "string"
+            },
+            "hostIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           },
           "required": ["protocol", "tag"]
         }
+      },
+      "defaultSelection": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "const": "custom"
+              },
+              "inbounds": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "protocol": {
+                      "type": "string"
+                    },
+                    "tag": {
+                      "type": "string"
+                    },
+                    "hostIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["protocol", "tag"]
+                }
+              }
+            },
+            "required": ["mode", "inbounds"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "const": "template"
+              },
+              "templateId": {
+                "type": "string"
+              }
+            },
+            "required": ["mode", "templateId"]
+          }
+        ]
       },
       "templates": {
         "type": "array",
@@ -96,6 +197,12 @@
                   },
                   "tag": {
                     "type": "string"
+                  },
+                  "hostIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
                   }
                 },
                 "required": ["protocol", "tag"]
@@ -129,6 +236,7 @@
       "inbounds",
       "required",
       "allowed",
+      "defaultSelection",
       "templates",
       "defaultTemplateId",
       "hostsAvailable",
@@ -155,6 +263,12 @@
             },
             "tag": {
               "type": "string"
+            },
+            "hostIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           },
           "required": ["protocol", "tag"]
@@ -198,6 +312,12 @@
                     },
                     "tag": {
                       "type": "string"
+                    },
+                    "hostIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     }
                   },
                   "required": ["protocol", "tag"]
@@ -231,6 +351,12 @@
             },
             "tag": {
               "type": "string"
+            },
+            "hostIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           },
           "required": ["protocol", "tag"]
@@ -246,6 +372,12 @@
             },
             "tag": {
               "type": "string"
+            },
+            "hostIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           },
           "required": ["protocol", "tag"]
@@ -261,6 +393,12 @@
             },
             "tag": {
               "type": "string"
+            },
+            "hostIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           },
           "required": ["protocol", "tag"]
@@ -276,6 +414,12 @@
             },
             "tag": {
               "type": "string"
+            },
+            "hostIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           },
           "required": ["protocol", "tag"]
@@ -291,6 +435,12 @@
             },
             "tag": {
               "type": "string"
+            },
+            "hostIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           },
           "required": ["protocol", "tag"]
@@ -360,6 +510,12 @@
                 },
                 "tag": {
                   "type": "string"
+                },
+                "hostIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
                 }
               },
               "required": ["protocol", "tag"]
@@ -375,6 +531,12 @@
                 },
                 "tag": {
                   "type": "string"
+                },
+                "hostIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
                 }
               },
               "required": ["protocol", "tag"]
@@ -401,6 +563,12 @@
                       },
                       "tag": {
                         "type": "string"
+                      },
+                      "hostIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
                       }
                     },
                     "required": ["protocol", "tag"]
@@ -428,6 +596,12 @@
                       },
                       "tag": {
                         "type": "string"
+                      },
+                      "hostIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
                       }
                     },
                     "required": ["protocol", "tag"]
@@ -442,10 +616,25 @@
                       "type": "string"
                     }
                   ]
+                },
+                "assignmentId": {
+                  "type": "string"
                 }
               },
               "required": ["resellerId", "allowed", "defaultTemplateId"]
             }
+          },
+          "hostDefaults": {
+            "anyOf": [
+              {
+                "type": "boolean",
+                "const": false
+              },
+              {
+                "type": "boolean",
+                "const": true
+              }
+            ]
           }
         },
         "required": ["required", "approved", "templates", "resellers"]
@@ -491,6 +680,12 @@
                       },
                       "tag": {
                         "type": "string"
+                      },
+                      "hostIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
                       }
                     },
                     "required": ["protocol", "tag"]
@@ -508,6 +703,12 @@
                   },
                   "tag": {
                     "type": "string"
+                  },
+                  "hostIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
                   }
                 },
                 "required": ["protocol", "tag"]
@@ -533,6 +734,12 @@
                 },
                 "tag": {
                   "type": "string"
+                },
+                "hostIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
                 }
               },
               "required": ["protocol", "tag"]
@@ -548,6 +755,12 @@
                 },
                 "tag": {
                   "type": "string"
+                },
+                "hostIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
                 }
               },
               "required": ["protocol", "tag"]
@@ -574,6 +787,12 @@
                       },
                       "tag": {
                         "type": "string"
+                      },
+                      "hostIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
                       }
                     },
                     "required": ["protocol", "tag"]
@@ -601,6 +820,12 @@
                       },
                       "tag": {
                         "type": "string"
+                      },
+                      "hostIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
                       }
                     },
                     "required": ["protocol", "tag"]
@@ -615,10 +840,25 @@
                       "type": "string"
                     }
                   ]
+                },
+                "assignmentId": {
+                  "type": "string"
                 }
               },
               "required": ["resellerId", "allowed", "defaultTemplateId"]
             }
+          },
+          "hostDefaults": {
+            "anyOf": [
+              {
+                "type": "boolean",
+                "const": false
+              },
+              {
+                "type": "boolean",
+                "const": true
+              }
+            ]
           }
         },
         "required": ["required", "approved", "templates", "resellers"]
@@ -3671,6 +3911,16 @@
       {
         "type": "object",
         "properties": {
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
           "status": {
             "type": "string",
             "const": "disabled"
@@ -3715,16 +3965,6 @@
               }
             ]
           },
-          "subscriptionUrl": {
-            "anyOf": [
-              {
-                "type": "null"
-              },
-              {
-                "type": "string"
-              }
-            ]
-          },
           "note": {
             "anyOf": [
               {
@@ -3797,6 +4037,7 @@
           }
         },
         "required": [
+          "subscriptionUrl",
           "status",
           "removedAt",
           "id",
@@ -3806,7 +4047,6 @@
           "dataLimitBytes",
           "usedTrafficBytes",
           "expireAt",
-          "subscriptionUrl",
           "note",
           "contactPhone",
           "contactTelegram",
@@ -3820,6 +4060,16 @@
       {
         "type": "object",
         "properties": {
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
           "resellerId": {
             "type": "string"
           },
@@ -3865,16 +4115,6 @@
               {
                 "type": "string",
                 "format": "date-time"
-              }
-            ]
-          },
-          "subscriptionUrl": {
-            "anyOf": [
-              {
-                "type": "null"
-              },
-              {
-                "type": "string"
               }
             ]
           },
@@ -3946,6 +4186,7 @@
           }
         },
         "required": [
+          "subscriptionUrl",
           "resellerId",
           "removedAt",
           "id",
@@ -3954,7 +4195,6 @@
           "dataLimitBytes",
           "usedTrafficBytes",
           "expireAt",
-          "subscriptionUrl",
           "note",
           "lastSyncedAt",
           "backend",
@@ -3969,6 +4209,16 @@
       {
         "type": "object",
         "properties": {
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
           "backend": {
             "type": "string"
           },
@@ -4012,16 +4262,6 @@
               }
             ]
           },
-          "subscriptionUrl": {
-            "anyOf": [
-              {
-                "type": "null"
-              },
-              {
-                "type": "string"
-              }
-            ]
-          },
           "note": {
             "anyOf": [
               {
@@ -4038,6 +4278,7 @@
           }
         },
         "required": [
+          "subscriptionUrl",
           "backend",
           "removedAt",
           "id",
@@ -4047,7 +4288,6 @@
           "dataLimitBytes",
           "usedTrafficBytes",
           "expireAt",
-          "subscriptionUrl",
           "note",
           "lastSyncedAt"
         ]
@@ -4062,6 +4302,16 @@
       {
         "type": "object",
         "properties": {
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
           "status": {
             "type": "string",
             "const": "disabled"
@@ -4106,16 +4356,6 @@
               }
             ]
           },
-          "subscriptionUrl": {
-            "anyOf": [
-              {
-                "type": "null"
-              },
-              {
-                "type": "string"
-              }
-            ]
-          },
           "note": {
             "anyOf": [
               {
@@ -4188,6 +4428,7 @@
           }
         },
         "required": [
+          "subscriptionUrl",
           "status",
           "removedAt",
           "id",
@@ -4197,7 +4438,6 @@
           "dataLimitBytes",
           "usedTrafficBytes",
           "expireAt",
-          "subscriptionUrl",
           "note",
           "contactPhone",
           "contactTelegram",
@@ -4211,6 +4451,16 @@
       {
         "type": "object",
         "properties": {
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
           "resellerId": {
             "type": "string"
           },
@@ -4256,16 +4506,6 @@
               {
                 "type": "string",
                 "format": "date-time"
-              }
-            ]
-          },
-          "subscriptionUrl": {
-            "anyOf": [
-              {
-                "type": "null"
-              },
-              {
-                "type": "string"
               }
             ]
           },
@@ -4337,6 +4577,7 @@
           }
         },
         "required": [
+          "subscriptionUrl",
           "resellerId",
           "removedAt",
           "id",
@@ -4345,7 +4586,6 @@
           "dataLimitBytes",
           "usedTrafficBytes",
           "expireAt",
-          "subscriptionUrl",
           "note",
           "lastSyncedAt",
           "backend",
@@ -4360,6 +4600,16 @@
       {
         "type": "object",
         "properties": {
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
           "backend": {
             "type": "string"
           },
@@ -4403,16 +4653,6 @@
               }
             ]
           },
-          "subscriptionUrl": {
-            "anyOf": [
-              {
-                "type": "null"
-              },
-              {
-                "type": "string"
-              }
-            ]
-          },
           "note": {
             "anyOf": [
               {
@@ -4429,6 +4669,7 @@
           }
         },
         "required": [
+          "subscriptionUrl",
           "backend",
           "removedAt",
           "id",
@@ -4438,7 +4679,6 @@
           "dataLimitBytes",
           "usedTrafficBytes",
           "expireAt",
-          "subscriptionUrl",
           "note",
           "lastSyncedAt"
         ]
@@ -4453,6 +4693,16 @@
       {
         "type": "object",
         "properties": {
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
           "status": {
             "type": "string",
             "const": "disabled"
@@ -4497,16 +4747,6 @@
               }
             ]
           },
-          "subscriptionUrl": {
-            "anyOf": [
-              {
-                "type": "null"
-              },
-              {
-                "type": "string"
-              }
-            ]
-          },
           "note": {
             "anyOf": [
               {
@@ -4579,6 +4819,7 @@
           }
         },
         "required": [
+          "subscriptionUrl",
           "status",
           "removedAt",
           "id",
@@ -4588,7 +4829,6 @@
           "dataLimitBytes",
           "usedTrafficBytes",
           "expireAt",
-          "subscriptionUrl",
           "note",
           "contactPhone",
           "contactTelegram",
@@ -4602,6 +4842,16 @@
       {
         "type": "object",
         "properties": {
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
           "resellerId": {
             "type": "string"
           },
@@ -4647,16 +4897,6 @@
               {
                 "type": "string",
                 "format": "date-time"
-              }
-            ]
-          },
-          "subscriptionUrl": {
-            "anyOf": [
-              {
-                "type": "null"
-              },
-              {
-                "type": "string"
               }
             ]
           },
@@ -4728,6 +4968,7 @@
           }
         },
         "required": [
+          "subscriptionUrl",
           "resellerId",
           "removedAt",
           "id",
@@ -4736,7 +4977,6 @@
           "dataLimitBytes",
           "usedTrafficBytes",
           "expireAt",
-          "subscriptionUrl",
           "note",
           "lastSyncedAt",
           "backend",
@@ -4751,6 +4991,16 @@
       {
         "type": "object",
         "properties": {
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
           "backend": {
             "type": "string"
           },
@@ -4794,16 +5044,6 @@
               }
             ]
           },
-          "subscriptionUrl": {
-            "anyOf": [
-              {
-                "type": "null"
-              },
-              {
-                "type": "string"
-              }
-            ]
-          },
           "note": {
             "anyOf": [
               {
@@ -4820,6 +5060,7 @@
           }
         },
         "required": [
+          "subscriptionUrl",
           "backend",
           "removedAt",
           "id",
@@ -4829,7 +5070,6 @@
           "dataLimitBytes",
           "usedTrafficBytes",
           "expireAt",
-          "subscriptionUrl",
           "note",
           "lastSyncedAt"
         ]
@@ -4853,6 +5093,16 @@
       {
         "type": "object",
         "properties": {
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
           "status": {
             "type": "string",
             "const": "disabled"
@@ -4897,16 +5147,6 @@
               }
             ]
           },
-          "subscriptionUrl": {
-            "anyOf": [
-              {
-                "type": "null"
-              },
-              {
-                "type": "string"
-              }
-            ]
-          },
           "note": {
             "anyOf": [
               {
@@ -4979,6 +5219,7 @@
           }
         },
         "required": [
+          "subscriptionUrl",
           "status",
           "removedAt",
           "id",
@@ -4988,7 +5229,6 @@
           "dataLimitBytes",
           "usedTrafficBytes",
           "expireAt",
-          "subscriptionUrl",
           "note",
           "contactPhone",
           "contactTelegram",
@@ -5002,6 +5242,16 @@
       {
         "type": "object",
         "properties": {
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
           "resellerId": {
             "type": "string"
           },
@@ -5047,16 +5297,6 @@
               {
                 "type": "string",
                 "format": "date-time"
-              }
-            ]
-          },
-          "subscriptionUrl": {
-            "anyOf": [
-              {
-                "type": "null"
-              },
-              {
-                "type": "string"
               }
             ]
           },
@@ -5128,6 +5368,7 @@
           }
         },
         "required": [
+          "subscriptionUrl",
           "resellerId",
           "removedAt",
           "id",
@@ -5136,7 +5377,6 @@
           "dataLimitBytes",
           "usedTrafficBytes",
           "expireAt",
-          "subscriptionUrl",
           "note",
           "lastSyncedAt",
           "backend",
@@ -5151,6 +5391,16 @@
       {
         "type": "object",
         "properties": {
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
           "backend": {
             "type": "string"
           },
@@ -5194,16 +5444,6 @@
               }
             ]
           },
-          "subscriptionUrl": {
-            "anyOf": [
-              {
-                "type": "null"
-              },
-              {
-                "type": "string"
-              }
-            ]
-          },
           "note": {
             "anyOf": [
               {
@@ -5220,6 +5460,7 @@
           }
         },
         "required": [
+          "subscriptionUrl",
           "backend",
           "removedAt",
           "id",
@@ -5229,7 +5470,6 @@
           "dataLimitBytes",
           "usedTrafficBytes",
           "expireAt",
-          "subscriptionUrl",
           "note",
           "lastSyncedAt"
         ]
@@ -5244,6 +5484,16 @@
       {
         "type": "object",
         "properties": {
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
           "status": {
             "type": "string",
             "const": "disabled"
@@ -5288,16 +5538,6 @@
               }
             ]
           },
-          "subscriptionUrl": {
-            "anyOf": [
-              {
-                "type": "null"
-              },
-              {
-                "type": "string"
-              }
-            ]
-          },
           "note": {
             "anyOf": [
               {
@@ -5370,6 +5610,7 @@
           }
         },
         "required": [
+          "subscriptionUrl",
           "status",
           "removedAt",
           "id",
@@ -5379,7 +5620,6 @@
           "dataLimitBytes",
           "usedTrafficBytes",
           "expireAt",
-          "subscriptionUrl",
           "note",
           "contactPhone",
           "contactTelegram",
@@ -5393,6 +5633,16 @@
       {
         "type": "object",
         "properties": {
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
           "resellerId": {
             "type": "string"
           },
@@ -5438,16 +5688,6 @@
               {
                 "type": "string",
                 "format": "date-time"
-              }
-            ]
-          },
-          "subscriptionUrl": {
-            "anyOf": [
-              {
-                "type": "null"
-              },
-              {
-                "type": "string"
               }
             ]
           },
@@ -5519,6 +5759,7 @@
           }
         },
         "required": [
+          "subscriptionUrl",
           "resellerId",
           "removedAt",
           "id",
@@ -5527,7 +5768,6 @@
           "dataLimitBytes",
           "usedTrafficBytes",
           "expireAt",
-          "subscriptionUrl",
           "note",
           "lastSyncedAt",
           "backend",
@@ -5542,6 +5782,16 @@
       {
         "type": "object",
         "properties": {
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
           "backend": {
             "type": "string"
           },
@@ -5585,16 +5835,6 @@
               }
             ]
           },
-          "subscriptionUrl": {
-            "anyOf": [
-              {
-                "type": "null"
-              },
-              {
-                "type": "string"
-              }
-            ]
-          },
           "note": {
             "anyOf": [
               {
@@ -5611,6 +5851,7 @@
           }
         },
         "required": [
+          "subscriptionUrl",
           "backend",
           "removedAt",
           "id",
@@ -5620,7 +5861,6 @@
           "dataLimitBytes",
           "usedTrafficBytes",
           "expireAt",
-          "subscriptionUrl",
           "note",
           "lastSyncedAt"
         ]
@@ -5635,6 +5875,16 @@
       {
         "type": "object",
         "properties": {
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
           "status": {
             "type": "string",
             "const": "disabled"
@@ -5679,16 +5929,6 @@
               }
             ]
           },
-          "subscriptionUrl": {
-            "anyOf": [
-              {
-                "type": "null"
-              },
-              {
-                "type": "string"
-              }
-            ]
-          },
           "note": {
             "anyOf": [
               {
@@ -5761,6 +6001,7 @@
           }
         },
         "required": [
+          "subscriptionUrl",
           "status",
           "removedAt",
           "id",
@@ -5770,7 +6011,6 @@
           "dataLimitBytes",
           "usedTrafficBytes",
           "expireAt",
-          "subscriptionUrl",
           "note",
           "contactPhone",
           "contactTelegram",
@@ -5784,6 +6024,16 @@
       {
         "type": "object",
         "properties": {
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
           "resellerId": {
             "type": "string"
           },
@@ -5829,16 +6079,6 @@
               {
                 "type": "string",
                 "format": "date-time"
-              }
-            ]
-          },
-          "subscriptionUrl": {
-            "anyOf": [
-              {
-                "type": "null"
-              },
-              {
-                "type": "string"
               }
             ]
           },
@@ -5910,6 +6150,7 @@
           }
         },
         "required": [
+          "subscriptionUrl",
           "resellerId",
           "removedAt",
           "id",
@@ -5918,7 +6159,6 @@
           "dataLimitBytes",
           "usedTrafficBytes",
           "expireAt",
-          "subscriptionUrl",
           "note",
           "lastSyncedAt",
           "backend",
@@ -5933,6 +6173,16 @@
       {
         "type": "object",
         "properties": {
+          "subscriptionUrl": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
           "backend": {
             "type": "string"
           },
@@ -5976,16 +6226,6 @@
               }
             ]
           },
-          "subscriptionUrl": {
-            "anyOf": [
-              {
-                "type": "null"
-              },
-              {
-                "type": "string"
-              }
-            ]
-          },
           "note": {
             "anyOf": [
               {
@@ -6002,6 +6242,7 @@
           }
         },
         "required": [
+          "subscriptionUrl",
           "backend",
           "removedAt",
           "id",
@@ -6011,7 +6252,6 @@
           "dataLimitBytes",
           "usedTrafficBytes",
           "expireAt",
-          "subscriptionUrl",
           "note",
           "lastSyncedAt"
         ]

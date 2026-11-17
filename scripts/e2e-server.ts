@@ -126,6 +126,13 @@ const json = (
   res.writeHead(status, { 'content-type': 'application/json' })
   res.end(JSON.stringify(value))
 }
+const hostCatalog = {
+  'VLESS TCP': [
+    { address: 'tcp.example.test', remark: 'TCP host', port: 443 },
+    { address: 'backup.example.test', remark: 'Backup host', port: 443 },
+  ],
+  'VLESS WS': [{ address: 'ws.example.test', remark: 'WS host', port: 443 }],
+}
 const marzban = createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', `http://127.0.0.1:${marzbanPort}`)
   const method = req.method ?? 'GET'
@@ -149,16 +156,28 @@ const marzban = createServer(async (req, res) => {
   if (url.pathname === '/api/inbounds')
     return json(res, {
       vless: [
-        { tag: 'VLESS TCP', protocol: 'vless', network: 'tcp' },
-        { tag: 'VLESS WS', protocol: 'vless', network: 'ws' },
+        { tag: 'VLESS TCP', protocol: 'vless', network: 'tcp', port: 443 },
+        { tag: 'VLESS WS', protocol: 'vless', network: 'ws', port: 443 },
       ],
       trojan: [],
     })
-  if (url.pathname === '/api/hosts')
-    return json(res, {
-      'VLESS TCP': [{ address: 'tcp.example.test', remark: 'TCP host' }],
-      'VLESS WS': [{ address: 'ws.example.test', remark: 'WS host' }],
-    })
+  if (url.pathname === '/api/hosts') return json(res, hostCatalog)
+  const subscription = /^\/sub\/([^/]+)\/v2ray$/.exec(url.pathname)
+  if (subscription) {
+    const account = remoteUsers.get(decodeURIComponent(subscription[1]!))
+    if (!account) return json(res, {}, 404)
+    const links = Object.values(account.inbounds)
+      .flat()
+      .flatMap((tag) =>
+        (hostCatalog[tag as keyof typeof hostCatalog] ?? []).map(
+          (host) =>
+            `vless://test-vless@${host.address}:${host.port}#${encodeURIComponent(host.remark)}`,
+        ),
+      )
+    res.writeHead(200, { 'content-type': 'text/plain' })
+    res.end(Buffer.from(links.join('\n')).toString('base64'))
+    return
+  }
   if (url.pathname === '/api/system')
     return json(res, {
       version: 'e2e',

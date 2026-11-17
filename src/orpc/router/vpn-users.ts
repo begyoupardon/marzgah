@@ -1,3 +1,7 @@
+import {
+  publicSubscriptionUrl,
+  publicSubscriptionUrls,
+} from '#/lib/managed-subscription'
 import { accessSelectionSchema } from '#/lib/access-policy'
 import { prepareCreateAccess, recordCreatedAccess } from '#/lib/access'
 import { ORPCError } from '@orpc/server'
@@ -37,7 +41,6 @@ import {
   syncVpnUserFromMarzban,
   refreshVpnUserMirrors,
 } from '#/lib/marzban/sync'
-import { resolveSubscriptionUrl } from '#/lib/marzban/subscription-url'
 import {
   assertValidFullVpnUsername,
   buildVpnUsername,
@@ -205,10 +208,11 @@ export const listVpnUsers = authed
       }
     }
 
+    const publicUrls = await publicSubscriptionUrls(rows)
     return {
-      items: rows.map((row) => ({
+      items: rows.map((row, index) => ({
         ...row,
-        subscriptionUrl: resolveSubscriptionUrl(row.subscriptionUrl),
+        subscriptionUrl: publicUrls[index],
         expireAt: row.expireAt?.toISOString() ?? null,
         lastSyncedAt: row.lastSyncedAt?.toISOString() ?? null,
         removedAt: row.removedAt?.toISOString() ?? null,
@@ -257,6 +261,13 @@ export const createVpnUser = authed
     }),
   )
   .handler(async ({ input, context }) => {
+    if (
+      context.user.role !== 'admin' &&
+      (input.access !== undefined || input.proxies !== undefined)
+    )
+      throw new ORPCError('FORBIDDEN', {
+        message: 'Only administrators can configure connection access',
+      })
     const resellerId = resolveResellerId(context.user, input.resellerId)
     const dataLimitBytes = input.dataLimitBytes
 
@@ -512,6 +523,11 @@ export const createVpnUser = authed
       })
 
       return mirrored
+        ? {
+            ...mirrored,
+            subscriptionUrl: await publicSubscriptionUrl(mirrored),
+          }
+        : mirrored
     })
   })
 
@@ -724,6 +740,11 @@ export const updateVpnUser = authed
       }
 
       return mirrored
+        ? {
+            ...mirrored,
+            subscriptionUrl: await publicSubscriptionUrl(mirrored),
+          }
+        : mirrored
     })
   })
 
@@ -957,6 +978,11 @@ export const renewVpnUser = authed
       })
 
       return mirrored
+        ? {
+            ...mirrored,
+            subscriptionUrl: await publicSubscriptionUrl(mirrored),
+          }
+        : mirrored
     })
   })
 
@@ -1044,6 +1070,8 @@ export const resetVpnUserUsage = authed
     })
 
     return mirrored
+      ? { ...mirrored, subscriptionUrl: await publicSubscriptionUrl(mirrored) }
+      : mirrored
   })
 
 export const revokeVpnUserSub = authed
@@ -1083,6 +1111,8 @@ export const revokeVpnUserSub = authed
     })
 
     return mirrored
+      ? { ...mirrored, subscriptionUrl: await publicSubscriptionUrl(mirrored) }
+      : mirrored
   })
 
 export const syncVpnUser = authed
@@ -1120,4 +1150,6 @@ export const syncVpnUser = authed
     })
 
     return mirrored
+      ? { ...mirrored, subscriptionUrl: await publicSubscriptionUrl(mirrored) }
+      : mirrored
   })

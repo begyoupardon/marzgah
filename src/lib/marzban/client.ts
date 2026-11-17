@@ -1,3 +1,4 @@
+import { resolveSubscriptionUrl } from './subscription-url'
 import * as z from 'zod'
 
 import { getEnv } from '#/lib/env'
@@ -247,19 +248,82 @@ export const marzban = {
     )
   },
 
-  async getHosts(): Promise<
-    Record<string, Array<{ address: string; remark: string }>>
-  > {
+  async getHosts() {
     return request('/api/hosts', { method: 'GET' }, (data) =>
       z
         .record(
           z.string(),
           z.array(
-            z.object({ address: z.string(), remark: z.string().default('') }),
+            z
+              .object({
+                address: z.string(),
+                remark: z.string().default(''),
+                port: z.number().nullable().optional(),
+                is_disabled: z.boolean().nullable().optional(),
+              })
+              .passthrough(),
           ),
         )
         .parse(data),
     )
+  },
+
+  async getSubscription(username: string, format: string) {
+    const user = await this.getUser(username)
+    const env = getEnv()
+    const base = env.MARZBAN_SUBSCRIPTION_URL_PREFIX ?? env.MARZBAN_BASE_URL
+    if (!base) throw new Error('Subscription server is not configured')
+    const url = new URL(
+      resolveSubscriptionUrl(user.subscription_url) ?? '',
+      (base.includes('://') ? base : `https://${base}`) + '/',
+    )
+    const origins = [env.MARZBAN_BASE_URL, env.MARZBAN_SUBSCRIPTION_URL_PREFIX]
+      .filter(Boolean)
+      .map(
+        (value) =>
+          new URL(value!.includes('://') ? value! : `https://${value}`).origin,
+      )
+    if (
+      !origins.includes(url.origin) ||
+      !['https:', 'http:'].includes(url.protocol) ||
+      url.username ||
+      url.password
+    )
+      throw new Error('Subscription server address is not permitted')
+    url.pathname = `${url.pathname.replace(/\/$/, '')}/${format}`
+    url.search = ''
+    url.hash = ''
+    const response = await fetch(url, {
+      redirect: 'error',
+      signal: AbortSignal.timeout(10_000),
+      headers: { Accept: 'application/json, text/plain, text/yaml' },
+    })
+    if (!response.ok) throw new Error('Subscription is temporarily unavailable')
+    const reader = response.body?.getReader()
+    if (!reader) throw new Error('Subscription is empty')
+    const chunks: Uint8Array[] = []
+    let length = 0
+    try {
+      while (true) {
+        const chunk = await reader.read()
+        if (chunk.done) break
+        length += chunk.value.length
+        if (length > 5_000_000) throw new Error('Subscription is too large')
+        chunks.push(chunk.value)
+      }
+    } finally {
+      await reader.cancel()
+    }
+    const bytes = new Uint8Array(length)
+    let offset = 0
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset)
+      offset += chunk.length
+    }
+    return {
+      body: new TextDecoder().decode(bytes),
+      contentType: response.headers.get('content-type') ?? 'text/plain',
+    }
   },
 
   async getSystemStats() {

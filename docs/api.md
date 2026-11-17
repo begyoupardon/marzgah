@@ -47,50 +47,23 @@ The API returns JSON errors with an HTTP status and oRPC error code. `401` means
 
 Store the key in a secret manager or protected environment variable. The example's expanded `Authorization` header may be visible to local processes while curl runs; use a protected curl config or agent secret provider when that matters. Never place the key in a URL, repository, chat message, log, or screenshot. Revoke a suspected compromised key and create a replacement. API requests and audit records identify the account and key ID, never the secret value.
 
-## Connection access
+## Connection access (admin-only)
 
-The `access` namespace uses the same `POST /api/access/<procedure>` convention and current-role bearer authentication:
+Every `access.*` operation requires the caller's current administrator role. Reseller sessions, API keys and Telegram actors receive `403`, including for catalog, user access and operation-status reads. Ordinary reseller account creation must omit both `access` and `proxies`; administrator policies supply the connection settings.
 
-| Procedure    | Permission     | Purpose                                                                                                                                              |
-| ------------ | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `catalog`    | Authenticated  | Available inbounds, associated hosts, permitted templates, defaults and requirements; optional `backend` and admin-only effective `resellerId` scope |
-| `user`       | Owner or admin | `{username}` → desired source, effective/observed access, assignment `revision`, `policyRevision`, locked grants and pending/error state             |
-| `assign`     | Owner or admin | `{username, selection, revision, policyRevision, idempotencyKey}` → `{operationId}`                                                                  |
-| `policy`     | Admin          | Versioned policy containing `required`, `approved`, `templates`, and `resellers`                                                                     |
-| `preview`    | Admin          | `{backend, policy}` → affected users and changes; does not change desired policy or remote access                                                    |
-| `savePolicy` | Admin          | `{backend, policy, revision, idempotencyKey}` → `{operationId}`                                                                                      |
-| `operations` | Authenticated  | Recent accessible operations                                                                                                                         |
-| `operation`  | Actor or admin | `{id, offset?, limit?}` → paginated per-user results and aggregate progress                                                                          |
-| `retry`      | Actor or admin | `{id}` → requeue failed rows                                                                                                                         |
-| `drain`      | Admin          | `{limit:20}` → process at most 50 tasks; intended for external scheduling and manual recovery                                                        |
+| Procedure                         | Purpose                                                                                  |
+| --------------------------------- | ---------------------------------------------------------------------------------------- |
+| `catalog`                         | Host catalog, stable host IDs, protocols, inbound context, templates and policy revision |
+| `user`                            | Desired/effective/observed selection for `{username}`                                    |
+| `assign`                          | `{username, selection, revision, policyRevision, idempotencyKey}` → `{operationId}`      |
+| `policy`, `preview`, `savePolicy` | Read, preview and atomically save administrator policy                                   |
+| `operations`, `operation`         | Recent operations and paginated per-user results                                         |
+| `retry`, `drain`                  | Retry failures or process a bounded batch                                                |
 
-An inbound reference is `{ "protocol": "vless", "tag": "VLESS TCP" }`; the backend is specified separately and defaults to `marzban`. Selection is either `{ "mode": "template", "templateId": "stable-id" }` or `{ "mode": "custom", "inbounds": [...] }`. `vpnUsers.create` accepts the same selection in its optional `access` field. Omitting it uses the reseller default, including during CSV import and Telegram creation.
+An inbound reference is `{ "protocol":"vless", "tag":"VLESS TCP", "hostIds":["<host ID returned by catalog>"] }`. Omitting `hostIds` retains the legacy meaning of every host under that inbound; host arrays must be nonempty. Host IDs are stable across catalog reordering, and unknown/disabled IDs are rejected. Selections remain `{ "mode":"custom", "inbounds":[...] }` or `{ "mode":"template", "templateId":"stable-id" }`.
 
-Fetch current revisions before editing. Policy revisions also advance when assignments are enrolled or edited so previews cannot silently overwrite concurrent access changes. On `409 CONFLICT`, refresh and review again. Use a UUID `idempotencyKey` for each logical mutation and reuse it when retrying the exact request after a lost response; reusing it with a different payload is rejected. Inspect the returned operation until `pending` reaches zero; check `failed` and each task's error before considering the application complete. Older queued operations resolve the latest desired selection rather than restoring outdated policy.
+A policy contains `required`, `approved`, `templates` and `resellers`, with optional `hostDefaults:true` to apply approved hosts across all selected protocols rather than the legacy VLESS default. A reseller entry contains `resellerId`, `allowed`, `defaultTemplateId` and optional UUID `assignmentId`. Generate a new assignment ID when explicitly assigning/reassigning a reseller: this updates all existing users to the new selection. Keeping that ID while editing a template preserves later per-user overrides. The web panel manages these IDs automatically.
 
-Operation results default to 50 rows and accept `offset` plus `limit` (maximum 100); aggregate counts cover the entire operation. Preview responses contain at most 200 change examples, a full `affected` count, and a `truncated` flag.
+Use current revisions and a UUID idempotency key for each logical write. Reuse the same key and exact payload after a lost response; a stale edit returns `409`. Saving returns an operation ID, not proof of upstream completion. Inspect `pending` and `failed`. Results default to 50 rows (`offset`, `limit`, maximum 100), with global aggregate counts. Previews show at most 200 examples and expose `truncated`.
 
-A policy document has this shape:
-
-```json
-{
-  "required": [],
-  "approved": [{ "protocol": "vless", "tag": "VLESS TCP" }],
-  "templates": [
-    {
-      "id": "standard",
-      "name": "Standard",
-      "inbounds": [{ "protocol": "vless", "tag": "VLESS TCP" }]
-    }
-  ],
-  "resellers": [
-    {
-      "resellerId": "account-id",
-      "allowed": [{ "protocol": "vless", "tag": "VLESS TCP" }],
-      "defaultTemplateId": "standard"
-    }
-  ]
-}
-```
-
-Templates are shared and linked, not Marzban's native user templates. Updating the full document requires its current revision; unknown fields, duplicate template/reseller IDs, missing defaults, unavailable inbounds and empty effective access are rejected. See [connection access](connection-access.md) for inheritance, rollout and global requirements.
+User create/update/list/renew/sync outputs and customer/Telegram sharing return a signed panel subscription URL when host filtering is required. Clients must import that new link to receive filtered configs; direct upstream URLs previously distributed cannot be filtered. Signed endpoints need no session, verify revocation against the backend, and serve only the current selection. See [host management](connection-access.md) for format support, inheritance, failure behavior and rollout.

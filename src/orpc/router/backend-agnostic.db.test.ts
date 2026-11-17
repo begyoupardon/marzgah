@@ -237,11 +237,12 @@ it('explains when an account cannot take a password, and applies it when it can'
     vpn.createVpnUser,
     {
       username: 'bob',
+      resellerId: seller.id,
       dataLimitBytes: 10 * GB,
       durationMonths: 1,
       proxies: { trojan: {} },
     },
-    seller.id,
+    admin.id,
   )
   fake.calls.length = 0
   await callAs(
